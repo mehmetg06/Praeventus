@@ -4,6 +4,7 @@ import SwiftUI
 struct HomeView: View {
     @ObservedObject var store: WeatherStore
     private var weather: WeatherData { store.weather }
+    private var atmosphere: AtmosphericState { store.atmosphere }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -15,6 +16,8 @@ struct HomeView: View {
                     .padding(.top, 8)
 
                 atmosphereStoryCard
+
+                atmosphericDiagnostics
 
                 hourlyPreview
 
@@ -49,16 +52,16 @@ struct HomeView: View {
                 .padding(.top, -2)
                 .contentTransition(.numericText())
 
-            Text(weather.condition.rawValue)
+            Text(atmosphere.condition.rawValue)
                 .font(.title3.weight(.light))
                 .foregroundStyle(.white.opacity(0.92))
 
             HStack(spacing: 8) {
                 Circle()
-                    .fill(.green)
+                    .fill(atmosphere.stormRisk == .high ? .orange : .green)
                     .frame(width: 8, height: 8)
-                    .shadow(color: .green.opacity(0.8), radius: 6)
-                Text(weather.statusText)
+                    .shadow(color: .white.opacity(0.5), radius: 6)
+                Text(atmosphere.statusText)
                     .font(.subheadline.weight(.medium))
             }
             .foregroundStyle(.white)
@@ -68,6 +71,7 @@ struct HomeView: View {
         }
         .frame(maxWidth: .infinity)
         .animation(.easeInOut(duration: 0.22), value: weather)
+        .animation(.easeInOut(duration: 0.22), value: atmosphere)
     }
 
     private var metricsStrip: some View {
@@ -90,7 +94,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 16) {
                 SectionHeader(symbol: "sparkles", title: "Atmosfer Hikâyesi")
 
-                Text(weather.story)
+                Text(atmosphere.story)
                     .font(.body.weight(.regular))
                     .lineSpacing(4)
                     .foregroundStyle(.white.opacity(0.90))
@@ -98,11 +102,24 @@ struct HomeView: View {
 
             Spacer(minLength: 4)
 
-            AtmosphereOrb(condition: weather.condition)
+            AtmosphereOrb(condition: atmosphere.condition)
                 .frame(width: 112, height: 112)
         }
         .padding(22)
         .background(ThinGlassShape(cornerRadius: 30, intensity: 0.16))
+    }
+
+    private var atmosphericDiagnostics: some View {
+        HStack(spacing: 0) {
+            GlassMetric(symbol: "bolt.trianglebadge.exclamationmark", title: "Fırtına", value: atmosphere.stormRisk.rawValue, unit: "")
+            Divider().background(.white.opacity(0.28))
+            GlassMetric(symbol: "cloud.rain", title: "Yağış", value: atmosphere.rainSignal.rawValue, unit: "")
+            Divider().background(.white.opacity(0.28))
+            GlassMetric(symbol: "eye", title: "Görüş", value: atmosphere.visibility.rawValue, unit: "")
+        }
+        .frame(height: 104)
+        .padding(.horizontal, 14)
+        .background(ThinGlassShape(cornerRadius: 30, intensity: 0.13))
     }
 
     private var hourlyPreview: some View {
@@ -156,7 +173,7 @@ struct HomeView: View {
                         .overlay(alignment: .leading) {
                             Capsule()
                                 .fill(.white.opacity(0.82))
-                                .frame(width: CGFloat(item.high - item.low) * 6 + 22, height: 5)
+                                .frame(width: CGFloat(max(1, item.high - item.low)) * 6 + 22, height: 5)
                         }
                     Text("\(item.high)°")
                 }
@@ -173,20 +190,20 @@ struct HomeView: View {
     private var sampleHours: [(time: String, symbol: String, temp: Int)] {
         let start = Int(weather.hour.rounded())
         return [
-            ("Şu An", weather.condition.symbolName, Int(weather.temperature)),
-            (String(format: "%02d:00", (start + 1) % 24), weather.condition.symbolName, Int(weather.temperature + 1)),
-            (String(format: "%02d:00", (start + 2) % 24), weather.condition.symbolName, Int(weather.temperature + 2)),
-            (String(format: "%02d:00", (start + 3) % 24), weather.condition.symbolName, Int(weather.temperature + 2)),
-            (String(format: "%02d:00", (start + 4) % 24), "cloud.fill", Int(weather.temperature + 1))
+            ("Şu An", atmosphere.symbolName, Int(weather.temperature)),
+            (String(format: "%02d:00", (start + 1) % 24), atmosphere.symbolName, Int(weather.temperature + 1)),
+            (String(format: "%02d:00", (start + 2) % 24), atmosphere.symbolName, Int(weather.temperature + 2)),
+            (String(format: "%02d:00", (start + 3) % 24), atmosphere.symbolName, Int(weather.temperature + 2)),
+            (String(format: "%02d:00", (start + 4) % 24), atmosphere.condition == .storm ? "cloud.bolt.rain.fill" : atmosphere.symbolName, Int(weather.temperature + 1))
         ]
     }
 
     private var sampleDays: [(day: String, symbol: String, low: Int, high: Int)] {
         [
-            ("Bugün", weather.condition.symbolName, Int(weather.temperature - 7), Int(weather.temperature + 3)),
-            ("Yarın", "cloud.sun.fill", Int(weather.temperature - 8), Int(weather.temperature + 2)),
-            ("Pazar", "cloud.rain.fill", Int(weather.temperature - 9), Int(weather.temperature - 1)),
-            ("Pazartesi", "cloud.fill", Int(weather.temperature - 8), Int(weather.temperature))
+            ("Bugün", atmosphere.symbolName, Int(weather.temperature - 7), Int(weather.temperature + 3)),
+            ("Yarın", atmosphere.symbolName, Int(weather.temperature - 8), Int(weather.temperature + 2)),
+            ("Pazar", atmosphere.rainSignal == .high ? "cloud.rain.fill" : atmosphere.symbolName, Int(weather.temperature - 9), Int(weather.temperature - 1)),
+            ("Pazartesi", atmosphere.condition == .clear ? "cloud.sun.fill" : atmosphere.symbolName, Int(weather.temperature - 8), Int(weather.temperature))
         ]
     }
 }
