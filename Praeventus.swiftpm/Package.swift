@@ -8,6 +8,7 @@ import AppleProductTypes
 let sources = [
     "App.swift",
     "WeatherData.swift",
+    "WeatherStore.swift",
     "PraeventusRootView.swift",
     "AtmosphereBackgroundView.swift",
     "GlassComponents.swift",
