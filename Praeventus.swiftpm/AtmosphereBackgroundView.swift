@@ -9,6 +9,9 @@ struct AtmosphereBackgroundView: View {
     private var mood: BackgroundMood { atmosphere.backgroundMood }
     private var timeOfDay: TimeOfDay { TimeOfDay(hour: Int(hour.rounded())) }
     private var windIntensity: Double { min(max(windSpeed / 90.0, 0.0), 1.0) }
+    private var hotSunny: Bool {
+        (mood == .clear || mood == .partlyCloudy) && atmosphere.condition == .clear && timeOfDay == .day
+    }
 
     @State private var drift = false
     @State private var breathe = false
@@ -38,6 +41,15 @@ struct AtmosphereBackgroundView: View {
 
     private var palette: [Color] {
         let base = atmosphere.condition.palette
+        if hotSunny {
+            return [
+                Color(red: 0.05, green: 0.34, blue: 0.78),
+                Color(red: 0.26, green: 0.66, blue: 1.0),
+                Color(red: 0.86, green: 0.94, blue: 1.0),
+                Color(red: 1.0, green: 0.76, blue: 0.42).opacity(0.88)
+            ]
+        }
+
         switch timeOfDay {
         case .dawn:
             return [base[0].opacity(0.92), Color(red: 0.52, green: 0.68, blue: 0.86), Color(red: 0.95, green: 0.62, blue: 0.42)]
@@ -53,16 +65,36 @@ struct AtmosphereBackgroundView: View {
     private var lightField: some View {
         ZStack {
             Circle()
-                .fill(horizonColor.opacity(mood == .storm ? 0.08 : 0.22))
-                .frame(width: 560, height: 560)
-                .blur(radius: 110)
-                .offset(x: drift ? -130 : -70, y: drift ? -280 : -210)
+                .fill(horizonColor.opacity(hotSunny ? 0.34 : (mood == .storm ? 0.08 : 0.22)))
+                .frame(width: hotSunny ? 700 : 560, height: hotSunny ? 700 : 560)
+                .blur(radius: hotSunny ? 150 : 110)
+                .offset(x: drift ? -150 : -80, y: drift ? -320 : -230)
 
             Circle()
-                .fill(.cyan.opacity((mood == .wet || mood == .fog || mood == .snow) ? 0.13 : 0.08))
+                .fill(.cyan.opacity((mood == .wet || mood == .fog || mood == .snow) ? 0.13 : (hotSunny ? 0.045 : 0.08)))
                 .frame(width: 460, height: 460)
                 .blur(radius: 118)
                 .offset(x: drift ? 150 : 90, y: drift ? 190 : 250)
+
+            if hotSunny {
+                Circle()
+                    .fill(Color(red: 1.0, green: 0.72, blue: 0.30).opacity(breathe ? 0.18 : 0.08))
+                    .frame(width: 620, height: 620)
+                    .blur(radius: 150)
+                    .offset(x: 130, y: -70)
+
+                LinearGradient(
+                    colors: [
+                        Color(red: 1.0, green: 0.80, blue: 0.42).opacity(0.18),
+                        .clear,
+                        Color(red: 1.0, green: 0.62, blue: 0.25).opacity(0.10)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+                .blendMode(.screen)
+            }
 
             if mood == .storm {
                 Circle()
@@ -73,11 +105,12 @@ struct AtmosphereBackgroundView: View {
             }
         }
         .scaleEffect(breathe ? 1.018 : 0.992)
-        .animation(.easeInOut(duration: 13).repeatForever(autoreverses: true), value: breathe)
+        .animation(.easeInOut(duration: hotSunny ? 18 : 13).repeatForever(autoreverses: true), value: breathe)
         .ignoresSafeArea()
     }
 
     private var horizonColor: Color {
+        if hotSunny { return Color(red: 1.0, green: 0.74, blue: 0.35) }
         switch timeOfDay {
         case .dawn: return Color(red: 1.0, green: 0.72, blue: 0.50)
         case .day: return Color(red: 0.72, green: 0.86, blue: 1.0)
@@ -99,19 +132,32 @@ struct AtmosphereBackgroundView: View {
                     let x = (CGFloat(time * (speed + Double(index) * 0.22)) + CGFloat(index * 211)).truncatingRemainder(dividingBy: size.width + width) - width
                     let y = size.height * (0.12 + CGFloat(index) * 0.15)
                     let rect = CGRect(x: x, y: y, width: width, height: height)
-                    let opacity = 0.018 + atmosphere.cloudCover * 0.050
+                    let opacity = hotSunny ? 0.020 : 0.018 + atmosphere.cloudCover * 0.050
                     context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(opacity)))
+                }
+
+                if hotSunny {
+                    for index in 0..<3 {
+                        let y = size.height * (0.62 + CGFloat(index) * 0.09)
+                        let rect = CGRect(x: -size.width * 0.12, y: y, width: size.width * 1.24, height: 82)
+                        context.fill(
+                            Path(roundedRect: rect, cornerRadius: 60),
+                            with: .color(Color(red: 1.0, green: 0.78, blue: 0.42).opacity(0.030 - Double(index) * 0.006))
+                        )
+                    }
                 }
             }
         }
-        .blur(radius: mood == .fog ? 34 : 24)
+        .blur(radius: mood == .fog ? 34 : (hotSunny ? 18 : 24))
         .ignoresSafeArea()
     }
 
     @ViewBuilder
     private var moodLayer: some View {
         switch mood {
-        case .clear, .partlyCloudy, .cloudy:
+        case .clear, .partlyCloudy:
+            if hotSunny { HotSunnyLayer(drift: drift, windIntensity: windIntensity) }
+        case .cloudy:
             EmptyView()
         case .wet:
             RainAtmosphereLayer(windSpeed: windSpeed, rainSignal: atmosphere.rainSignal)
@@ -128,12 +174,17 @@ struct AtmosphereBackgroundView: View {
     private var depthOverlay: some View {
         ZStack {
             LinearGradient(
-                colors: [.white.opacity(0.035), .clear, .black.opacity(baseDarkness)],
+                colors: [
+                    .white.opacity(hotSunny ? 0.055 : 0.035),
+                    .clear,
+                    Color(red: 0.97, green: 0.58, blue: 0.22).opacity(hotSunny ? 0.16 : 0.0),
+                    .black.opacity(baseDarkness)
+                ],
                 startPoint: .top,
                 endPoint: .bottom
             )
             RadialGradient(
-                colors: [.clear, .black.opacity(mood == .storm ? 0.52 : 0.32)],
+                colors: [.clear, .black.opacity(mood == .storm ? 0.52 : (hotSunny ? 0.20 : 0.32))],
                 center: .center,
                 startRadius: 120,
                 endRadius: 610
@@ -145,7 +196,7 @@ struct AtmosphereBackgroundView: View {
     private var baseDarkness: Double {
         let weather: Double
         switch mood {
-        case .clear: weather = 0.05
+        case .clear: weather = hotSunny ? 0.02 : 0.05
         case .partlyCloudy: weather = 0.09
         case .cloudy: weather = 0.14
         case .wet: weather = 0.20
@@ -154,6 +205,52 @@ struct AtmosphereBackgroundView: View {
         case .snow: weather = 0.10
         }
         return min(0.62, weather + timeOfDay.darkness)
+    }
+}
+
+private struct HotSunnyLayer: View {
+    let drift: Bool
+    let windIntensity: Double
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 1.0, green: 0.86, blue: 0.48).opacity(0.16),
+                    .clear,
+                    Color(red: 0.98, green: 0.50, blue: 0.18).opacity(0.10)
+                ],
+                startPoint: drift ? .topLeading : .top,
+                endPoint: .bottomTrailing
+            )
+            .blendMode(.screen)
+
+            TimelineView(.periodic(from: .now, by: 1.0 / 12.0)) { timeline in
+                Canvas { context, size in
+                    let time = timeline.date.timeIntervalSinceReferenceDate
+                    let waveCount = 5
+                    for index in 0..<waveCount {
+                        let y = size.height * (0.58 + CGFloat(index) * 0.075)
+                        let phase = CGFloat(time * 0.38 + Double(index) * 1.7)
+                        var path = Path()
+                        path.move(to: CGPoint(x: -40, y: y))
+                        let steps = 8
+                        for step in 0...steps {
+                            let x = size.width * CGFloat(step) / CGFloat(steps)
+                            let shimmer = sin(CGFloat(step) * 1.35 + phase) * (2.5 + CGFloat(windIntensity) * 4)
+                            path.addLine(to: CGPoint(x: x, y: y + shimmer))
+                        }
+                        context.stroke(
+                            path,
+                            with: .color(Color(red: 1.0, green: 0.86, blue: 0.54).opacity(0.040 - Double(index) * 0.004)),
+                            style: StrokeStyle(lineWidth: 1.0, lineCap: .round, lineJoin: .round)
+                        )
+                    }
+                }
+            }
+            .blur(radius: 1.1)
+        }
+        .ignoresSafeArea()
     }
 }
 
