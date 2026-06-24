@@ -11,131 +11,150 @@ struct SunHaloOpticsLayer: View {
             let sunPoint = CGPoint(x: size.width * 0.84, y: size.height * 0.16)
 
             ZStack {
-                SunHaloRings(sunPoint: sunPoint, animate: animate)
-                CameraStarburst(sunPoint: sunPoint, animate: animate)
-                CameraFlareStreak(size: size, animate: animate)
-                SunDustParticles(size: size, animate: animate, windIntensity: windIntensity)
+                SunCameraBloom(sunPoint: sunPoint, animate: animate)
+                SunSharpStarburst(sunPoint: sunPoint, animate: animate)
+                FastCameraFlare(size: size, animate: animate)
+                MovingAtmosphericDust(size: size, animate: animate, windIntensity: windIntensity)
             }
             .blendMode(.screen)
-            .animation(.easeInOut(duration: 7.5).repeatForever(autoreverses: true), value: animate)
+            .animation(.easeInOut(duration: 3.6).repeatForever(autoreverses: true), value: animate)
             .onAppear { animate = true }
         }
         .ignoresSafeArea()
     }
 }
 
-private struct SunHaloRings: View {
+private struct SunCameraBloom: View {
     let sunPoint: CGPoint
     let animate: Bool
 
     var body: some View {
         ZStack {
-            halo(base: 150, grow: 24, opacity: 0.28, blur: 3, lineWidth: 1.2)
-            halo(base: 220, grow: 34, opacity: 0.20, blur: 8, lineWidth: 1.0)
-            halo(base: 330, grow: 46, opacity: 0.14, blur: 16, lineWidth: 0.9)
-            halo(base: 470, grow: 62, opacity: 0.08, blur: 28, lineWidth: 0.8)
-        }
-    }
+            Circle()
+                .stroke(Color.white.opacity(animate ? 0.32 : 0.20), lineWidth: 1.4)
+                .frame(width: animate ? 178 : 148, height: animate ? 178 : 148)
+                .blur(radius: 1.4)
 
-    private func halo(base: CGFloat, grow: CGFloat, opacity: Double, blur: CGFloat, lineWidth: CGFloat) -> some View {
-        Circle()
-            .stroke(Color.white.opacity(opacity), lineWidth: lineWidth)
-            .frame(width: base + (animate ? grow : 0), height: base + (animate ? grow : 0))
-            .blur(radius: blur)
-            .position(x: sunPoint.x, y: sunPoint.y)
+            Circle()
+                .stroke(Color(red: 1.0, green: 0.86, blue: 0.52).opacity(animate ? 0.24 : 0.15), lineWidth: 1.2)
+                .frame(width: animate ? 270 : 230, height: animate ? 270 : 230)
+                .blur(radius: 4)
+
+            Circle()
+                .stroke(Color.white.opacity(animate ? 0.15 : 0.08), lineWidth: 0.9)
+                .frame(width: animate ? 410 : 350, height: animate ? 410 : 350)
+                .blur(radius: 10)
+
+            Circle()
+                .fill(Color.white.opacity(0.22))
+                .frame(width: animate ? 118 : 104, height: animate ? 118 : 104)
+                .blur(radius: 16)
+
+            Circle()
+                .fill(Color.white.opacity(0.88))
+                .frame(width: animate ? 82 : 76, height: animate ? 82 : 76)
+                .blur(radius: 0.35)
+        }
+        .position(x: sunPoint.x, y: sunPoint.y)
     }
 }
 
-private struct CameraStarburst: View {
+private struct SunSharpStarburst: View {
     let sunPoint: CGPoint
     let animate: Bool
 
     var body: some View {
         ZStack {
-            ray(width: 470, height: 7, angle: 0, opacity: 0.34)
-            ray(width: 560, height: 5, angle: 90, opacity: 0.24)
-            ray(width: 440, height: 5, angle: 45, opacity: 0.26)
-            ray(width: 440, height: 5, angle: -45, opacity: 0.26)
-            ray(width: 360, height: 3.5, angle: 22, opacity: 0.16)
-            ray(width: 360, height: 3.5, angle: -22, opacity: 0.16)
+            ray(width: 560, height: 4.0, angle: 0, opacity: 0.46)
+            ray(width: 620, height: 3.2, angle: 90, opacity: 0.36)
+            ray(width: 500, height: 3.2, angle: 45, opacity: 0.38)
+            ray(width: 500, height: 3.2, angle: -45, opacity: 0.38)
+            ray(width: 390, height: 2.2, angle: 22, opacity: 0.24)
+            ray(width: 390, height: 2.2, angle: -22, opacity: 0.24)
+            ray(width: 340, height: 1.8, angle: 68, opacity: 0.18)
+            ray(width: 340, height: 1.8, angle: -68, opacity: 0.18)
         }
         .position(x: sunPoint.x, y: sunPoint.y)
-        .rotationEffect(.degrees(animate ? 2.4 : -2.4))
+        .rotationEffect(.degrees(animate ? 4.5 : -4.5))
     }
 
     private func ray(width: CGFloat, height: CGFloat, angle: Double, opacity: Double) -> some View {
         Capsule(style: .continuous)
             .fill(
                 LinearGradient(
-                    colors: [.clear, .white.opacity(opacity), Color(red: 1.0, green: 0.82, blue: 0.45).opacity(opacity * 0.45), .clear],
+                    colors: [
+                        .clear,
+                        Color.white.opacity(opacity * 0.50),
+                        Color.white.opacity(opacity),
+                        Color(red: 1.0, green: 0.86, blue: 0.48).opacity(opacity * 0.55),
+                        .clear
+                    ],
                     startPoint: .leading,
                     endPoint: .trailing
                 )
             )
-            .frame(width: animate ? width * 1.08 : width * 0.94, height: height)
-            .blur(radius: height * 1.4)
+            .frame(width: animate ? width * 1.12 : width * 0.92, height: height)
+            .blur(radius: 0.65)
             .rotationEffect(.degrees(angle))
     }
 }
 
-private struct CameraFlareStreak: View {
+private struct FastCameraFlare: View {
     let size: CGSize
     let animate: Bool
 
     var body: some View {
         ZStack {
             Capsule(style: .continuous)
-                .fill(flareGradient)
-                .frame(width: size.width * 0.74, height: animate ? 64 : 48)
-                .blur(radius: 10)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            .clear,
+                            Color.white.opacity(0.16),
+                            Color(red: 1.0, green: 0.78, blue: 0.34).opacity(0.10),
+                            .clear
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(width: size.width * 0.74, height: animate ? 42 : 32)
+                .blur(radius: 5)
                 .rotationEffect(.degrees(-18))
-                .position(x: size.width * 0.46, y: size.height * (animate ? 0.282 : 0.250))
+                .position(x: size.width * (animate ? 0.48 : 0.43), y: size.height * (animate ? 0.285 : 0.248))
 
             Capsule(style: .continuous)
-                .fill(Color.white.opacity(0.10))
-                .frame(width: size.width * 0.46, height: 3)
-                .blur(radius: 2)
+                .fill(Color.white.opacity(0.22))
+                .frame(width: size.width * 0.50, height: 2.4)
+                .blur(radius: 0.6)
                 .rotationEffect(.degrees(-18))
-                .position(x: size.width * 0.52, y: size.height * (animate ? 0.274 : 0.255))
+                .position(x: size.width * (animate ? 0.55 : 0.49), y: size.height * (animate ? 0.274 : 0.254))
         }
-    }
-
-    private var flareGradient: LinearGradient {
-        LinearGradient(
-            colors: [
-                .clear,
-                Color.white.opacity(0.13),
-                Color(red: 1.0, green: 0.78, blue: 0.34).opacity(0.09),
-                .clear
-            ],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
     }
 }
 
-private struct SunDustParticles: View {
+private struct MovingAtmosphericDust: View {
     let size: CGSize
     let animate: Bool
     let windIntensity: Double
 
     var body: some View {
         ZStack {
-            ForEach(0..<18, id: \.self) { index in
+            ForEach(0..<20, id: \.self) { index in
                 dust(index: index)
             }
         }
     }
 
     private func dust(index: Int) -> some View {
-        let side = CGFloat(2.0 + Double(index % 3))
-        let movement = animate ? CGFloat(index % 5) * 8 : -CGFloat(index % 5) * 8
-        let wind = CGFloat(windIntensity) * CGFloat(index % 4) * 3
+        let side = CGFloat(1.4 + Double(index % 3) * 0.9)
+        let movement = animate ? CGFloat(index % 6) * 18 : -CGFloat(index % 6) * 18
+        let wind = CGFloat(windIntensity) * CGFloat(index % 4) * 6
 
         return Circle()
-            .fill(Color(red: 1.0, green: 0.91, blue: 0.62).opacity(0.040))
+            .fill(Color(red: 1.0, green: 0.91, blue: 0.62).opacity(0.052))
             .frame(width: side, height: side)
-            .blur(radius: 0.7)
+            .blur(radius: 0.25)
             .position(
                 x: size.width * dustX(index) + movement + wind,
                 y: size.height * dustY(index)
