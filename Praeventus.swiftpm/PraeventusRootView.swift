@@ -8,7 +8,7 @@ struct PraeventusRootView: View {
         TabView {
             ZStack {
                 AtmosphereBackgroundView(
-                    condition: store.weather.condition,
+                    atmosphere: store.atmosphere,
                     hour: store.weather.hour,
                     windSpeed: store.weather.windSpeed
                 )
@@ -20,7 +20,7 @@ struct PraeventusRootView: View {
 
             ZStack {
                 AtmosphereBackgroundView(
-                    condition: store.weather.condition,
+                    atmosphere: store.atmosphere,
                     hour: store.weather.hour,
                     windSpeed: store.weather.windSpeed
                 )
@@ -32,7 +32,7 @@ struct PraeventusRootView: View {
 
             ZStack {
                 AtmosphereBackgroundView(
-                    condition: store.weather.condition,
+                    atmosphere: store.atmosphere,
                     hour: store.weather.hour,
                     windSpeed: store.weather.windSpeed
                 )
