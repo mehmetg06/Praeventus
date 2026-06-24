@@ -4,8 +4,10 @@ import SwiftUI
 struct AtmosphereBackgroundView: View {
     let condition: WeatherCondition
     let hour: Double
+    let windSpeed: Double
 
     private var timeOfDay: TimeOfDay { TimeOfDay(hour: Int(hour.rounded())) }
+    private var windIntensity: Double { min(max(windSpeed / 90.0, 0.0), 1.0) }
 
     @State private var drift = false
     @State private var pulse = false
@@ -22,6 +24,9 @@ struct AtmosphereBackgroundView: View {
 
             skyLightLayer
             cloudVeilLayer
+            WindFlowLayer(windSpeed: windSpeed)
+                .blendMode(.screen)
+                .opacity(windIntensity <= 0.05 ? 0.0 : 1.0)
             weatherSpecificLayer
 
             Rectangle()
@@ -30,6 +35,7 @@ struct AtmosphereBackgroundView: View {
         }
         .animation(.easeInOut(duration: 0.55), value: condition)
         .animation(.easeInOut(duration: 0.55), value: Int(hour.rounded()))
+        .animation(.easeInOut(duration: 0.35), value: Int(windSpeed.rounded()))
         .onAppear {
             drift = true
             pulse = true
@@ -91,22 +97,20 @@ struct AtmosphereBackgroundView: View {
         TimelineView(.animation) { timeline in
             Canvas { context, size in
                 let time = timeline.date.timeIntervalSinceReferenceDate
-                for index in 0..<7 {
-                    let width = size.width * (0.34 + CGFloat(index) * 0.045)
+                for index in 0..<8 {
+                    let width = size.width * (0.34 + CGFloat(index) * 0.05)
                     let height = size.height * 0.12
-                    let x = (CGFloat(index) * 110 + CGFloat(time).truncatingRemainder(dividingBy: 240))
-                        .truncatingRemainder(dividingBy: size.width + 180) - 100
-                    let y = size.height * (0.12 + CGFloat(index) * 0.095)
+                    let speed = 52 + windSpeed * 1.25
+                    let x = (CGFloat(index) * 110 + CGFloat(time * speed).truncatingRemainder(dividingBy: 320))
+                        .truncatingRemainder(dividingBy: size.width + 220) - 120
+                    let y = size.height * (0.10 + CGFloat(index) * 0.092)
                     let rect = CGRect(x: x, y: y, width: width, height: height)
-                    let opacity: Double = condition == .clear ? 0.055 : 0.13
-                    context.fill(
-                        Path(ellipseIn: rect),
-                        with: .color(.white.opacity(opacity))
-                    )
+                    let opacity: Double = condition == .clear ? 0.052 : 0.13
+                    context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(opacity)))
                 }
             }
         }
-        .blur(radius: 26)
+        .blur(radius: 28)
         .ignoresSafeArea()
     }
 
@@ -114,72 +118,161 @@ struct AtmosphereBackgroundView: View {
     private var weatherSpecificLayer: some View {
         switch condition {
         case .rain:
-            RainGlassStreaks()
+            RainRefractionLayer(windSpeed: windSpeed)
         case .storm:
-            StormFlashLayer()
+            StormPulseLayer(windSpeed: windSpeed)
         case .fog:
-            FogLayer()
+            FogLayer(windSpeed: windSpeed)
         case .snow:
-            SnowDustLayer()
+            SnowDriftLayer(windSpeed: windSpeed)
         default:
             if timeOfDay == .night { StarDustLayer() }
         }
     }
 }
 
-private struct RainGlassStreaks: View {
+private struct WindFlowLayer: View {
+    let windSpeed: Double
+
+    private var intensity: Double { min(max(windSpeed / 90.0, 0.0), 1.0) }
+
     var body: some View {
         TimelineView(.animation) { timeline in
             Canvas { context, size in
+                guard intensity > 0.05 else { return }
                 let time = timeline.date.timeIntervalSinceReferenceDate
-                for index in 0..<34 {
-                    let x = CGFloat(index) / 34 * size.width + CGFloat(sin(time + Double(index))) * 18
-                    let y = (CGFloat(time * 82) + CGFloat(index * 73)).truncatingRemainder(dividingBy: size.height + 180) - 90
+                let lineCount = Int(7 + intensity * 22)
+                let velocity = 34 + windSpeed * 2.15
+
+                for index in 0..<lineCount {
+                    let baseY = size.height * (0.10 + CGFloat(index) / CGFloat(max(lineCount, 1)) * 0.82)
+                    let phase = CGFloat(time * 0.9 + Double(index) * 0.72)
+                    let xTravel = CGFloat(time * velocity + Double(index * 93)).truncatingRemainder(dividingBy: size.width + 280) - 170
+                    let length = CGFloat(72 + intensity * 210)
+                    let amplitude = CGFloat(5 + intensity * 18)
                     var path = Path()
-                    path.move(to: CGPoint(x: x, y: y))
-                    path.addLine(to: CGPoint(x: x - 18, y: y + 78))
-                    context.stroke(path, with: .color(.white.opacity(0.12)), lineWidth: 1)
+                    path.move(to: CGPoint(x: xTravel, y: baseY + sin(phase) * amplitude))
+
+                    for step in stride(from: 0, through: length, by: 9) {
+                        let x = xTravel + step
+                        let progress = step / max(length, 1)
+                        let y = baseY + sin(progress * .pi * 2.0 + phase) * amplitude + CGFloat(index % 3 - 1) * 8
+                        path.addLine(to: CGPoint(x: x, y: y))
+                    }
+
+                    let opacity = 0.05 + intensity * 0.20
+                    context.stroke(path, with: .linearGradient(
+                        Gradient(colors: [.white.opacity(0.0), .white.opacity(opacity), .white.opacity(0.0)]),
+                        startPoint: CGPoint(x: xTravel, y: baseY),
+                        endPoint: CGPoint(x: xTravel + length, y: baseY)
+                    ), lineWidth: 0.7 + intensity * 1.1)
                 }
             }
         }
-        .blur(radius: 0.7)
+        .blur(radius: 0.35)
         .ignoresSafeArea()
     }
 }
 
-private struct StormFlashLayer: View {
-    @State private var flash = false
+private struct RainRefractionLayer: View {
+    let windSpeed: Double
 
-    var body: some View {
-        Rectangle()
-            .fill(.white.opacity(flash ? 0.10 : 0.0))
-            .ignoresSafeArea()
-            .animation(.easeInOut(duration: 2.8).repeatForever(autoreverses: true), value: flash)
-            .onAppear { flash = true }
-    }
-}
-
-private struct FogLayer: View {
-    var body: some View {
-        Rectangle()
-            .fill(.white.opacity(0.22))
-            .blur(radius: 48)
-            .ignoresSafeArea()
-    }
-}
-
-private struct SnowDustLayer: View {
     var body: some View {
         TimelineView(.animation) { timeline in
             Canvas { context, size in
                 let time = timeline.date.timeIntervalSinceReferenceDate
+                let intensity = min(max(windSpeed / 90.0, 0.0), 1.0)
+
                 for index in 0..<46 {
-                    let x = (CGFloat(index * 59) + CGFloat(time * 18)).truncatingRemainder(dividingBy: size.width)
-                    let y = (CGFloat(index * 41) + CGFloat(time * 38)).truncatingRemainder(dividingBy: size.height)
-                    context.fill(Path(ellipseIn: CGRect(x: x, y: y, width: 2.4, height: 2.4)), with: .color(.white.opacity(0.42)))
+                    let tilt = CGFloat(12 + windSpeed * 0.38)
+                    let x = CGFloat(index) / 46 * size.width + CGFloat(sin(time * 0.8 + Double(index))) * 20
+                    let y = (CGFloat(time * (92 + windSpeed * 0.75)) + CGFloat(index * 79)).truncatingRemainder(dividingBy: size.height + 200) - 100
+                    let length = CGFloat(68 + intensity * 42)
+                    var path = Path()
+                    path.move(to: CGPoint(x: x, y: y))
+                    path.addLine(to: CGPoint(x: x - tilt, y: y + length))
+                    context.stroke(path, with: .color(.white.opacity(0.10 + intensity * 0.07)), lineWidth: 0.8)
+                }
+
+                for index in 0..<10 {
+                    let rectWidth = size.width * 0.70
+                    let y = (CGFloat(index) * 90 + CGFloat(time * 22).truncatingRemainder(dividingBy: 260)).truncatingRemainder(dividingBy: size.height + 160) - 80
+                    let rect = CGRect(x: -80 + CGFloat(index % 3) * 44, y: y, width: rectWidth, height: 42)
+                    context.fill(Path(roundedRect: rect, cornerRadius: 24), with: .color(.white.opacity(0.035)))
                 }
             }
         }
+        .blur(radius: 0.8)
+        .ignoresSafeArea()
+    }
+}
+
+private struct StormPulseLayer: View {
+    let windSpeed: Double
+    @State private var pulse = false
+
+    var body: some View {
+        ZStack {
+            WindFlowLayer(windSpeed: max(windSpeed, 42))
+                .opacity(0.92)
+
+            Rectangle()
+                .fill(.white.opacity(pulse ? 0.12 : 0.0))
+                .ignoresSafeArea()
+                .animation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true), value: pulse)
+
+            Circle()
+                .fill(.purple.opacity(pulse ? 0.18 : 0.06))
+                .frame(width: 560, height: 560)
+                .blur(radius: 100)
+                .offset(x: -120, y: -260)
+                .blendMode(.screen)
+        }
+        .onAppear { pulse = true }
+    }
+}
+
+private struct FogLayer: View {
+    let windSpeed: Double
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            Canvas { context, size in
+                let time = timeline.date.timeIntervalSinceReferenceDate
+                for index in 0..<9 {
+                    let speed = 8 + windSpeed * 0.30 + Double(index) * 1.2
+                    let x = (CGFloat(time * speed) + CGFloat(index * 113)).truncatingRemainder(dividingBy: size.width + 260) - 130
+                    let y = size.height * (0.12 + CGFloat(index) * 0.095)
+                    let rect = CGRect(x: x, y: y, width: size.width * 0.72, height: 96)
+                    context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(0.095)))
+                }
+            }
+        }
+        .blur(radius: 34)
+        .ignoresSafeArea()
+    }
+}
+
+private struct SnowDriftLayer: View {
+    let windSpeed: Double
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            Canvas { context, size in
+                let time = timeline.date.timeIntervalSinceReferenceDate
+                let intensity = min(max(windSpeed / 90.0, 0.0), 1.0)
+
+                for index in 0..<64 {
+                    let speedY = 24 + Double(index % 5) * 5
+                    let speedX = 10 + windSpeed * 0.62
+                    let x = (CGFloat(index * 59) + CGFloat(time * speedX)).truncatingRemainder(dividingBy: size.width + 80) - 40
+                    let y = (CGFloat(index * 41) + CGFloat(time * speedY)).truncatingRemainder(dividingBy: size.height + 80) - 40
+                    let sizePoint = CGFloat(1.6 + Double(index % 4) * 0.8)
+                    context.fill(Path(ellipseIn: CGRect(x: x, y: y, width: sizePoint, height: sizePoint)), with: .color(.white.opacity(0.26 + intensity * 0.22)))
+                }
+            }
+        }
+        .blur(radius: 0.25)
         .ignoresSafeArea()
     }
 }
