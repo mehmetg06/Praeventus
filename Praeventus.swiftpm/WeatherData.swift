@@ -11,6 +11,15 @@ struct WeatherData: Equatable {
     var pressure: Double
     var windSpeed: Double
     var rainProbability: Double
+    var hour: Double
+
+    var timeOfDay: TimeOfDay {
+        TimeOfDay(hour: Int(hour.rounded()))
+    }
+
+    var formattedHour: String {
+        String(format: "%02d:00", Int(hour.rounded()) % 24)
+    }
 
     var statusText: String {
         switch condition {
@@ -25,21 +34,22 @@ struct WeatherData: Equatable {
     }
 
     var story: String {
+        let timePrefix = timeOfDay.storyPrefix
         switch condition {
         case .clear:
-            return "Basınç dengeli. Nem düşük-orta seviyede. Önümüzdeki saatlerde gökyüzü açık ve sakin kalabilir."
+            return "\(timePrefix) Basınç dengeli. Nem düşük-orta seviyede. Önümüzdeki saatlerde gökyüzü açık ve sakin kalabilir."
         case .partlyCloudy:
-            return "Atmosfer genel olarak kararlı. Yerel bulutlanma oluşabilir ama güçlü bir yağış sinyali öne çıkmıyor."
+            return "\(timePrefix) Atmosfer genel olarak kararlı. Yerel bulutlanma oluşabilir ama güçlü bir yağış sinyali öne çıkmıyor."
         case .cloudy:
-            return "Nem ve bulut örtüsü artıyor. Basınç belirgin düşmezse yağış riski sınırlı kalabilir."
+            return "\(timePrefix) Nem ve bulut örtüsü artıyor. Basınç belirgin düşmezse yağış riski sınırlı kalabilir."
         case .rain:
-            return "Nem yüksek ve yağış sinyali belirgin. Kısa vadede aralıklı yağış beklenebilir."
+            return "\(timePrefix) Nem yüksek ve yağış sinyali belirgin. Kısa vadede aralıklı yağış beklenebilir."
         case .storm:
-            return "Basınç düşüşü, yüksek nem ve rüzgar birleşimi atmosferi kararsızlaştırıyor. Ani sağanak ve fırtına riski izlenmeli."
+            return "\(timePrefix) Basınç düşüşü, yüksek nem ve rüzgar birleşimi atmosferi kararsızlaştırıyor. Ani sağanak ve fırtına riski izlenmeli."
         case .fog:
-            return "Yüzey nemi yüksek. Rüzgar zayıf kaldığı için görüşte azalma ve sis tabakası oluşabilir."
+            return "\(timePrefix) Yüzey nemi yüksek. Rüzgar zayıf kaldığı için görüşte azalma ve sis tabakası oluşabilir."
         case .snow:
-            return "Soğuk hava profili güçleniyor. Nem yeterli olursa kar veya karla karışık yağış görülebilir."
+            return "\(timePrefix) Soğuk hava profili güçleniyor. Nem yeterli olursa kar veya karla karışık yağış görülebilir."
         }
     }
 
@@ -52,8 +62,66 @@ struct WeatherData: Equatable {
         humidity: 58,
         pressure: 1014,
         windSpeed: 18,
-        rainProbability: 18
+        rainProbability: 18,
+        hour: 14
     )
+}
+
+enum TimeOfDay: String, Equatable {
+    case dawn = "Şafak"
+    case day = "Gündüz"
+    case sunset = "Gün Batımı"
+    case night = "Gece"
+
+    init(hour: Int) {
+        let normalized = ((hour % 24) + 24) % 24
+        switch normalized {
+        case 5...8:
+            self = .dawn
+        case 9...16:
+            self = .day
+        case 17...20:
+            self = .sunset
+        default:
+            self = .night
+        }
+    }
+
+    var storyPrefix: String {
+        switch self {
+        case .dawn: return "Sabah ışığıyla yüzey tabakası yeni ısınıyor."
+        case .day: return "Gündüz ısınması atmosferi daha görünür hale getiriyor."
+        case .sunset: return "Gün batımında yüzey soğumaya başlıyor."
+        case .night: return "Gece radyatif soğuma ve zayıf karışım etkili."
+        }
+    }
+
+    var darkness: Double {
+        switch self {
+        case .dawn: return 0.08
+        case .day: return 0.0
+        case .sunset: return 0.16
+        case .night: return 0.48
+        }
+    }
+
+    var warmth: Double {
+        switch self {
+        case .dawn: return 0.16
+        case .day: return 0.08
+        case .sunset: return 0.30
+        case .night: return 0.0
+        }
+    }
+
+    var coolness: Double {
+        switch self {
+        case .dawn: return 0.12
+        case .day: return 0.0
+        case .sunset: return 0.04
+        case .night: return 0.28
+        }
+    }
 }
 
 enum WeatherCondition: String, CaseIterable, Identifiable, Equatable {
