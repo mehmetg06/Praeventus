@@ -1,0 +1,75 @@
+{
+  "": {
+    "swift-dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/primary.swiftdeps"
+  },
+  "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/App.swift": {
+    "dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/App.d",
+    "object": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/App.swift.o",
+    "swiftmodule": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/App~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/App.swiftdeps",
+    "diagnostics": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/App.dia"
+  },
+  "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/AtmosphereBackgroundView.swift": {
+    "dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphereBackgroundView.d",
+    "object": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphereBackgroundView.swift.o",
+    "swiftmodule": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphereBackgroundView~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphereBackgroundView.swiftdeps",
+    "diagnostics": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphereBackgroundView.dia"
+  },
+  "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/AtmosphericEngine.swift": {
+    "dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphericEngine.d",
+    "object": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphericEngine.swift.o",
+    "swiftmodule": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphericEngine~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphericEngine.swiftdeps",
+    "diagnostics": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphericEngine.dia"
+  },
+  "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/GlassComponents.swift": {
+    "dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/GlassComponents.d",
+    "object": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/GlassComponents.swift.o",
+    "swiftmodule": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/GlassComponents~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/GlassComponents.swiftdeps",
+    "diagnostics": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/GlassComponents.dia"
+  },
+  "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/HomeView.swift": {
+    "dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/HomeView.d",
+    "object": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/HomeView.swift.o",
+    "swiftmodule": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/HomeView~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/HomeView.swiftdeps",
+    "diagnostics": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/HomeView.dia"
+  },
+  "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/PraeventusRootView.swift": {
+    "dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/PraeventusRootView.d",
+    "object": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/PraeventusRootView.swift.o",
+    "swiftmodule": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/PraeventusRootView~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/PraeventusRootView.swiftdeps",
+    "diagnostics": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/PraeventusRootView.dia"
+  },
+  "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/SettingsView.swift": {
+    "dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/SettingsView.d",
+    "object": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/SettingsView.swift.o",
+    "swiftmodule": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/SettingsView~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/SettingsView.swiftdeps",
+    "diagnostics": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/SettingsView.dia"
+  },
+  "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/WeatherData.swift": {
+    "dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherData.d",
+    "object": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherData.swift.o",
+    "swiftmodule": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherData~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherData.swiftdeps",
+    "diagnostics": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherData.dia"
+  },
+  "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/WeatherLabView.swift": {
+    "dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherLabView.d",
+    "object": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherLabView.swift.o",
+    "swiftmodule": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherLabView~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherLabView.swiftdeps",
+    "diagnostics": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherLabView.dia"
+  },
+  "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/WeatherStore.swift": {
+    "dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherStore.d",
+    "object": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherStore.swift.o",
+    "swiftmodule": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherStore~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherStore.swiftdeps",
+    "diagnostics": "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherStore.dia"
+  }
+}

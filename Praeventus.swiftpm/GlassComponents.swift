@@ -3,38 +3,16 @@ import SwiftUI
 
 struct ThinGlassShape: View {
     var cornerRadius: CGFloat = 28
-    var intensity: Double = 0.22
+    var intensity: Double = 0.14
 
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .fill(.ultraThinMaterial.opacity(intensity))
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [
-                                .white.opacity(0.46),
-                                .white.opacity(0.12),
-                                .white.opacity(0.30)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 0.8
-                    )
+                    .strokeBorder(.white.opacity(0.20), lineWidth: 1)
             }
-            .overlay(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [.white.opacity(0.16), .clear],
-                            startPoint: .topLeading,
-                            endPoint: .center
-                        )
-                    )
-                    .blendMode(.screen)
-            }
-            .shadow(color: .black.opacity(0.16), radius: 24, y: 16)
+            .shadow(color: .black.opacity(0.12), radius: 14, y: 8)
     }
 }
 
@@ -57,7 +35,8 @@ struct GlassMetric: View {
 
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(value)
-                    .font(.system(size: 25, weight: .light, design: .rounded))
+                    .font(.system(size: 22, weight: .light, design: .rounded))
+                    .monospacedDigit()
                 Text(unit)
                     .font(.caption2)
                     .foregroundStyle(.white.opacity(0.78))
