@@ -7,7 +7,7 @@ struct PraeventusRootView: View {
     var body: some View {
         TabView {
             ZStack {
-                AtmosphereBackgroundView(condition: weather.condition, hour: weather.hour)
+                AtmosphereBackgroundView(condition: weather.condition, hour: weather.hour, windSpeed: weather.windSpeed)
                 HomeView(weather: weather)
             }
             .tabItem {
@@ -15,7 +15,7 @@ struct PraeventusRootView: View {
             }
 
             ZStack {
-                AtmosphereBackgroundView(condition: weather.condition, hour: weather.hour)
+                AtmosphereBackgroundView(condition: weather.condition, hour: weather.hour, windSpeed: weather.windSpeed)
                 WeatherLabView(weather: $weather)
             }
             .tabItem {
@@ -23,7 +23,7 @@ struct PraeventusRootView: View {
             }
 
             ZStack {
-                AtmosphereBackgroundView(condition: weather.condition, hour: weather.hour)
+                AtmosphereBackgroundView(condition: weather.condition, hour: weather.hour, windSpeed: weather.windSpeed)
                 SettingsView()
             }
             .tabItem {
