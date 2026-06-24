@@ -12,7 +12,6 @@ let sources = [
     "WeatherStore.swift",
     "PraeventusRootView.swift",
     "AtmosphereBackgroundView.swift",
-    "WaterDropRoundedRectangle.swift",
     "GlassComponents.swift",
     "HomeView.swift",
     "WeatherLabView.swift",
