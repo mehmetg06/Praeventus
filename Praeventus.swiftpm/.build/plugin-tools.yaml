@@ -1,0 +1,73 @@
+client:
+  name: basic
+  file-system: device-agnostic
+tools: {}
+targets:
+  "AppModule-x86_64-unknown-linux-gnu-debug.module": ["<AppModule-x86_64-unknown-linux-gnu-debug.module>"]
+  "PackageStructure": ["<PackageStructure>"]
+  "Praeventus-x86_64-unknown-linux-gnu-debug.exe": ["<Praeventus-x86_64-unknown-linux-gnu-debug.exe>"]
+  "main": ["<AppModule-x86_64-unknown-linux-gnu-debug.module>","<Praeventus-x86_64-unknown-linux-gnu-debug.exe>"]
+  "test": ["<AppModule-x86_64-unknown-linux-gnu-debug.module>","<Praeventus-x86_64-unknown-linux-gnu-debug.exe>"]
+default: "main"
+nodes:
+  "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/":
+    is-directory-structure: true
+    content-exclusion-patterns: [".git",".build"]
+commands:
+  "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AppModule.swiftmodule.o":
+    tool: shell
+    inputs: ["/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/Modules/AppModule.swiftmodule"]
+    outputs: ["/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AppModule.swiftmodule.o"]
+    description: "Wrapping AST for AppModule for debugging"
+    args: ["/usr/share/swift/usr/bin/swiftc","-modulewrap","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/Modules/AppModule.swiftmodule","-o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AppModule.swiftmodule.o","-target","x86_64-unknown-linux-gnu"]
+
+  "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/App.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/AtmosphereBackgroundView.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/AtmosphericEngine.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/GlassComponents.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/HomeView.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/PraeventusRootView.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/SettingsView.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/WeatherData.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/WeatherLabView.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/WeatherStore.swift"]
+    outputs: ["/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/sources"]
+    description: "Write auxiliary file /home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/sources"
+
+  "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/Praeventus.product/Objects.LinkFileList":
+    tool: write-auxiliary-file
+    inputs: ["<link-file-list>","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/App.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AppModule.swiftmodule.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphereBackgroundView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphericEngine.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/GlassComponents.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/HomeView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/PraeventusRootView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/SettingsView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherData.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherLabView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherStore.swift.o"]
+    outputs: ["/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/Praeventus.product/Objects.LinkFileList"]
+    description: "Write auxiliary file /home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/Praeventus.product/Objects.LinkFileList"
+
+  "/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/swift-version--1BFCD5C06E9F820A.txt":
+    tool: write-auxiliary-file
+    inputs: ["<swift-get-version>","/usr/share/swift/usr/bin/swiftc"]
+    outputs: ["/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/swift-version--1BFCD5C06E9F820A.txt"]
+    always-out-of-date: "true"
+    description: "Write auxiliary file /home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/swift-version--1BFCD5C06E9F820A.txt"
+
+  "<AppModule-x86_64-unknown-linux-gnu-debug.module>":
+    tool: phony
+    inputs: ["/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/App.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphereBackgroundView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphericEngine.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/GlassComponents.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/HomeView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/PraeventusRootView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/SettingsView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherData.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherLabView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherStore.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/Modules/AppModule.swiftmodule"]
+    outputs: ["<AppModule-x86_64-unknown-linux-gnu-debug.module>"]
+
+  "<Praeventus-x86_64-unknown-linux-gnu-debug.exe>":
+    tool: phony
+    inputs: ["/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/Praeventus"]
+    outputs: ["<Praeventus-x86_64-unknown-linux-gnu-debug.exe>"]
+
+  "C.AppModule-x86_64-unknown-linux-gnu-debug.module":
+    tool: shell
+    inputs: ["/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/App.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/AtmosphereBackgroundView.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/AtmosphericEngine.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/GlassComponents.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/HomeView.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/PraeventusRootView.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/SettingsView.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/WeatherData.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/WeatherLabView.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/WeatherStore.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/swift-version--1BFCD5C06E9F820A.txt","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/sources"]
+    outputs: ["/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/App.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphereBackgroundView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphericEngine.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/GlassComponents.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/HomeView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/PraeventusRootView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/SettingsView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherData.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherLabView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherStore.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/Modules/AppModule.swiftmodule"]
+    description: "Compiling Swift Module 'AppModule' (10 sources)"
+    args: ["/usr/share/swift/usr/bin/swiftc","-module-name","AppModule","-emit-dependencies","-emit-module","-emit-module-path","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/Modules/AppModule.swiftmodule","-output-file-map","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/output-file-map.json","-incremental","-c","@/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/sources","-I","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/Modules","-target","x86_64-unknown-linux-gnu","-incremental","-enable-batch-mode","-serialize-diagnostics","-index-store-path","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/index/store","-Onone","-enable-testing","-j2","-DSWIFT_PACKAGE","-DDEBUG","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/ModuleCache","-parseable-output","-Xfrontend","-entry-point-function-name","-Xfrontend","AppModule_main","-swift-version","6","-g","-Xcc","-fPIC","-Xcc","-g","-package-name","praeventus_swiftpm","-Xcc","-fno-omit-frame-pointer"]
+
+  "C.Praeventus-x86_64-unknown-linux-gnu-debug.exe":
+    tool: shell
+    inputs: ["/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/App.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AppModule.swiftmodule.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphereBackgroundView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/AtmosphericEngine.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/GlassComponents.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/HomeView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/PraeventusRootView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/SettingsView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherData.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherLabView.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/AppModule.build/WeatherStore.swift.o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/Praeventus.product/Objects.LinkFileList"]
+    outputs: ["/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/Praeventus"]
+    description: "Linking ./.build/x86_64-unknown-linux-gnu/debug/Praeventus"
+    args: ["/usr/share/swift/usr/bin/swiftc","-L","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug","-o","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/Praeventus","-module-name","Praeventus","-emit-executable","-Xlinker","--defsym","-Xlinker","main=AppModule_main","-Xlinker","-rpath=$ORIGIN","@/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/.build/x86_64-unknown-linux-gnu/debug/Praeventus.product/Objects.LinkFileList","-target","x86_64-unknown-linux-gnu","-g"]
+
+  "PackageStructure":
+    tool: package-structure-tool
+    inputs: ["/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/Package.swift","/home/runner/work/Praeventus/Praeventus/Praeventus.swiftpm/Package.resolved"]
+    outputs: ["<PackageStructure>"]
+    description: "Planning build"
+    allow-missing-inputs: true
+
