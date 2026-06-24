@@ -15,8 +15,7 @@ let sources = [
     "GlassComponents.swift",
     "HomeView.swift",
     "WeatherLabView.swift",
-    "SettingsView.swift",
-    "DropSymbolLayer.swift"
+    "SettingsView.swift"
 ]
 
 #if canImport(AppleProductTypes)
@@ -37,7 +36,7 @@ let packageProducts: [Product] = [
 ]
 #else
 let supportedPlatforms: [SupportedPlatform] = [.macOS("14.0")]
-let packageProducts: [Product] = [.executable(name: "Praeventus", targets: ["AppModule"])]
+let packageProducts: [.executable(name: "Praeventus", targets: ["AppModule"])]
 #endif
 
 let package = Package(
