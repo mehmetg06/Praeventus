@@ -2,7 +2,8 @@
 import SwiftUI
 
 struct HomeView: View {
-    let weather: WeatherData
+    @ObservedObject var store: WeatherStore
+    private var weather: WeatherData { store.weather }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -34,8 +35,8 @@ struct HomeView: View {
                 .font(.callout)
                 .foregroundStyle(.white.opacity(0.72))
 
-            Image(systemName: "location.fill")
-                .font(.caption)
+            Text(weather.formattedHour)
+                .font(.caption.monospacedDigit())
                 .foregroundStyle(.white.opacity(0.72))
                 .padding(.top, 4)
 
@@ -44,8 +45,9 @@ struct HomeView: View {
                 .minimumScaleFactor(0.72)
                 .lineLimit(1)
                 .foregroundStyle(.white)
-                .shadow(color: .white.opacity(0.20), radius: 18)
+                .shadow(color: .white.opacity(0.18), radius: 18)
                 .padding(.top, -2)
+                .contentTransition(.numericText())
 
             Text(weather.condition.rawValue)
                 .font(.title3.weight(.light))
@@ -65,6 +67,7 @@ struct HomeView: View {
             .background(ThinGlassShape(cornerRadius: 20, intensity: 0.18))
         }
         .frame(maxWidth: .infinity)
+        .animation(.easeInOut(duration: 0.22), value: weather)
     }
 
     private var metricsStrip: some View {
@@ -168,72 +171,40 @@ struct HomeView: View {
     }
 
     private var sampleHours: [(time: String, symbol: String, temp: Int)] {
-        [
+        let start = Int(weather.hour.rounded())
+        return [
             ("Şu An", weather.condition.symbolName, Int(weather.temperature)),
-            ("10:00", "cloud.sun.fill", Int(weather.temperature + 1)),
-            ("11:00", "cloud.sun.fill", Int(weather.temperature + 2)),
-            ("12:00", "sun.max.fill", Int(weather.temperature + 3)),
-            ("13:00", "cloud.fill", Int(weather.temperature + 2))
+            (String(format: "%02d:00", (start + 1) % 24), weather.condition.symbolName, Int(weather.temperature + 1)),
+            (String(format: "%02d:00", (start + 2) % 24), weather.condition.symbolName, Int(weather.temperature + 2)),
+            (String(format: "%02d:00", (start + 3) % 24), weather.condition.symbolName, Int(weather.temperature + 2)),
+            (String(format: "%02d:00", (start + 4) % 24), "cloud.fill", Int(weather.temperature + 1))
         ]
     }
 
     private var sampleDays: [(day: String, symbol: String, low: Int, high: Int)] {
         [
-            ("Bugün", weather.condition.symbolName, 24, 34),
-            ("Cumartesi", "sun.max.fill", 23, 33),
-            ("Pazar", "cloud.rain.fill", 22, 29),
-            ("Pazartesi", "cloud.rain.fill", 21, 28)
+            ("Bugün", weather.condition.symbolName, Int(weather.temperature - 7), Int(weather.temperature + 3)),
+            ("Yarın", "cloud.sun.fill", Int(weather.temperature - 8), Int(weather.temperature + 2)),
+            ("Pazar", "cloud.rain.fill", Int(weather.temperature - 9), Int(weather.temperature - 1)),
+            ("Pazartesi", "cloud.fill", Int(weather.temperature - 8), Int(weather.temperature))
         ]
     }
 }
 
 struct AtmosphereOrb: View {
     let condition: WeatherCondition
-    @State private var animate = false
 
     var body: some View {
         ZStack {
             Circle()
-                .fill(.ultraThinMaterial.opacity(0.34))
-                .overlay(Circle().stroke(.white.opacity(0.26), lineWidth: 1))
-                .shadow(color: .white.opacity(0.18), radius: 20)
+                .fill(.ultraThinMaterial.opacity(0.30))
+                .overlay(Circle().stroke(.white.opacity(0.22), lineWidth: 1))
+                .shadow(color: .white.opacity(0.14), radius: 18)
 
-            ForEach(0..<5, id: \.self) { index in
-                WaveLine(amplitude: CGFloat(8 + index * 3), phase: animate ? CGFloat(index) * 0.7 + 1.5 : CGFloat(index) * 0.7)
-                    .stroke(.white.opacity(0.18 + Double(index) * 0.035), lineWidth: 1)
-                    .frame(width: 88, height: 42)
-                    .offset(y: CGFloat(index - 2) * 7)
-            }
+            Image(systemName: condition.symbolName)
+                .font(.system(size: 42, weight: .light))
+                .symbolRenderingMode(.multicolor)
         }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 4.2).repeatForever(autoreverses: true)) {
-                animate = true
-            }
-        }
-    }
-}
-
-struct WaveLine: Shape {
-    var amplitude: CGFloat
-    var phase: CGFloat
-
-    var animatableData: CGFloat {
-        get { phase }
-        set { phase = newValue }
-    }
-
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let midY = rect.midY
-        path.move(to: CGPoint(x: rect.minX, y: midY))
-
-        for x in stride(from: rect.minX, through: rect.maxX, by: 2) {
-            let progress = (x - rect.minX) / rect.width
-            let y = midY + sin(progress * .pi * 2 + phase) * amplitude
-            path.addLine(to: CGPoint(x: x, y: y))
-        }
-
-        return path
     }
 }
 #endif
