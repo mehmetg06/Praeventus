@@ -29,6 +29,7 @@ struct AtmosphereBackgroundView: View {
 
             lightField
             if hotSunny { sunDiskLayer }
+            if hotSunny { SolarHazeLayer(windIntensity: windIntensity) }
             airMassLayer
             moodLayer
             depthOverlay
@@ -253,6 +254,69 @@ struct AtmosphereBackgroundView: View {
         case .snow: weather = 0.10
         }
         return min(0.62, weather + timeOfDay.darkness)
+    }
+}
+
+private struct SolarHazeLayer: View {
+    let windIntensity: Double
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1.0 / 12.0)) { timeline in
+            Canvas { context, size in
+                let time = timeline.date.timeIntervalSinceReferenceDate
+                let sun = CGPoint(x: size.width * 0.84, y: size.height * 0.16)
+
+                for index in 0..<5 {
+                    let phase = CGFloat(time * (0.10 + Double(index) * 0.018))
+                    var path = Path()
+                    let startY = sun.y + CGFloat(index) * 18 - 30
+                    path.move(to: CGPoint(x: sun.x - 18, y: startY))
+                    path.addLine(to: CGPoint(x: -size.width * 0.05, y: size.height * (0.34 + CGFloat(index) * 0.105) + sin(phase) * 8))
+                    path.addLine(to: CGPoint(x: -size.width * 0.05, y: size.height * (0.40 + CGFloat(index) * 0.105) + cos(phase) * 8))
+                    path.addLine(to: CGPoint(x: sun.x + 18, y: startY + 22))
+                    path.closeSubpath()
+
+                    context.fill(
+                        path,
+                        with: .linearGradient(
+                            Gradient(colors: [
+                                Color.white.opacity(0.060 - Double(index) * 0.006),
+                                Color(red: 1.0, green: 0.76, blue: 0.34).opacity(0.032 - Double(index) * 0.003),
+                                .clear
+                            ]),
+                            startPoint: sun,
+                            endPoint: CGPoint(x: 0, y: size.height * 0.76)
+                        )
+                    )
+                }
+
+                for index in 0..<7 {
+                    let y = size.height * (0.48 + CGFloat(index) * 0.075)
+                    let shimmer = CGFloat(sin(time * 0.22 + Double(index) * 0.8)) * (5 + CGFloat(windIntensity) * 8)
+                    let rect = CGRect(x: -size.width * 0.12 + shimmer, y: y, width: size.width * 1.24, height: 72)
+                    context.fill(
+                        Path(roundedRect: rect, cornerRadius: 60),
+                        with: .color(Color(red: 1.0, green: 0.78, blue: 0.40).opacity(0.025 - Double(index) * 0.0018))
+                    )
+                }
+
+                for index in 0..<18 {
+                    let seed = Double(index * 31 + 9)
+                    let xBase = CGFloat((sin(seed) * 43758.5453).truncatingRemainder(dividingBy: 1).magnitude) * size.width
+                    let yBase = CGFloat((sin(seed * 1.7) * 24634.6345).truncatingRemainder(dividingBy: 1).magnitude) * size.height
+                    let drift = CGFloat(sin(time * 0.16 + seed)) * (12 + CGFloat(windIntensity) * 16)
+                    let radius = CGFloat(1.1 + seed.truncatingRemainder(dividingBy: 2.4))
+                    let opacity = 0.018 + Double(index % 5) * 0.004
+                    context.fill(
+                        Path(ellipseIn: CGRect(x: xBase + drift, y: yBase, width: radius, height: radius)),
+                        with: .color(Color(red: 1.0, green: 0.90, blue: 0.62).opacity(opacity))
+                    )
+                }
+            }
+        }
+        .blur(radius: 1.6)
+        .blendMode(.screen)
+        .ignoresSafeArea()
     }
 }
 
