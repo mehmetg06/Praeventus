@@ -15,7 +15,8 @@ let sources = [
     "GlassComponents.swift",
     "HomeView.swift",
     "WeatherLabView.swift",
-    "SettingsView.swift"
+    "SettingsView.swift",
+    "DropSymbolLayer.swift"
 ]
 
 #if canImport(AppleProductTypes)
