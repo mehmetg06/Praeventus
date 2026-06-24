@@ -26,7 +26,7 @@ let packageProducts: [Product] = [
         teamIdentifier: "",
         displayVersion: "0.1",
         bundleVersion: "1",
-        appIcon: .placeholder(icon: .cloudSun),
+        appIcon: .placeholder(icon: .cloud),
         accentColor: .presetColor(.blue),
         supportedDeviceFamilies: [.pad],
         supportedInterfaceOrientations: [.portrait, .landscapeLeft, .landscapeRight]
