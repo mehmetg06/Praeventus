@@ -150,9 +150,9 @@ enum WeatherCondition: String, CaseIterable, Identifiable, Equatable {
     var palette: [Color] {
         switch self {
         case .clear:
-            return [Color(red: 0.18, green: 0.54, blue: 0.94), Color(red: 0.77, green: 0.91, blue: 1.0), Color(red: 1.0, green: 0.74, blue: 0.38)]
+            return [Color(red: 0.04, green: 0.44, blue: 0.98), Color(red: 0.22, green: 0.70, blue: 1.0), Color(red: 1.0, green: 0.52, blue: 0.06)]
         case .partlyCloudy:
-            return [Color(red: 0.06, green: 0.25, blue: 0.48), Color(red: 0.45, green: 0.72, blue: 0.92), Color(red: 0.96, green: 0.84, blue: 0.62)]
+            return [Color(red: 0.04, green: 0.28, blue: 0.74), Color(red: 0.28, green: 0.64, blue: 0.98), Color(red: 1.0, green: 0.76, blue: 0.20)]
         case .cloudy:
             return [Color(red: 0.16, green: 0.23, blue: 0.34), Color(red: 0.42, green: 0.52, blue: 0.63), Color(red: 0.77, green: 0.83, blue: 0.88)]
         case .rain:

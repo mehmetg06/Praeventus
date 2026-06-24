@@ -5,14 +5,15 @@ struct HomeView: View {
     @ObservedObject var store: WeatherStore
     private var weather: WeatherData { store.weather }
     private var atmosphere: AtmosphericState { store.atmosphere }
+    private var paletteTint: Color { atmosphere.condition.palette[1] }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 header
                 temperatureHero
-                storyCard
                 metricsGrid
+                storyCard
                 hourlyPreview
             }
             .padding(.horizontal, 22)
@@ -90,15 +91,15 @@ struct HomeView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(18)
-        .background(ThinGlassShape(cornerRadius: 28, intensity: 0.13, highlightOpacity: 0.18, innerShadowOpacity: 0.22, borderOpacity: 0.22))
+        .background(ThinGlassShape(cornerRadius: 28, intensity: 0.13, highlightOpacity: 0.18, innerShadowOpacity: 0.22, borderOpacity: 0.22, tintColor: paletteTint))
     }
 
     private var metricsGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-            GlassMetric(symbol: "gauge.with.dots.needle.bottom.50percent", title: "Basınç", value: "\(Int(weather.pressure.rounded()))", unit: "hPa", accent: .cyan)
-            GlassMetric(symbol: "humidity", title: "Nem", value: "%\(Int(weather.humidity.rounded()))", unit: humidityLabel, accent: .blue)
-            GlassMetric(symbol: "wind", title: "Rüzgar", value: "\(Int(weather.windSpeed.rounded()))", unit: "km/sa", accent: .mint)
-            GlassMetric(symbol: riskSymbol, title: riskTitle, value: riskValue, unit: riskUnit, accent: riskAccent)
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+            GlassMetric(symbol: "gauge.with.dots.needle.bottom.50percent", title: "Basınç", value: "\(Int(weather.pressure.rounded()))", unit: "hPa", accent: .cyan, tintColor: paletteTint)
+            GlassMetric(symbol: "humidity", title: "Nem", value: "%\(Int(weather.humidity.rounded()))", unit: humidityLabel, accent: .blue, tintColor: paletteTint)
+            GlassMetric(symbol: "wind", title: "Rüzgar", value: "\(Int(weather.windSpeed.rounded()))", unit: "km/sa", accent: .mint, tintColor: paletteTint)
+            GlassMetric(symbol: riskSymbol, title: riskTitle, value: riskValue, unit: riskUnit, accent: riskAccent, tintColor: paletteTint)
         }
     }
 
@@ -136,7 +137,7 @@ struct HomeView: View {
             }
         }
         .padding(16)
-        .background(ThinGlassShape(cornerRadius: 26, intensity: 0.10, highlightOpacity: 0.14, innerShadowOpacity: 0.18, borderOpacity: 0.18))
+        .background(ThinGlassShape(cornerRadius: 26, intensity: 0.10, highlightOpacity: 0.14, innerShadowOpacity: 0.18, borderOpacity: 0.18, tintColor: paletteTint))
     }
 
     private var humidityLabel: String {
