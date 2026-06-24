@@ -20,7 +20,11 @@ struct AtmosphereBackgroundView: View {
             )
             .ignoresSafeArea()
 
+            horizonGlowLayer
+            distantTerrainLayer
             moodLayer
+            atmosphericDepthLayer
+            vignetteLayer
 
             Rectangle()
                 .fill(.black.opacity(baseDarkness))
@@ -44,6 +48,95 @@ struct AtmosphereBackgroundView: View {
         case .night:
             return [Color(red: 0.01, green: 0.02, blue: 0.08), Color(red: 0.03, green: 0.08, blue: 0.16), base[0].opacity(0.55)]
         }
+    }
+
+
+
+    private var horizonGlowLayer: some View {
+        VStack {
+            Spacer()
+            Ellipse()
+                .fill(
+                    RadialGradient(
+                        colors: [horizonColor.opacity(0.38), horizonColor.opacity(0.12), .clear],
+                        center: .center,
+                        startRadius: 10,
+                        endRadius: 360
+                    )
+                )
+                .frame(width: 760, height: 250)
+                .blur(radius: 24)
+                .offset(y: 42)
+        }
+        .ignoresSafeArea()
+    }
+
+    private var horizonColor: Color {
+        switch timeOfDay {
+        case .dawn: return Color(red: 1.0, green: 0.74, blue: 0.52)
+        case .day: return Color(red: 0.64, green: 0.82, blue: 1.0)
+        case .sunset: return Color(red: 1.0, green: 0.42, blue: 0.28)
+        case .night: return Color(red: 0.26, green: 0.36, blue: 0.72)
+        }
+    }
+
+    private var distantTerrainLayer: some View {
+        GeometryReader { geometry in
+            Canvas { context, size in
+                for layer in 0..<3 {
+                    var path = Path()
+                    let baseline = size.height * (0.70 + CGFloat(layer) * 0.07)
+                    path.move(to: CGPoint(x: -40, y: size.height + 80))
+                    path.addLine(to: CGPoint(x: -40, y: baseline))
+
+                    let steps = 7
+                    for step in 0...steps {
+                        let x = size.width * CGFloat(step) / CGFloat(steps)
+                        let phase = CGFloat(layer) * 0.55
+                        let peak = sin(CGFloat(step) * 1.17 + phase) * 34 + cos(CGFloat(step) * 0.71 + phase) * 22
+                        let y = baseline - 42 - peak - CGFloat(layer) * 12
+                        path.addLine(to: CGPoint(x: x, y: y))
+                    }
+
+                    path.addLine(to: CGPoint(x: size.width + 40, y: size.height + 80))
+                    path.closeSubpath()
+                    context.fill(path, with: .color(.black.opacity(0.10 + Double(layer) * 0.07)))
+                }
+            }
+            .blur(radius: mood == .fog ? 10 : 5)
+            .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+        .ignoresSafeArea()
+    }
+
+    private var atmosphericDepthLayer: some View {
+        ZStack {
+            LinearGradient(colors: [.white.opacity(0.06), .clear, .black.opacity(0.18)], startPoint: .top, endPoint: .bottom)
+            Circle()
+                .fill(.white.opacity(mood == .clear ? 0.10 : 0.05))
+                .frame(width: 260, height: 260)
+                .blur(radius: 54)
+                .offset(x: -120, y: -230)
+            if mood == .storm {
+                Rectangle()
+                    .fill(.purple.opacity(0.06))
+                    .ignoresSafeArea()
+            }
+        }
+        .ignoresSafeArea()
+    }
+
+    private var vignetteLayer: some View {
+        Rectangle()
+            .fill(
+                RadialGradient(
+                    colors: [.clear, .black.opacity(mood == .storm ? 0.56 : 0.34)],
+                    center: .center,
+                    startRadius: 90,
+                    endRadius: 560
+                )
+            )
+            .ignoresSafeArea()
     }
 
     private var baseDarkness: Double {
