@@ -8,141 +8,138 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: 18) {
+            VStack(spacing: 16) {
                 header
-                    .padding(.top, 34)
-
+                    .padding(.top, 30)
                 metricsStrip
-                    .padding(.top, 8)
-
                 atmosphereStoryCard
-
                 atmosphericDiagnostics
-
                 hourlyPreview
-
                 dailyPreview
             }
-            .padding(.horizontal, 22)
+            .padding(.horizontal, 20)
             .padding(.bottom, 20)
         }
     }
 
     private var header: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 7) {
             Text(weather.city)
                 .font(.system(size: 34, weight: .light, design: .rounded))
                 .foregroundStyle(.white)
 
-            Text(weather.country)
-                .font(.callout)
-                .foregroundStyle(.white.opacity(0.72))
+            Text("Weather Lab · \(weather.country)")
+                .font(.callout.weight(.medium))
+                .foregroundStyle(.white.opacity(0.70))
 
             Text(weather.formattedHour)
                 .font(.caption.monospacedDigit())
-                .foregroundStyle(.white.opacity(0.72))
-                .padding(.top, 4)
+                .foregroundStyle(.white.opacity(0.70))
+                .padding(.top, 2)
 
             Text("\(Int(weather.temperature.rounded()))°")
-                .font(.system(size: 142, weight: .ultraLight, design: .rounded))
-                .minimumScaleFactor(0.72)
+                .font(.system(size: 136, weight: .ultraLight, design: .rounded))
+                .minimumScaleFactor(0.7)
                 .lineLimit(1)
                 .foregroundStyle(.white)
-                .shadow(color: .white.opacity(0.18), radius: 18)
                 .padding(.top, -2)
-                .contentTransition(.numericText())
 
             Text(atmosphere.condition.rawValue)
-                .font(.title3.weight(.light))
+                .font(.title3.weight(.regular))
                 .foregroundStyle(.white.opacity(0.92))
 
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(atmosphere.stormRisk == .high ? .orange : .green)
-                    .frame(width: 8, height: 8)
-                    .shadow(color: .white.opacity(0.5), radius: 6)
-                Text(atmosphere.statusText)
-                    .font(.subheadline.weight(.medium))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 18)
-            .frame(height: 38)
-            .background(ThinGlassShape(cornerRadius: 20, intensity: 0.18))
+            statusPill
+                .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)
-        .animation(.easeInOut(duration: 0.22), value: weather)
-        .animation(.easeInOut(duration: 0.22), value: atmosphere)
+    }
+
+    private var statusPill: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(atmosphere.stormRisk == .high ? .orange : .mint)
+                .frame(width: 7, height: 7)
+            Text(atmosphere.statusText)
+                .font(.subheadline.weight(.medium))
+                .lineLimit(1)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 16)
+        .frame(height: 36)
+        .background(ThinGlassShape(cornerRadius: 18, intensity: 0.10))
     }
 
     private var metricsStrip: some View {
         HStack(spacing: 0) {
-            GlassMetric(symbol: "thermometer.medium", title: "Hissedilen", value: "\(Int(weather.feelsLike))°", unit: "")
-            Divider().background(.white.opacity(0.28))
-            GlassMetric(symbol: "drop", title: "Nem", value: "%\(Int(weather.humidity))", unit: "")
-            Divider().background(.white.opacity(0.28))
-            GlassMetric(symbol: "gauge.with.dots.needle.bottom.50percent", title: "Basınç", value: "\(Int(weather.pressure))", unit: "hPa")
-            Divider().background(.white.opacity(0.28))
-            GlassMetric(symbol: "wind", title: "Rüzgar", value: "\(Int(weather.windSpeed))", unit: "km/sa")
+            GlassMetric(symbol: "thermometer.medium", title: "Hissedilen", value: "\(Int(weather.feelsLike.rounded()))°", unit: "")
+            Divider().background(.white.opacity(0.20))
+            GlassMetric(symbol: "drop", title: "Nem", value: "%\(Int(weather.humidity.rounded()))", unit: "")
+            Divider().background(.white.opacity(0.20))
+            GlassMetric(symbol: "gauge.with.dots.needle.bottom.50percent", title: "Basınç", value: "\(Int(weather.pressure.rounded()))", unit: "hPa")
+            Divider().background(.white.opacity(0.20))
+            GlassMetric(symbol: "wind", title: "Rüzgar", value: "\(Int(weather.windSpeed.rounded()))", unit: "km/sa")
         }
-        .frame(height: 118)
-        .padding(.horizontal, 14)
-        .background(ThinGlassShape(cornerRadius: 30, intensity: 0.14))
+        .frame(height: 112)
+        .padding(.horizontal, 12)
+        .background(ThinGlassShape(cornerRadius: 26, intensity: 0.11))
     }
 
     private var atmosphereStoryCard: some View {
         HStack(alignment: .center, spacing: 18) {
-            VStack(alignment: .leading, spacing: 16) {
-                SectionHeader(symbol: "sparkles", title: "Atmosfer Hikâyesi")
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Atmosfer Hikâyesi")
+                    .font(.headline.weight(.medium))
+                    .foregroundStyle(.white)
 
                 Text(atmosphere.story)
-                    .font(.body.weight(.regular))
-                    .lineSpacing(4)
+                    .font(.body)
+                    .lineSpacing(3)
                     .foregroundStyle(.white.opacity(0.90))
             }
 
-            Spacer(minLength: 4)
+            Spacer(minLength: 0)
 
-            AtmosphereOrb(condition: atmosphere.condition)
-                .frame(width: 112, height: 112)
+            AtmosphereOrb(symbolName: atmosphere.symbolName)
+                .frame(width: 96, height: 96)
         }
-        .padding(22)
-        .background(ThinGlassShape(cornerRadius: 30, intensity: 0.16))
+        .padding(20)
+        .background(ThinGlassShape(cornerRadius: 26, intensity: 0.11))
     }
 
     private var atmosphericDiagnostics: some View {
         HStack(spacing: 0) {
             GlassMetric(symbol: "bolt.trianglebadge.exclamationmark", title: "Fırtına", value: atmosphere.stormRisk.rawValue, unit: "")
-            Divider().background(.white.opacity(0.28))
+            Divider().background(.white.opacity(0.20))
             GlassMetric(symbol: "cloud.rain", title: "Yağış", value: atmosphere.rainSignal.rawValue, unit: "")
-            Divider().background(.white.opacity(0.28))
+            Divider().background(.white.opacity(0.20))
             GlassMetric(symbol: "eye", title: "Görüş", value: atmosphere.visibility.rawValue, unit: "")
         }
-        .frame(height: 104)
-        .padding(.horizontal, 14)
-        .background(ThinGlassShape(cornerRadius: 30, intensity: 0.13))
+        .frame(height: 98)
+        .padding(.horizontal, 12)
+        .background(ThinGlassShape(cornerRadius: 26, intensity: 0.11))
     }
 
     private var hourlyPreview: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             HStack {
                 Text("Saatlik")
                     .font(.headline.weight(.medium))
                 Spacer()
-                Text("Yağış %\(Int(weather.rainProbability))")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.72))
+                Text("Yağış %\(Int(weather.rainProbability.rounded()))")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.70))
             }
             .foregroundStyle(.white)
 
             HStack(spacing: 0) {
                 ForEach(sampleHours, id: \.time) { hour in
-                    VStack(spacing: 9) {
+                    VStack(spacing: 8) {
                         Text(hour.time)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.74))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.white.opacity(0.72))
                         Image(systemName: hour.symbol)
-                            .font(.title3)
-                            .symbolRenderingMode(.multicolor)
+                            .font(.title3.weight(.light))
+                            .symbolRenderingMode(.hierarchical)
                         Text("\(hour.temp)°")
                             .font(.title3.weight(.light))
                             .foregroundStyle(.white)
@@ -151,77 +148,82 @@ struct HomeView: View {
                 }
             }
         }
-        .padding(20)
-        .background(ThinGlassShape(cornerRadius: 30, intensity: 0.14))
+        .padding(18)
+        .background(ThinGlassShape(cornerRadius: 26, intensity: 0.10))
     }
 
     private var dailyPreview: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             ForEach(sampleDays, id: \.day) { item in
-                HStack {
-                    Image(systemName: item.symbol)
-                        .symbolRenderingMode(.multicolor)
-                        .frame(width: 28)
+                HStack(spacing: 12) {
                     Text(item.day)
                         .font(.body.weight(.medium))
+                        .frame(width: 90, alignment: .leading)
+                    Image(systemName: item.symbol)
+                        .font(.body.weight(.light))
+                        .symbolRenderingMode(.hierarchical)
+                        .frame(width: 24)
                     Spacer()
                     Text("\(item.low)°")
                         .foregroundStyle(.white.opacity(0.70))
+                        .monospacedDigit()
                     Capsule()
-                        .fill(.white.opacity(0.22))
-                        .frame(width: 82, height: 5)
+                        .fill(.white.opacity(0.20))
+                        .frame(width: 76, height: 4)
                         .overlay(alignment: .leading) {
                             Capsule()
-                                .fill(.white.opacity(0.82))
-                                .frame(width: CGFloat(max(1, item.high - item.low)) * 6 + 22, height: 5)
+                                .fill(.white.opacity(0.85))
+                                .frame(width: CGFloat(max(1, item.high - item.low)) * 5 + 18, height: 4)
                         }
                     Text("\(item.high)°")
+                        .monospacedDigit()
                 }
                 .foregroundStyle(.white)
                 if item.day != sampleDays.last?.day {
-                    Divider().background(.white.opacity(0.18))
+                    Divider().background(.white.opacity(0.12))
                 }
             }
         }
-        .padding(20)
-        .background(ThinGlassShape(cornerRadius: 30, intensity: 0.14))
+        .padding(18)
+        .background(ThinGlassShape(cornerRadius: 26, intensity: 0.10))
     }
 
     private var sampleHours: [(time: String, symbol: String, temp: Int)] {
         let start = Int(weather.hour.rounded())
+        let base = Int(weather.temperature.rounded())
         return [
-            ("Şu An", atmosphere.symbolName, Int(weather.temperature)),
-            (String(format: "%02d:00", (start + 1) % 24), atmosphere.symbolName, Int(weather.temperature + 1)),
-            (String(format: "%02d:00", (start + 2) % 24), atmosphere.symbolName, Int(weather.temperature + 2)),
-            (String(format: "%02d:00", (start + 3) % 24), atmosphere.symbolName, Int(weather.temperature + 2)),
-            (String(format: "%02d:00", (start + 4) % 24), atmosphere.condition == .storm ? "cloud.bolt.rain.fill" : atmosphere.symbolName, Int(weather.temperature + 1))
+            ("Şu An", atmosphere.symbolName, base),
+            (String(format: "%02d:00", (start + 1) % 24), atmosphere.symbolName, base + 1),
+            (String(format: "%02d:00", (start + 2) % 24), atmosphere.symbolName, base + 1),
+            (String(format: "%02d:00", (start + 3) % 24), atmosphere.symbolName, base),
+            (String(format: "%02d:00", (start + 4) % 24), atmosphere.symbolName, base - 1)
         ]
     }
 
     private var sampleDays: [(day: String, symbol: String, low: Int, high: Int)] {
-        [
-            ("Bugün", atmosphere.symbolName, Int(weather.temperature - 7), Int(weather.temperature + 3)),
-            ("Yarın", atmosphere.symbolName, Int(weather.temperature - 8), Int(weather.temperature + 2)),
-            ("Pazar", atmosphere.rainSignal == .high ? "cloud.rain.fill" : atmosphere.symbolName, Int(weather.temperature - 9), Int(weather.temperature - 1)),
-            ("Pazartesi", atmosphere.condition == .clear ? "cloud.sun.fill" : atmosphere.symbolName, Int(weather.temperature - 8), Int(weather.temperature))
+        let base = Int(weather.temperature.rounded())
+        return [
+            ("Bugün", atmosphere.symbolName, base - 6, base + 2),
+            ("Yarın", atmosphere.symbolName, base - 7, base + 1),
+            ("Pazar", atmosphere.symbolName, base - 8, base),
+            ("Pazartesi", atmosphere.symbolName, base - 7, base + 1)
         ]
     }
 }
 
 struct AtmosphereOrb: View {
-    let condition: WeatherCondition
+    let symbolName: String
 
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(.ultraThinMaterial.opacity(0.30))
-                .overlay(Circle().stroke(.white.opacity(0.22), lineWidth: 1))
-                .shadow(color: .white.opacity(0.14), radius: 18)
-
-            Image(systemName: condition.symbolName)
-                .font(.system(size: 42, weight: .light))
-                .symbolRenderingMode(.multicolor)
-        }
+        Circle()
+            .fill(.ultraThinMaterial.opacity(0.15))
+            .overlay(Circle().stroke(.white.opacity(0.20), lineWidth: 1))
+            .overlay {
+                Image(systemName: symbolName)
+                    .font(.system(size: 36, weight: .light))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.white.opacity(0.95))
+            }
     }
 }
 #endif

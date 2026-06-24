@@ -6,20 +6,10 @@ struct AtmosphereBackgroundView: View {
     let hour: Double
     let windSpeed: Double
 
-    private var condition: WeatherCondition { atmosphere.condition }
     private var mood: BackgroundMood { atmosphere.backgroundMood }
     private var timeOfDay: TimeOfDay { TimeOfDay(hour: Int(hour.rounded())) }
-    private var windIntensity: Double { min(max(windSpeed / 90.0, 0.0), 1.0) }
-    private var rainIntensity: Double {
-        switch atmosphere.rainSignal {
-        case .low: return 0.25
-        case .moderate: return 0.45
-        case .high: return 0.65
-        }
-    }
 
     @State private var drift = false
-    @State private var breathe = false
 
     var body: some View {
         ZStack {
@@ -29,278 +19,210 @@ struct AtmosphereBackgroundView: View {
                 endPoint: drift ? .bottomLeading : .bottomTrailing
             )
             .ignoresSafeArea()
-            .animation(.easeInOut(duration: 24).repeatForever(autoreverses: true), value: drift)
 
-            lightVolumeLayer
-            cloudMassLayer
-
-            if windIntensity > 0.32 || atmosphere.stormRisk == .high {
-                WindFlowLayer(windSpeed: windSpeed)
-                    .blendMode(.screen)
-                    .opacity(0.12 + windIntensity * 0.18)
-                    .allowsHitTesting(false)
-            }
-
-            weatherSpecificLayer
+            moodLayer
 
             Rectangle()
                 .fill(.black.opacity(baseDarkness))
                 .ignoresSafeArea()
         }
-        .drawingGroup(opaque: false)
-        .animation(.easeInOut(duration: 0.55), value: atmosphere)
-        .animation(.easeInOut(duration: 0.55), value: Int(hour.rounded()))
-        .animation(.easeInOut(duration: 0.35), value: Int(windSpeed.rounded()))
-        .onAppear {
-            drift = true
-            breathe = true
-        }
+        .animation(.easeInOut(duration: 20).repeatForever(autoreverses: true), value: drift)
+        .animation(.easeInOut(duration: 0.6), value: atmosphere.backgroundMood)
+        .animation(.easeInOut(duration: 0.6), value: Int(hour.rounded()))
+        .onAppear { drift = true }
     }
 
     private var timeAwarePalette: [Color] {
+        let base = atmosphere.condition.palette
         switch timeOfDay {
         case .dawn:
-            return [condition.palette[0], Color(red: 0.70, green: 0.84, blue: 0.96), Color(red: 1.0, green: 0.68, blue: 0.45)]
+            return [base[0], Color(red: 0.72, green: 0.82, blue: 0.93), Color(red: 0.94, green: 0.69, blue: 0.50)]
         case .day:
-            return condition.palette
+            return base
         case .sunset:
-            return [condition.palette[0].opacity(0.95), Color(red: 0.43, green: 0.30, blue: 0.58), Color(red: 1.0, green: 0.48, blue: 0.28)]
+            return [base[0].opacity(0.9), Color(red: 0.38, green: 0.30, blue: 0.56), Color(red: 0.94, green: 0.45, blue: 0.28)]
         case .night:
-            return [Color(red: 0.01, green: 0.02, blue: 0.07), Color(red: 0.03, green: 0.08, blue: 0.18), condition.palette[0].opacity(0.62)]
+            return [Color(red: 0.01, green: 0.02, blue: 0.08), Color(red: 0.03, green: 0.08, blue: 0.16), base[0].opacity(0.55)]
         }
     }
 
     private var baseDarkness: Double {
         let weatherDarkness: Double
         switch mood {
-        case .clear: weatherDarkness = 0.04
-        case .partlyCloudy: weatherDarkness = 0.08
-        case .cloudy: weatherDarkness = 0.13
-        case .wet: weatherDarkness = 0.17
-        case .storm: weatherDarkness = 0.26
-        case .fog, .snow: weatherDarkness = 0.10
+        case .clear: weatherDarkness = 0.03
+        case .partlyCloudy: weatherDarkness = 0.07
+        case .cloudy: weatherDarkness = 0.12
+        case .wet: weatherDarkness = 0.16
+        case .storm: weatherDarkness = 0.25
+        case .fog: weatherDarkness = 0.09
+        case .snow: weatherDarkness = 0.11
         }
         return min(0.62, weatherDarkness + timeOfDay.darkness)
     }
 
-    private var lightVolumeLayer: some View {
+    @ViewBuilder
+    private var moodLayer: some View {
+        switch mood {
+        case .clear:
+            ClearDepthLayer(drift: drift, timeOfDay: timeOfDay)
+        case .partlyCloudy, .cloudy:
+            CloudMassLayer(cloudCover: atmosphere.cloudCover, windSpeed: windSpeed)
+        case .wet:
+            WetLayer(windSpeed: windSpeed, rainSignal: atmosphere.rainSignal)
+        case .storm:
+            StormEnergyLayer()
+        case .fog:
+            FogHazeLayer(windSpeed: windSpeed)
+        case .snow:
+            SnowSparseLayer(windSpeed: windSpeed)
+        }
+    }
+}
+
+private struct ClearDepthLayer: View {
+    let drift: Bool
+    let timeOfDay: TimeOfDay
+
+    var body: some View {
         ZStack {
             Circle()
-                .fill(.white.opacity(mood == .storm ? 0.06 : 0.16))
+                .fill(.white.opacity(timeOfDay == .night ? 0.08 : 0.16))
                 .frame(width: 420, height: 420)
                 .blur(radius: 72)
-                .offset(x: drift ? -130 : -70, y: drift ? -220 : -160)
+                .offset(x: drift ? -120 : -70, y: drift ? -220 : -170)
 
             Circle()
-                .fill(.cyan.opacity((mood == .snow || mood == .wet ? 0.14 : 0.09) + timeOfDay.coolness))
-                .frame(width: 360, height: 360)
-                .blur(radius: 78)
-                .offset(x: drift ? 135 : 88, y: drift ? 170 : 235)
-
-            Circle()
-                .fill(.orange.opacity((mood == .clear || mood == .partlyCloudy ? 0.14 : 0.025) + timeOfDay.warmth))
-                .frame(width: 290, height: 290)
-                .blur(radius: 72)
-                .offset(x: drift ? -160 : -210, y: timeOfDay == .sunset ? 150 : 78)
-
-            if timeOfDay == .night {
-                Circle()
-                    .fill(.white.opacity(0.16))
-                    .frame(width: 76, height: 76)
-                    .blur(radius: 2)
-                    .offset(x: 112, y: -238)
-            }
-        }
-        .scaleEffect(breathe ? 1.015 : 0.995)
-        .animation(.easeInOut(duration: 14).repeatForever(autoreverses: true), value: breathe)
-    }
-
-    private var cloudMassLayer: some View {
-        TimelineView(.periodic(from: .now, by: 1.0 / 20.0)) { timeline in
-            Canvas { context, size in
-                let time = timeline.date.timeIntervalSinceReferenceDate
-                let baseSpeed = 3 + windSpeed * 0.05
-                let layers = max(2, min(5, Int(2 + atmosphere.cloudCover * 4)))
-
-                for index in 0..<layers {
-                    let width = size.width * (0.48 + CGFloat(index) * 0.045)
-                    let height = size.height * (0.10 + CGFloat(index % 2) * 0.025)
-                    let speed = baseSpeed + Double(index) * 0.45
-                    let x = (CGFloat(time * speed) + CGFloat(index * 173)).truncatingRemainder(dividingBy: size.width + width + 180) - width
-                    let y = size.height * (0.10 + CGFloat(index) * 0.14)
-                    let rect = CGRect(x: x, y: y, width: width, height: height)
-                    context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(0.025 + atmosphere.cloudCover * 0.045)))
-                }
-            }
-        }
-        .blur(radius: 24)
-        .ignoresSafeArea()
-    }
-
-    @ViewBuilder
-    private var weatherSpecificLayer: some View {
-        switch mood {
-        case .wet:
-            RainLiteLayer(windSpeed: windSpeed, intensity: rainIntensity)
-        case .storm:
-            StormLiteLayer(windSpeed: windSpeed)
-            RainLiteLayer(windSpeed: max(windSpeed, 35), intensity: max(0.50, rainIntensity))
-        case .fog:
-            FogLiteLayer(windSpeed: windSpeed)
-        case .snow:
-            SnowLiteLayer(windSpeed: windSpeed)
-        default:
-            if timeOfDay == .night { StarDustLayer() }
+                .fill(.cyan.opacity(timeOfDay == .night ? 0.10 : 0.07))
+                .frame(width: 320, height: 320)
+                .blur(radius: 86)
+                .offset(x: drift ? 130 : 90, y: drift ? 180 : 220)
         }
     }
 }
 
-private struct RainLiteLayer: View {
+private struct CloudMassLayer: View {
+    let cloudCover: Double
     let windSpeed: Double
-    let intensity: Double
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1.0 / 24.0)) { timeline in
+        TimelineView(.periodic(from: .now, by: 1.0 / 18.0)) { timeline in
             Canvas { context, size in
                 let time = timeline.date.timeIntervalSinceReferenceDate
-                let count = Int(8 + intensity * 14)
-                let tilt = CGFloat(4 + windSpeed * 0.12)
+                let speed = 3 + windSpeed * 0.045
+                let bands = max(2, min(4, Int(2 + cloudCover * 3)))
+
+                for index in 0..<bands {
+                    let width = size.width * (0.7 + CGFloat(index) * 0.09)
+                    let x = (CGFloat(time * speed) + CGFloat(index * 210)).truncatingRemainder(dividingBy: size.width + width) - width
+                    let y = size.height * (0.14 + CGFloat(index) * 0.17)
+                    let rect = CGRect(x: x, y: y, width: width, height: 110)
+                    context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(0.035 + cloudCover * 0.04)))
+                }
+            }
+        }
+        .blur(radius: 22)
+        .ignoresSafeArea()
+    }
+}
+
+private struct WetLayer: View {
+    let windSpeed: Double
+    let rainSignal: AtmosphericRisk
+
+    private var intensity: Double {
+        switch rainSignal {
+        case .low: return 0.25
+        case .moderate: return 0.45
+        case .high: return 0.62
+        }
+    }
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1.0 / 20.0)) { timeline in
+            Canvas { context, size in
+                let time = timeline.date.timeIntervalSinceReferenceDate
+                let count = Int(8 + intensity * 12)
+                let tilt = CGFloat(6 + windSpeed * 0.1)
 
                 for index in 0..<count {
-                    let seed = Double(index * 71 + 19)
+                    let seed = Double(index * 73 + 17)
                     let x = CGFloat(seed.truncatingRemainder(dividingBy: 997)) / 997 * size.width
-                    let speed = 36 + windSpeed * 0.25 + seed.truncatingRemainder(dividingBy: 10)
-                    let y = CGFloat(time * speed + seed * 13).truncatingRemainder(dividingBy: size.height + 160) - 80
-                    let length = CGFloat(26 + intensity * 26)
+                    let speed = 30 + windSpeed * 0.25 + seed.truncatingRemainder(dividingBy: 8)
+                    let y = CGFloat(time * speed + seed * 9).truncatingRemainder(dividingBy: size.height + 160) - 80
                     var path = Path()
                     path.move(to: CGPoint(x: x, y: y))
-                    path.addLine(to: CGPoint(x: x - tilt, y: y + length))
-                    context.stroke(path, with: .color(.white.opacity(0.028 + intensity * 0.035)), lineWidth: 0.48)
+                    path.addLine(to: CGPoint(x: x - tilt, y: y + 22 + intensity * 18))
+                    context.stroke(path, with: .color(.white.opacity(0.035 + intensity * 0.03)), lineWidth: 0.5)
                 }
 
-                for index in 0..<2 {
-                    let y = CGFloat(time * (2.0 + Double(index) * 0.35) + Double(index * 137)).truncatingRemainder(dividingBy: size.height + 240) - 120
-                    let rect = CGRect(x: -size.width * 0.18, y: y, width: size.width * 0.95, height: 82)
-                    context.fill(Path(roundedRect: rect, cornerRadius: 52), with: .color(.white.opacity(0.012 + intensity * 0.014)))
-                }
+                let mist = CGRect(x: -size.width * 0.2, y: size.height * 0.45, width: size.width * 1.2, height: 120)
+                context.fill(Path(roundedRect: mist, cornerRadius: 60), with: .color(.white.opacity(0.03 + intensity * 0.02)))
             }
         }
-        .blur(radius: 0.5)
         .ignoresSafeArea()
     }
 }
 
-private struct WindFlowLayer: View {
-    let windSpeed: Double
-    private var intensity: Double { min(max(windSpeed / 90.0, 0.0), 1.0) }
-
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 1.0 / 20.0)) { timeline in
-            Canvas { context, size in
-                let time = timeline.date.timeIntervalSinceReferenceDate
-                let lineCount = Int(2 + intensity * 6)
-                let velocity = 10 + windSpeed * 0.55
-
-                for index in 0..<lineCount {
-                    let seed = Double(index * 37 + 11)
-                    let baseY = size.height * (0.18 + CGFloat((seed.truncatingRemainder(dividingBy: 55)) / 95.0))
-                    let xTravel = (CGFloat(time * velocity + seed * 31)).truncatingRemainder(dividingBy: size.width + 260) - 140
-                    let length = CGFloat(70 + intensity * 120)
-                    let bend = CGFloat(sin(time * 0.14 + seed) * (5 + intensity * 10))
-                    var path = Path()
-                    path.move(to: CGPoint(x: xTravel, y: baseY))
-                    path.addCurve(
-                        to: CGPoint(x: xTravel + length, y: baseY + bend),
-                        control1: CGPoint(x: xTravel + length * 0.33, y: baseY - bend * 0.4),
-                        control2: CGPoint(x: xTravel + length * 0.66, y: baseY + bend * 0.6)
-                    )
-                    context.stroke(path, with: .color(.white.opacity(0.08 + intensity * 0.08)), lineWidth: 0.5 + intensity * 0.5)
-                }
-            }
-        }
-        .blur(radius: 0.4)
-        .ignoresSafeArea()
-    }
-}
-
-private struct StormLiteLayer: View {
-    let windSpeed: Double
+private struct StormEnergyLayer: View {
     @State private var glow = false
 
     var body: some View {
         ZStack {
             Circle()
-                .fill(.purple.opacity(glow ? 0.11 : 0.035))
-                .frame(width: 580, height: 580)
-                .blur(radius: 90)
+                .fill(.purple.opacity(glow ? 0.12 : 0.04))
+                .frame(width: 560, height: 560)
+                .blur(radius: 96)
                 .offset(x: -120, y: -240)
-                .blendMode(.screen)
 
             Rectangle()
-                .fill(.white.opacity(glow ? 0.025 : 0.0))
+                .fill(.white.opacity(glow ? 0.02 : 0))
                 .ignoresSafeArea()
         }
-        .animation(.easeInOut(duration: 7.5).repeatForever(autoreverses: true), value: glow)
+        .animation(.easeInOut(duration: 12).repeatForever(autoreverses: true), value: glow)
         .onAppear { glow = true }
     }
 }
 
-private struct FogLiteLayer: View {
+private struct FogHazeLayer: View {
     let windSpeed: Double
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1.0 / 16.0)) { timeline in
             Canvas { context, size in
                 let time = timeline.date.timeIntervalSinceReferenceDate
-                for index in 0..<4 {
-                    let speed = 2.2 + windSpeed * 0.035 + Double(index) * 0.25
-                    let width = size.width * (0.78 + CGFloat(index) * 0.08)
-                    let x = (CGFloat(time * speed) + CGFloat(index * 193)).truncatingRemainder(dividingBy: size.width + width) - width
-                    let y = size.height * (0.18 + CGFloat(index) * 0.17)
-                    let rect = CGRect(x: x, y: y, width: width, height: 106)
-                    context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(0.060)))
+                for index in 0..<3 {
+                    let speed = 2 + windSpeed * 0.03 + Double(index) * 0.25
+                    let width = size.width * (0.9 + CGFloat(index) * 0.08)
+                    let x = (CGFloat(time * speed) + CGFloat(index * 197)).truncatingRemainder(dividingBy: size.width + width) - width
+                    let y = size.height * (0.2 + CGFloat(index) * 0.18)
+                    let rect = CGRect(x: x, y: y, width: width, height: 120)
+                    context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(0.07)))
                 }
             }
         }
-        .blur(radius: 28)
+        .blur(radius: 26)
         .ignoresSafeArea()
     }
 }
 
-private struct SnowLiteLayer: View {
+private struct SnowSparseLayer: View {
     let windSpeed: Double
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1.0 / 20.0)) { timeline in
+        TimelineView(.periodic(from: .now, by: 1.0 / 18.0)) { timeline in
             Canvas { context, size in
                 let time = timeline.date.timeIntervalSinceReferenceDate
-                let intensity = min(max(windSpeed / 90.0, 0.0), 1.0)
-                let count = Int(12 + intensity * 12)
+                let count = Int(10 + min(max(windSpeed / 100, 0), 1) * 8)
 
                 for index in 0..<count {
                     let seed = Double(index * 59 + 23)
-                    let speedY = 10 + seed.truncatingRemainder(dividingBy: 10)
-                    let speedX = 2 + windSpeed * 0.12
-                    let x = CGFloat(seed.truncatingRemainder(dividingBy: 887)) / 887 * size.width + CGFloat(time * speedX).truncatingRemainder(dividingBy: 70) - 35
-                    let y = CGFloat(time * speedY + seed * 17).truncatingRemainder(dividingBy: size.height + 70) - 35
-                    let point = CGFloat(1.1 + seed.truncatingRemainder(dividingBy: 2.0))
-                    context.fill(Path(ellipseIn: CGRect(x: x, y: y, width: point, height: point)), with: .color(.white.opacity(0.20 + intensity * 0.10)))
+                    let x = CGFloat(seed.truncatingRemainder(dividingBy: 887)) / 887 * size.width
+                    let y = CGFloat(time * (8 + seed.truncatingRemainder(dividingBy: 8)) + seed * 13).truncatingRemainder(dividingBy: size.height + 70) - 35
+                    context.fill(
+                        Path(ellipseIn: CGRect(x: x, y: y, width: 1.6, height: 1.6)),
+                        with: .color(.white.opacity(0.25))
+                    )
                 }
-            }
-        }
-        .blur(radius: 0.25)
-        .ignoresSafeArea()
-    }
-}
-
-private struct StarDustLayer: View {
-    var body: some View {
-        Canvas { context, size in
-            for index in 0..<24 {
-                let x = CGFloat((index * 73) % 997) / 997 * size.width
-                let y = CGFloat((index * 41) % 619) / 619 * size.height * 0.58
-                let opacity = 0.14 + Double(index % 5) * 0.035
-                context.fill(Path(ellipseIn: CGRect(x: x, y: y, width: 1.5, height: 1.5)), with: .color(.white.opacity(opacity)))
             }
         }
         .ignoresSafeArea()
