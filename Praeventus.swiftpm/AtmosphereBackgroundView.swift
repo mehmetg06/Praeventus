@@ -12,9 +12,9 @@ struct AtmosphereBackgroundView: View {
     private var windIntensity: Double { min(max(windSpeed / 90.0, 0.0), 1.0) }
     private var rainIntensity: Double {
         switch atmosphere.rainSignal {
-        case .low: return 0.32
-        case .moderate: return 0.62
-        case .high: return 0.92
+        case .low: return 0.30
+        case .moderate: return 0.60
+        case .high: return 0.88
         }
     }
 
@@ -146,7 +146,7 @@ struct AtmosphereBackgroundView: View {
             PremiumRainGlassLayer(windSpeed: windSpeed, intensity: rainIntensity, stormMode: false)
         case .storm:
             StormMoodLayer(windSpeed: windSpeed)
-            PremiumRainGlassLayer(windSpeed: max(windSpeed, 35), intensity: max(0.72, rainIntensity), stormMode: true)
+            PremiumRainGlassLayer(windSpeed: max(windSpeed, 35), intensity: max(0.70, rainIntensity), stormMode: true)
         case .fog:
             FogMoodLayer(windSpeed: windSpeed)
         case .snow:
@@ -166,7 +166,7 @@ private struct PremiumRainGlassLayer: View {
         ZStack {
             RainMistLayer(intensity: intensity)
             SubtleRainStreakLayer(windSpeed: windSpeed, intensity: intensity)
-            GlassDropletLayer(windSpeed: windSpeed, intensity: intensity, stormMode: stormMode)
+            ElegantDropletLayer(windSpeed: windSpeed, intensity: intensity, stormMode: stormMode)
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
@@ -184,7 +184,7 @@ private struct RainMistLayer: View {
                     let width = size.width * (0.70 + CGFloat(index) * 0.12)
                     let y = (CGFloat(time * (2.0 + Double(index) * 0.4)) + CGFloat(index * 137)).truncatingRemainder(dividingBy: size.height + 240) - 120
                     let rect = CGRect(x: -size.width * 0.18, y: y, width: width, height: 95 + CGFloat(index * 18))
-                    context.fill(Path(roundedRect: rect, cornerRadius: 58), with: .color(.white.opacity(0.020 + intensity * 0.020)))
+                    context.fill(Path(roundedRect: rect, cornerRadius: 58), with: .color(.white.opacity(0.018 + intensity * 0.018)))
                 }
             }
         }
@@ -200,19 +200,19 @@ private struct SubtleRainStreakLayer: View {
         TimelineView(.animation) { timeline in
             Canvas { context, size in
                 let time = timeline.date.timeIntervalSinceReferenceDate
-                let streakCount = Int(10 + intensity * 18)
-                let tilt = CGFloat(5 + windSpeed * 0.18)
+                let streakCount = Int(8 + intensity * 14)
+                let tilt = CGFloat(5 + windSpeed * 0.16)
 
                 for index in 0..<streakCount {
                     let seed = Double(index * 71 + 19)
                     let x = CGFloat(seed.truncatingRemainder(dividingBy: 997)) / 997 * size.width
                     let speed = 42 + windSpeed * 0.35 + seed.truncatingRemainder(dividingBy: 17)
                     let y = CGFloat(time * speed + seed * 13).truncatingRemainder(dividingBy: size.height + 170) - 85
-                    let length = CGFloat(34 + intensity * 34)
+                    let length = CGFloat(28 + intensity * 30)
                     var path = Path()
                     path.move(to: CGPoint(x: x, y: y))
                     path.addLine(to: CGPoint(x: x - tilt, y: y + length))
-                    context.stroke(path, with: .color(.white.opacity(0.035 + intensity * 0.045)), lineWidth: 0.55)
+                    context.stroke(path, with: .color(.white.opacity(0.026 + intensity * 0.038)), lineWidth: 0.5)
                 }
             }
         }
@@ -220,12 +220,12 @@ private struct SubtleRainStreakLayer: View {
     }
 }
 
-private struct GlassDropletLayer: View {
+private struct ElegantDropletLayer: View {
     let windSpeed: Double
     let intensity: Double
     let stormMode: Bool
 
-    private var dropletCount: Int { Int(12 + intensity * 14) }
+    private var dropletCount: Int { Int(9 + intensity * 10) }
 
     var body: some View {
         GeometryReader { proxy in
@@ -238,41 +238,48 @@ private struct GlassDropletLayer: View {
                         let slide = dropletSlide(seed: seed, time: time, height: proxy.size.height)
                         let width = base.width
                         let height = base.height
+                        let corner = min(width, height) * 0.55
 
-                        GlassDropletShape(seed: seed)
+                        RoundedRectangle(cornerRadius: corner, style: .continuous)
                             .fill(
                                 LinearGradient(
                                     colors: [
-                                        .white.opacity(0.24),
+                                        .white.opacity(0.22),
                                         .white.opacity(0.070),
-                                        .clear
+                                        .white.opacity(0.018)
                                     ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
                             )
                             .overlay {
-                                GlassDropletShape(seed: seed)
-                                    .stroke(.white.opacity(0.16), lineWidth: 0.7)
+                                RoundedRectangle(cornerRadius: corner, style: .continuous)
+                                    .stroke(.white.opacity(0.13), lineWidth: 0.65)
                             }
                             .overlay(alignment: .topLeading) {
-                                Ellipse()
-                                    .fill(.white.opacity(0.30))
-                                    .frame(width: width * 0.34, height: height * 0.16)
-                                    .blur(radius: 1.4)
-                                    .offset(x: width * 0.18, y: height * 0.16)
+                                Capsule()
+                                    .fill(.white.opacity(0.34))
+                                    .frame(width: width * 0.46, height: max(1.4, height * 0.09))
+                                    .blur(radius: 0.9)
+                                    .offset(x: width * 0.18, y: height * 0.18)
+                            }
+                            .overlay(alignment: .bottomTrailing) {
+                                Capsule()
+                                    .fill(.black.opacity(0.13))
+                                    .frame(width: width * 0.40, height: max(1.2, height * 0.08))
+                                    .blur(radius: 1.6)
+                                    .offset(x: -width * 0.16, y: -height * 0.14)
                             }
                             .background {
-                                GlassDropletShape(seed: seed)
-                                    .fill(.black.opacity(0.10))
-                                    .blur(radius: 1.8)
-                                    .offset(x: 1.2, y: 2.4)
+                                RoundedRectangle(cornerRadius: corner, style: .continuous)
+                                    .fill(.black.opacity(0.08))
+                                    .blur(radius: 2.2)
+                                    .offset(x: 1.1, y: 2.1)
                             }
                             .frame(width: width, height: height)
-                            .scaleEffect(x: 0.82 + CGFloat((seed.truncatingRemainder(dividingBy: 9)) / 30), y: 1.0)
-                            .rotationEffect(.degrees(seed.truncatingRemainder(dividingBy: 18) - 9))
+                            .rotationEffect(.degrees(seed.truncatingRemainder(dividingBy: 10) - 5))
                             .opacity(dropletOpacity(seed: seed))
-                            .position(x: base.x + CGFloat(windSpeed * 0.06) * slide.progress, y: base.y + slide.y)
+                            .position(x: base.x + CGFloat(windSpeed * 0.05) * slide.progress, y: base.y + slide.y)
                             .blendMode(.screen)
                     }
                 }
@@ -286,65 +293,34 @@ private struct GlassDropletLayer: View {
         let yUnit = (seed * 29).truncatingRemainder(dividingBy: 733) / 733
         let edgeBias = seed.truncatingRemainder(dividingBy: 5)
         let x: CGFloat
-        if edgeBias < 1.2 {
-            x = CGFloat(0.06 + xUnit * 0.18) * size.width
-        } else if edgeBias > 3.8 {
-            x = CGFloat(0.76 + xUnit * 0.18) * size.width
+        if edgeBias < 1.25 {
+            x = CGFloat(0.07 + xUnit * 0.17) * size.width
+        } else if edgeBias > 3.75 {
+            x = CGFloat(0.76 + xUnit * 0.17) * size.width
         } else {
-            x = CGFloat(0.22 + xUnit * 0.56) * size.width
+            x = CGFloat(0.24 + xUnit * 0.52) * size.width
         }
-        let y = CGFloat(0.06 + yUnit * 0.82) * size.height
-        let large = seed.truncatingRemainder(dividingBy: 6) > 4.2
-        let width = CGFloat(large ? 18 + seed.truncatingRemainder(dividingBy: 18) : 7 + seed.truncatingRemainder(dividingBy: 10))
-        let height = width * CGFloat(1.15 + seed.truncatingRemainder(dividingBy: 1.4))
+        let y = CGFloat(0.07 + yUnit * 0.80) * size.height
+        let large = seed.truncatingRemainder(dividingBy: 6) > 4.35
+        let width = CGFloat(large ? 14 + seed.truncatingRemainder(dividingBy: 14) : 6 + seed.truncatingRemainder(dividingBy: 8))
+        let height = width * CGFloat(1.55 + seed.truncatingRemainder(dividingBy: 0.42))
         return (x, y, width, height)
     }
 
     private func dropletSlide(seed: Double, time: Double, height: CGFloat) -> (y: CGFloat, progress: CGFloat) {
-        let movable = seed.truncatingRemainder(dividingBy: 10) > 6.2
+        let movable = seed.truncatingRemainder(dividingBy: 10) > 7.0
         guard movable else { return (0, 0) }
-        let cycle = 14 + seed.truncatingRemainder(dividingBy: 16)
+        let cycle = 18 + seed.truncatingRemainder(dividingBy: 18)
         let raw = (time + seed).truncatingRemainder(dividingBy: cycle) / cycle
         let eased = raw * raw * (3 - 2 * raw)
-        let travel = height * CGFloat(0.10 + intensity * 0.14 + (stormMode ? 0.08 : 0.0))
+        let travel = height * CGFloat(0.08 + intensity * 0.10 + (stormMode ? 0.06 : 0.0))
         return (CGFloat(eased) * travel, CGFloat(eased))
     }
 
     private func dropletOpacity(seed: Double) -> Double {
-        let base = 0.26 + intensity * 0.30
-        let variation = seed.truncatingRemainder(dividingBy: 7) / 70
-        return min(0.72, base + variation)
-    }
-}
-
-private struct GlassDropletShape: Shape {
-    let seed: Double
-
-    func path(in rect: CGRect) -> Path {
-        let wobble = CGFloat(seed.truncatingRemainder(dividingBy: 7)) / 100
-        var path = Path()
-        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
-        path.addCurve(
-            to: CGPoint(x: rect.maxX * (0.88 + wobble), y: rect.midY),
-            control1: CGPoint(x: rect.maxX * 0.76, y: rect.minY + rect.height * 0.08),
-            control2: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.30)
-        )
-        path.addCurve(
-            to: CGPoint(x: rect.midX, y: rect.maxY),
-            control1: CGPoint(x: rect.maxX * 0.82, y: rect.maxY * 0.78),
-            control2: CGPoint(x: rect.maxX * 0.62, y: rect.maxY)
-        )
-        path.addCurve(
-            to: CGPoint(x: rect.minX + rect.width * 0.12, y: rect.midY),
-            control1: CGPoint(x: rect.minX + rect.width * 0.34, y: rect.maxY),
-            control2: CGPoint(x: rect.minX, y: rect.maxY * 0.72)
-        )
-        path.addCurve(
-            to: CGPoint(x: rect.midX, y: rect.minY),
-            control1: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.24),
-            control2: CGPoint(x: rect.minX + rect.width * 0.28, y: rect.minY)
-        )
-        return path
+        let base = 0.24 + intensity * 0.24
+        let variation = seed.truncatingRemainder(dividingBy: 7) / 90
+        return min(0.58, base + variation)
     }
 }
 
