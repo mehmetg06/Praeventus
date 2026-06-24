@@ -3,6 +3,9 @@ import SwiftUI
 
 struct AtmosphereBackgroundView: View {
     let condition: WeatherCondition
+    let hour: Double
+
+    private var timeOfDay: TimeOfDay { TimeOfDay(hour: Int(hour.rounded())) }
 
     @State private var drift = false
     @State private var pulse = false
@@ -10,7 +13,7 @@ struct AtmosphereBackgroundView: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: condition.palette,
+                colors: timeAwarePalette,
                 startPoint: drift ? .topTrailing : .topLeading,
                 endPoint: drift ? .bottomLeading : .bottomTrailing
             )
@@ -22,34 +25,63 @@ struct AtmosphereBackgroundView: View {
             weatherSpecificLayer
 
             Rectangle()
-                .fill(.black.opacity(condition == .clear ? 0.04 : 0.18))
+                .fill(.black.opacity(baseDarkness))
                 .ignoresSafeArea()
         }
+        .animation(.easeInOut(duration: 0.55), value: condition)
+        .animation(.easeInOut(duration: 0.55), value: Int(hour.rounded()))
         .onAppear {
             drift = true
             pulse = true
         }
     }
 
+    private var timeAwarePalette: [Color] {
+        switch timeOfDay {
+        case .dawn:
+            return [condition.palette[0], Color(red: 0.70, green: 0.84, blue: 0.96), Color(red: 1.0, green: 0.68, blue: 0.45)]
+        case .day:
+            return condition.palette
+        case .sunset:
+            return [condition.palette[0].opacity(0.95), Color(red: 0.43, green: 0.30, blue: 0.58), Color(red: 1.0, green: 0.48, blue: 0.28)]
+        case .night:
+            return [Color(red: 0.01, green: 0.02, blue: 0.07), Color(red: 0.03, green: 0.08, blue: 0.18), condition.palette[0].opacity(0.62)]
+        }
+    }
+
+    private var baseDarkness: Double {
+        let weatherDarkness: Double = condition == .clear ? 0.04 : 0.18
+        return min(0.62, weatherDarkness + timeOfDay.darkness)
+    }
+
     private var skyLightLayer: some View {
         ZStack {
             Circle()
-                .fill(.white.opacity(condition == .storm ? 0.10 : 0.26))
+                .fill(.white.opacity(condition == .storm ? 0.10 : 0.24))
                 .frame(width: 420, height: 420)
                 .blur(radius: 70)
                 .offset(x: drift ? -145 : -70, y: drift ? -230 : -170)
 
             Circle()
-                .fill(.cyan.opacity(condition == .snow || condition == .rain ? 0.24 : 0.16))
+                .fill(.cyan.opacity((condition == .snow || condition == .rain ? 0.24 : 0.16) + timeOfDay.coolness))
                 .frame(width: 360, height: 360)
                 .blur(radius: 82)
                 .offset(x: drift ? 165 : 92, y: drift ? 180 : 250)
 
             Circle()
-                .fill(.orange.opacity(condition == .clear || condition == .partlyCloudy ? 0.24 : 0.04))
+                .fill(.orange.opacity((condition == .clear || condition == .partlyCloudy ? 0.22 : 0.04) + timeOfDay.warmth))
                 .frame(width: 300, height: 300)
                 .blur(radius: 70)
-                .offset(x: drift ? -180 : -240, y: 80)
+                .offset(x: drift ? -180 : -240, y: timeOfDay == .sunset ? 170 : 80)
+
+            if timeOfDay == .night {
+                Circle()
+                    .fill(.white.opacity(0.20))
+                    .frame(width: 92, height: 92)
+                    .blur(radius: 2)
+                    .offset(x: 112, y: -238)
+                    .shadow(color: .white.opacity(0.28), radius: 26)
+            }
         }
         .scaleEffect(pulse ? 1.04 : 0.98)
         .animation(.easeInOut(duration: 5.5).repeatForever(autoreverses: true), value: pulse)
@@ -90,7 +122,7 @@ struct AtmosphereBackgroundView: View {
         case .snow:
             SnowDustLayer()
         default:
-            EmptyView()
+            if timeOfDay == .night { StarDustLayer() }
         }
     }
 }
@@ -146,6 +178,20 @@ private struct SnowDustLayer: View {
                     let y = (CGFloat(index * 41) + CGFloat(time * 38)).truncatingRemainder(dividingBy: size.height)
                     context.fill(Path(ellipseIn: CGRect(x: x, y: y, width: 2.4, height: 2.4)), with: .color(.white.opacity(0.42)))
                 }
+            }
+        }
+        .ignoresSafeArea()
+    }
+}
+
+private struct StarDustLayer: View {
+    var body: some View {
+        Canvas { context, size in
+            for index in 0..<38 {
+                let x = CGFloat((index * 73) % 997) / 997 * size.width
+                let y = CGFloat((index * 41) % 619) / 619 * size.height * 0.58
+                let opacity = 0.18 + Double(index % 5) * 0.05
+                context.fill(Path(ellipseIn: CGRect(x: x, y: y, width: 1.8, height: 1.8)), with: .color(.white.opacity(opacity)))
             }
         }
         .ignoresSafeArea()
