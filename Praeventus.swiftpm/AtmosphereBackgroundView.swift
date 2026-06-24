@@ -10,7 +10,9 @@ struct AtmosphereBackgroundView: View {
     private var timeOfDay: TimeOfDay { TimeOfDay(hour: Int(hour.rounded())) }
     private var windIntensity: Double { min(max(windSpeed / 90.0, 0.0), 1.0) }
     private var hotSunny: Bool {
-        (mood == .clear || mood == .partlyCloudy) && atmosphere.condition == .clear && timeOfDay == .day
+        (mood == .clear || mood == .partlyCloudy) &&
+        (atmosphere.condition == .clear || atmosphere.condition == .partlyCloudy) &&
+        timeOfDay == .day
     }
 
     @State private var drift = false
@@ -26,6 +28,7 @@ struct AtmosphereBackgroundView: View {
             .ignoresSafeArea()
 
             lightField
+            if hotSunny { sunDiskLayer }
             airMassLayer
             moodLayer
             depthOverlay
@@ -43,10 +46,10 @@ struct AtmosphereBackgroundView: View {
         let base = atmosphere.condition.palette
         if hotSunny {
             return [
-                Color(red: 0.05, green: 0.34, blue: 0.78),
-                Color(red: 0.26, green: 0.66, blue: 1.0),
-                Color(red: 0.86, green: 0.94, blue: 1.0),
-                Color(red: 1.0, green: 0.76, blue: 0.42).opacity(0.88)
+                Color(red: 0.04, green: 0.29, blue: 0.70),
+                Color(red: 0.19, green: 0.57, blue: 0.96),
+                Color(red: 0.74, green: 0.89, blue: 1.0),
+                Color(red: 1.0, green: 0.77, blue: 0.45).opacity(0.90)
             ]
         }
 
@@ -89,8 +92,8 @@ struct AtmosphereBackgroundView: View {
                         .clear,
                         Color(red: 1.0, green: 0.62, blue: 0.25).opacity(0.10)
                     ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
+                    startPoint: .topTrailing,
+                    endPoint: .bottomLeading
                 )
                 .ignoresSafeArea()
                 .blendMode(.screen)
@@ -106,6 +109,51 @@ struct AtmosphereBackgroundView: View {
         }
         .scaleEffect(breathe ? 1.018 : 0.992)
         .animation(.easeInOut(duration: hotSunny ? 18 : 13).repeatForever(autoreverses: true), value: breathe)
+        .ignoresSafeArea()
+    }
+
+    private var sunDiskLayer: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                .white.opacity(0.92),
+                                Color(red: 1.0, green: 0.88, blue: 0.48).opacity(0.72),
+                                Color(red: 1.0, green: 0.68, blue: 0.20).opacity(0.25),
+                                .clear
+                            ],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: 130
+                        )
+                    )
+                    .frame(width: breathe ? 245 : 225, height: breathe ? 245 : 225)
+                    .blur(radius: 18)
+
+                Circle()
+                    .fill(.white.opacity(0.82))
+                    .frame(width: 84, height: 84)
+                    .blur(radius: 2)
+
+                Circle()
+                    .stroke(Color.white.opacity(0.24), lineWidth: 1)
+                    .frame(width: 150, height: 150)
+                    .blur(radius: 8)
+
+                Ellipse()
+                    .fill(Color(red: 1.0, green: 0.75, blue: 0.28).opacity(0.16))
+                    .frame(width: 420, height: 130)
+                    .blur(radius: 32)
+                    .rotationEffect(.degrees(-28))
+                    .offset(x: -54, y: 26)
+            }
+            .blendMode(.screen)
+            .position(x: geometry.size.width * 0.84, y: geometry.size.height * 0.16)
+            .opacity(0.95)
+            .animation(.easeInOut(duration: 16).repeatForever(autoreverses: true), value: breathe)
+        }
         .ignoresSafeArea()
     }
 
@@ -132,7 +180,7 @@ struct AtmosphereBackgroundView: View {
                     let x = (CGFloat(time * (speed + Double(index) * 0.22)) + CGFloat(index * 211)).truncatingRemainder(dividingBy: size.width + width) - width
                     let y = size.height * (0.12 + CGFloat(index) * 0.15)
                     let rect = CGRect(x: x, y: y, width: width, height: height)
-                    let opacity = hotSunny ? 0.020 : 0.018 + atmosphere.cloudCover * 0.050
+                    let opacity = hotSunny ? 0.018 : 0.018 + atmosphere.cloudCover * 0.050
                     context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(opacity)))
                 }
 
@@ -197,7 +245,7 @@ struct AtmosphereBackgroundView: View {
         let weather: Double
         switch mood {
         case .clear: weather = hotSunny ? 0.02 : 0.05
-        case .partlyCloudy: weather = 0.09
+        case .partlyCloudy: weather = hotSunny ? 0.035 : 0.09
         case .cloudy: weather = 0.14
         case .wet: weather = 0.20
         case .storm: weather = 0.34
