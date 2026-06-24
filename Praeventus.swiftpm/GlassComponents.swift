@@ -7,10 +7,15 @@ struct ThinGlassShape: View {
     var highlightOpacity: Double = 0.20
     var innerShadowOpacity: Double = 0.22
     var borderOpacity: Double = 0.26
+    var tintColor: Color = .clear
 
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .fill(.ultraThinMaterial.opacity(intensity))
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(tintColor.opacity(0.09))
+            }
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(
@@ -68,6 +73,7 @@ struct GlassMetric: View {
     let value: String
     let unit: String
     var accent: Color = .white
+    var tintColor: Color = .clear
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -95,7 +101,7 @@ struct GlassMetric: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-        .background(ThinGlassShape(cornerRadius: 18, intensity: 0.10, highlightOpacity: 0.14, innerShadowOpacity: 0.18, borderOpacity: 0.18))
+        .background(ThinGlassShape(cornerRadius: 18, intensity: 0.10, highlightOpacity: 0.14, innerShadowOpacity: 0.18, borderOpacity: 0.18, tintColor: tintColor))
     }
 }
 
