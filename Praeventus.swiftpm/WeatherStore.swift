@@ -4,9 +4,11 @@ import SwiftUI
 @MainActor
 final class WeatherStore: ObservableObject {
     @Published private(set) var weather: WeatherData
+    @Published private(set) var atmosphere: AtmosphericState
 
     init(weather: WeatherData = .mersin) {
         self.weather = weather
+        self.atmosphere = AtmosphericEngine.calculate(from: weather)
     }
 
     func update(
@@ -29,7 +31,7 @@ final class WeatherStore: ObservableObject {
         if let windSpeed { next.windSpeed = windSpeed }
         if let rainProbability { next.rainProbability = rainProbability }
         next.feelsLike = next.temperature + max(0, next.humidity - 55) / 18
-        weather = next
+        publish(next)
     }
 
     func applyPreset(
@@ -41,7 +43,7 @@ final class WeatherStore: ObservableObject {
         rain: Double,
         hour: Double
     ) {
-        weather = WeatherData(
+        let next = WeatherData(
             city: "Mock City",
             country: "Weather Lab",
             temperature: temp,
@@ -53,6 +55,12 @@ final class WeatherStore: ObservableObject {
             rainProbability: rain,
             hour: hour
         )
+        publish(next)
+    }
+
+    private func publish(_ next: WeatherData) {
+        weather = next
+        atmosphere = AtmosphericEngine.calculate(from: next)
     }
 }
 #endif
