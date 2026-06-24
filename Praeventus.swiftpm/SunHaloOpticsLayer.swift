@@ -4,84 +4,105 @@ import SwiftUI
 struct SunHaloOpticsLayer: View {
     let windIntensity: Double
 
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 1.0 / 14.0)) { timeline in
-            Canvas { context, size in
-                let t = timeline.date.timeIntervalSinceReferenceDate
-                let sun = CGPoint(x: size.width * 0.84, y: size.height * 0.16)
-                let pulse = CGFloat((sin(t * 0.38) + 1) * 0.5)
+    @State private var animate = false
 
-                // Soft halo rings around the sun.
-                for index in 0..<3 {
-                    let radius = CGFloat(160 + index * 78) + pulse * CGFloat(14 + index * 6)
-                    let rect = CGRect(x: sun.x - radius / 2, y: sun.y - radius / 2, width: radius, height: radius)
-                    context.stroke(
-                        Path(ellipseIn: rect),
-                        with: .color(Color.white.opacity(0.13 - Double(index) * 0.030)),
-                        lineWidth: CGFloat(1.1 + index) * 0.55
-                    )
+    var body: some View {
+        GeometryReader { geometry in
+            let sunX = geometry.size.width * 0.84
+            let sunY = geometry.size.height * 0.16
+
+            ZStack {
+                // Halo rings around the sun.
+                ForEach(0..<3, id: \.self) { index in
+                    Circle()
+                        .stroke(Color.white.opacity(0.13 - Double(index) * 0.03), lineWidth: 0.8)
+                        .frame(
+                            width: CGFloat(170 + index * 84) + (animate ? CGFloat(18 + index * 8) : 0),
+                            height: CGFloat(170 + index * 84) + (animate ? CGFloat(18 + index * 8) : 0)
+                        )
+                        .blur(radius: CGFloat(5 + index * 7))
+                        .position(x: sunX, y: sunY)
                 }
 
-                // Diagonal optical streak that feels like light catching the camera glass.
-                let streakHeight: CGFloat = 52 + pulse * 10
-                let streakRect = CGRect(x: size.width * 0.13, y: size.height * 0.245 + pulse * 8, width: size.width * 0.64, height: streakHeight)
-                context.fill(
-                    Path(roundedRect: streakRect, cornerRadius: 34),
-                    with: .linearGradient(
-                        Gradient(colors: [
-                            .clear,
-                            Color.white.opacity(0.075),
-                            Color(red: 1.0, green: 0.78, blue: 0.34).opacity(0.052),
-                            .clear
-                        ]),
-                        startPoint: CGPoint(x: streakRect.minX, y: streakRect.midY),
-                        endPoint: CGPoint(x: streakRect.maxX, y: streakRect.midY)
-                    )
-                )
-
-                // Moving scatter beams from sun toward the lower-left atmosphere.
-                for index in 0..<6 {
-                    let wave = CGFloat(sin(t * (0.12 + Double(index) * 0.02))) * (7 + CGFloat(index))
-                    var path = Path()
-                    let startY = sun.y + CGFloat(index) * 16 - 36
-                    path.move(to: CGPoint(x: sun.x - 22, y: startY))
-                    path.addLine(to: CGPoint(x: -size.width * 0.08, y: size.height * (0.31 + CGFloat(index) * 0.095) + wave))
-                    path.addLine(to: CGPoint(x: -size.width * 0.08, y: size.height * (0.38 + CGFloat(index) * 0.098) - wave * 0.7))
-                    path.addLine(to: CGPoint(x: sun.x + 22, y: startY + 26))
-                    path.closeSubpath()
-                    context.fill(
-                        path,
-                        with: .linearGradient(
-                            Gradient(colors: [
-                                Color.white.opacity(0.052 - Double(index) * 0.004),
-                                Color(red: 1.0, green: 0.78, blue: 0.38).opacity(0.032 - Double(index) * 0.0025),
+                // A soft camera-glass streak crossing the sun.
+                Capsule(style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                .clear,
+                                Color.white.opacity(0.075),
+                                Color(red: 1.0, green: 0.78, blue: 0.34).opacity(0.052),
                                 .clear
-                            ]),
-                            startPoint: sun,
-                            endPoint: CGPoint(x: 0, y: size.height * 0.78)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
                         )
                     )
+                    .frame(width: geometry.size.width * 0.66, height: animate ? 68 : 54)
+                    .blur(radius: 14)
+                    .rotationEffect(.degrees(-18))
+                    .position(x: geometry.size.width * 0.45, y: geometry.size.height * (animate ? 0.272 : 0.246))
+
+                // Scatter beams: large translucent triangles from sun to the lower-left air.
+                ForEach(0..<5, id: \.self) { index in
+                    LightBeamShape()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.050 - Double(index) * 0.005),
+                                    Color(red: 1.0, green: 0.78, blue: 0.38).opacity(0.028 - Double(index) * 0.002),
+                                    .clear
+                                ],
+                                startPoint: .topTrailing,
+                                endPoint: .bottomLeading
+                            )
+                        )
+                        .frame(width: geometry.size.width * 0.92, height: geometry.size.height * 0.50)
+                        .rotationEffect(.degrees(-4 + Double(index) * 2 + (animate ? 1.4 : -1.4)))
+                        .offset(x: -geometry.size.width * 0.18, y: geometry.size.height * (0.12 + CGFloat(index) * 0.036))
+                        .blur(radius: CGFloat(10 + index * 2))
+                        .opacity(0.85)
                 }
 
-                // Tiny floating dust/sparkle particles inside the bright air.
-                for index in 0..<18 {
-                    let seed = Double(index * 37 + 11)
-                    let rawX = sin(seed) * 43758.5453
-                    let rawY = sin(seed * 1.7) * 24634.6345
-                    let x = CGFloat(rawX - floor(rawX)) * size.width
-                    let y = CGFloat(rawY - floor(rawY)) * size.height
-                    let drift = CGFloat(sin(t * 0.15 + seed)) * (10 + CGFloat(windIntensity) * 15)
-                    let r = CGFloat(1.0 + seed.truncatingRemainder(dividingBy: 2.0))
-                    context.fill(
-                        Path(ellipseIn: CGRect(x: x + drift, y: y, width: r, height: r)),
-                        with: .color(Color(red: 1.0, green: 0.91, blue: 0.62).opacity(0.018))
-                    )
+                // Floating bright dust in the optical path.
+                ForEach(0..<16, id: \.self) { index in
+                    Circle()
+                        .fill(Color(red: 1.0, green: 0.91, blue: 0.62).opacity(0.022))
+                        .frame(width: CGFloat(1.5 + (index % 3)), height: CGFloat(1.5 + (index % 3)))
+                        .blur(radius: 0.45)
+                        .position(
+                            x: geometry.size.width * dustX(index) + (animate ? CGFloat(index % 5) * 3 : -CGFloat(index % 5) * 3),
+                            y: geometry.size.height * dustY(index)
+                        )
                 }
             }
+            .blendMode(.screen)
+            .animation(.easeInOut(duration: 11).repeatForever(autoreverses: true), value: animate)
+            .onAppear { animate = true }
         }
-        .blur(radius: 1.3)
-        .blendMode(.screen)
         .ignoresSafeArea()
+    }
+
+    private func dustX(_ index: Int) -> CGFloat {
+        let value = sin(Double(index * 37 + 11)) * 43758.5453
+        return CGFloat(value - floor(value))
+    }
+
+    private func dustY(_ index: Int) -> CGFloat {
+        let value = sin(Double(index * 53 + 17)) * 24634.6345
+        return CGFloat(value - floor(value))
+    }
+}
+
+private struct LightBeamShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.04))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.height * 0.45))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.height * 0.76))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.18))
+        path.closeSubpath()
+        return path
     }
 }
 #endif
