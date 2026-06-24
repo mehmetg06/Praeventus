@@ -36,7 +36,7 @@ let packageProducts: [Product] = [
 ]
 #else
 let supportedPlatforms: [SupportedPlatform] = [.macOS("14.0")]
-let packageProducts: [.executable(name: "Praeventus", targets: ["AppModule"])]
+let packageProducts: [Product] = [.executable(name: "Praeventus", targets: ["AppModule"])]
 #endif
 
 let package = Package(
