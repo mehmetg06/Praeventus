@@ -12,12 +12,12 @@ struct SunHaloOpticsLayer: View {
 
             ZStack {
                 SunHaloRings(sunPoint: sunPoint, animate: animate)
+                CameraStarburst(sunPoint: sunPoint, animate: animate)
                 CameraFlareStreak(size: size, animate: animate)
-                SunScatterBeams(size: size, animate: animate)
                 SunDustParticles(size: size, animate: animate, windIntensity: windIntensity)
             }
             .blendMode(.screen)
-            .animation(.easeInOut(duration: 11).repeatForever(autoreverses: true), value: animate)
+            .animation(.easeInOut(duration: 7.5).repeatForever(autoreverses: true), value: animate)
             .onAppear { animate = true }
         }
         .ignoresSafeArea()
@@ -30,18 +30,51 @@ private struct SunHaloRings: View {
 
     var body: some View {
         ZStack {
-            halo(index: 0, base: 170, grow: 18, opacity: 0.13, blur: 5)
-            halo(index: 1, base: 254, grow: 26, opacity: 0.10, blur: 12)
-            halo(index: 2, base: 338, grow: 34, opacity: 0.07, blur: 19)
+            halo(base: 150, grow: 24, opacity: 0.28, blur: 3, lineWidth: 1.2)
+            halo(base: 220, grow: 34, opacity: 0.20, blur: 8, lineWidth: 1.0)
+            halo(base: 330, grow: 46, opacity: 0.14, blur: 16, lineWidth: 0.9)
+            halo(base: 470, grow: 62, opacity: 0.08, blur: 28, lineWidth: 0.8)
         }
     }
 
-    private func halo(index: Int, base: CGFloat, grow: CGFloat, opacity: Double, blur: CGFloat) -> some View {
+    private func halo(base: CGFloat, grow: CGFloat, opacity: Double, blur: CGFloat, lineWidth: CGFloat) -> some View {
         Circle()
-            .stroke(Color.white.opacity(opacity), lineWidth: 0.8)
+            .stroke(Color.white.opacity(opacity), lineWidth: lineWidth)
             .frame(width: base + (animate ? grow : 0), height: base + (animate ? grow : 0))
             .blur(radius: blur)
             .position(x: sunPoint.x, y: sunPoint.y)
+    }
+}
+
+private struct CameraStarburst: View {
+    let sunPoint: CGPoint
+    let animate: Bool
+
+    var body: some View {
+        ZStack {
+            ray(width: 470, height: 7, angle: 0, opacity: 0.34)
+            ray(width: 560, height: 5, angle: 90, opacity: 0.24)
+            ray(width: 440, height: 5, angle: 45, opacity: 0.26)
+            ray(width: 440, height: 5, angle: -45, opacity: 0.26)
+            ray(width: 360, height: 3.5, angle: 22, opacity: 0.16)
+            ray(width: 360, height: 3.5, angle: -22, opacity: 0.16)
+        }
+        .position(x: sunPoint.x, y: sunPoint.y)
+        .rotationEffect(.degrees(animate ? 2.4 : -2.4))
+    }
+
+    private func ray(width: CGFloat, height: CGFloat, angle: Double, opacity: Double) -> some View {
+        Capsule(style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [.clear, .white.opacity(opacity), Color(red: 1.0, green: 0.82, blue: 0.45).opacity(opacity * 0.45), .clear],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .frame(width: animate ? width * 1.08 : width * 0.94, height: height)
+            .blur(radius: height * 1.4)
+            .rotationEffect(.degrees(angle))
     }
 }
 
@@ -50,61 +83,33 @@ private struct CameraFlareStreak: View {
     let animate: Bool
 
     var body: some View {
-        Capsule(style: .continuous)
-            .fill(flareGradient)
-            .frame(width: size.width * 0.66, height: animate ? 68 : 54)
-            .blur(radius: 14)
-            .rotationEffect(.degrees(-18))
-            .position(x: size.width * 0.45, y: size.height * (animate ? 0.272 : 0.246))
+        ZStack {
+            Capsule(style: .continuous)
+                .fill(flareGradient)
+                .frame(width: size.width * 0.74, height: animate ? 64 : 48)
+                .blur(radius: 10)
+                .rotationEffect(.degrees(-18))
+                .position(x: size.width * 0.46, y: size.height * (animate ? 0.282 : 0.250))
+
+            Capsule(style: .continuous)
+                .fill(Color.white.opacity(0.10))
+                .frame(width: size.width * 0.46, height: 3)
+                .blur(radius: 2)
+                .rotationEffect(.degrees(-18))
+                .position(x: size.width * 0.52, y: size.height * (animate ? 0.274 : 0.255))
+        }
     }
 
     private var flareGradient: LinearGradient {
         LinearGradient(
             colors: [
                 .clear,
-                Color.white.opacity(0.075),
-                Color(red: 1.0, green: 0.78, blue: 0.34).opacity(0.052),
+                Color.white.opacity(0.13),
+                Color(red: 1.0, green: 0.78, blue: 0.34).opacity(0.09),
                 .clear
             ],
             startPoint: .leading,
             endPoint: .trailing
-        )
-    }
-}
-
-private struct SunScatterBeams: View {
-    let size: CGSize
-    let animate: Bool
-
-    var body: some View {
-        ZStack {
-            beam(index: 0, y: 0.12, rotation: -4)
-            beam(index: 1, y: 0.156, rotation: -2)
-            beam(index: 2, y: 0.192, rotation: 0)
-            beam(index: 3, y: 0.228, rotation: 2)
-            beam(index: 4, y: 0.264, rotation: 4)
-        }
-    }
-
-    private func beam(index: Int, y: CGFloat, rotation: Double) -> some View {
-        LightBeamShape()
-            .fill(beamGradient(index: index))
-            .frame(width: size.width * 0.92, height: size.height * 0.50)
-            .rotationEffect(.degrees(rotation + (animate ? 1.4 : -1.4)))
-            .offset(x: -size.width * 0.18, y: size.height * y)
-            .blur(radius: CGFloat(10 + index * 2))
-            .opacity(0.85)
-    }
-
-    private func beamGradient(index: Int) -> LinearGradient {
-        LinearGradient(
-            colors: [
-                Color.white.opacity(0.050 - Double(index) * 0.005),
-                Color(red: 1.0, green: 0.78, blue: 0.38).opacity(0.028 - Double(index) * 0.002),
-                .clear
-            ],
-            startPoint: .topTrailing,
-            endPoint: .bottomLeading
         )
     }
 }
@@ -116,21 +121,21 @@ private struct SunDustParticles: View {
 
     var body: some View {
         ZStack {
-            ForEach(0..<16, id: \.self) { index in
+            ForEach(0..<18, id: \.self) { index in
                 dust(index: index)
             }
         }
     }
 
     private func dust(index: Int) -> some View {
-        let side = CGFloat(1.5 + Double(index % 3))
-        let movement = animate ? CGFloat(index % 5) * 3 : -CGFloat(index % 5) * 3
-        let wind = CGFloat(windIntensity) * CGFloat(index % 4)
+        let side = CGFloat(2.0 + Double(index % 3))
+        let movement = animate ? CGFloat(index % 5) * 8 : -CGFloat(index % 5) * 8
+        let wind = CGFloat(windIntensity) * CGFloat(index % 4) * 3
 
         return Circle()
-            .fill(Color(red: 1.0, green: 0.91, blue: 0.62).opacity(0.022))
+            .fill(Color(red: 1.0, green: 0.91, blue: 0.62).opacity(0.040))
             .frame(width: side, height: side)
-            .blur(radius: 0.45)
+            .blur(radius: 0.7)
             .position(
                 x: size.width * dustX(index) + movement + wind,
                 y: size.height * dustY(index)
@@ -145,18 +150,6 @@ private struct SunDustParticles: View {
     private func dustY(_ index: Int) -> CGFloat {
         let value = sin(Double(index * 53 + 17)) * 24634.6345
         return CGFloat(value - floor(value))
-    }
-}
-
-private struct LightBeamShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.04))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.height * 0.45))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.height * 0.76))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.18))
-        path.closeSubpath()
-        return path
     }
 }
 #endif
