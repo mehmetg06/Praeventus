@@ -2,10 +2,12 @@
 import SwiftUI
 
 struct AtmosphereBackgroundView: View {
-    let condition: WeatherCondition
+    let atmosphere: AtmosphericState
     let hour: Double
     let windSpeed: Double
 
+    private var condition: WeatherCondition { atmosphere.condition }
+    private var mood: BackgroundMood { atmosphere.backgroundMood }
     private var timeOfDay: TimeOfDay { TimeOfDay(hour: Int(hour.rounded())) }
     private var windIntensity: Double { min(max(windSpeed / 90.0, 0.0), 1.0) }
 
@@ -25,10 +27,10 @@ struct AtmosphereBackgroundView: View {
             lightVolumeLayer
             cloudMassLayer
 
-            if windIntensity > 0.18 {
+            if windIntensity > 0.18 || atmosphere.stormRisk == .high {
                 WindFlowLayer(windSpeed: windSpeed)
                     .blendMode(.screen)
-                    .opacity(0.22 + windIntensity * 0.28)
+                    .opacity(0.18 + windIntensity * 0.25)
                     .allowsHitTesting(false)
             }
 
@@ -38,7 +40,7 @@ struct AtmosphereBackgroundView: View {
                 .fill(.black.opacity(baseDarkness))
                 .ignoresSafeArea()
         }
-        .animation(.easeInOut(duration: 0.7), value: condition)
+        .animation(.easeInOut(duration: 0.7), value: atmosphere)
         .animation(.easeInOut(duration: 0.7), value: Int(hour.rounded()))
         .animation(.easeInOut(duration: 0.45), value: Int(windSpeed.rounded()))
         .onAppear {
@@ -61,26 +63,35 @@ struct AtmosphereBackgroundView: View {
     }
 
     private var baseDarkness: Double {
-        let weatherDarkness: Double = condition == .clear ? 0.04 : 0.18
-        return min(0.62, weatherDarkness + timeOfDay.darkness)
+        let weatherDarkness: Double
+        switch mood {
+        case .clear: weatherDarkness = 0.04
+        case .partlyCloudy: weatherDarkness = 0.08
+        case .cloudy: weatherDarkness = 0.14
+        case .wet: weatherDarkness = 0.20
+        case .storm: weatherDarkness = 0.30
+        case .fog: weatherDarkness = 0.10
+        case .snow: weatherDarkness = 0.10
+        }
+        return min(0.64, weatherDarkness + timeOfDay.darkness)
     }
 
     private var lightVolumeLayer: some View {
         ZStack {
             Circle()
-                .fill(.white.opacity(condition == .storm ? 0.08 : 0.20))
+                .fill(.white.opacity(mood == .storm ? 0.08 : 0.20))
                 .frame(width: 460, height: 460)
                 .blur(radius: 86)
                 .offset(x: drift ? -150 : -70, y: drift ? -240 : -170)
 
             Circle()
-                .fill(.cyan.opacity((condition == .snow || condition == .rain ? 0.18 : 0.12) + timeOfDay.coolness))
+                .fill(.cyan.opacity((mood == .snow || mood == .wet ? 0.18 : 0.12) + timeOfDay.coolness))
                 .frame(width: 420, height: 420)
                 .blur(radius: 96)
                 .offset(x: drift ? 150 : 92, y: drift ? 180 : 260)
 
             Circle()
-                .fill(.orange.opacity((condition == .clear || condition == .partlyCloudy ? 0.17 : 0.03) + timeOfDay.warmth))
+                .fill(.orange.opacity((mood == .clear || mood == .partlyCloudy ? 0.17 : 0.03) + timeOfDay.warmth))
                 .frame(width: 340, height: 340)
                 .blur(radius: 86)
                 .offset(x: drift ? -176 : -230, y: timeOfDay == .sunset ? 170 : 86)
@@ -103,16 +114,16 @@ struct AtmosphereBackgroundView: View {
             Canvas { context, size in
                 let time = timeline.date.timeIntervalSinceReferenceDate
                 let baseSpeed = 6 + windSpeed * 0.10
-                let layers = condition == .clear ? 4 : 7
+                let layers = Int(3 + atmosphere.cloudCover * 6)
 
-                for index in 0..<layers {
+                for index in 0..<max(2, layers) {
                     let width = size.width * (0.46 + CGFloat(index) * 0.055)
                     let height = size.height * (0.12 + CGFloat(index % 3) * 0.025)
                     let speed = baseSpeed + Double(index) * 0.8
                     let x = (CGFloat(time * speed) + CGFloat(index * 173)).truncatingRemainder(dividingBy: size.width + width + 180) - width
                     let y = size.height * (0.08 + CGFloat(index) * 0.115)
                     let rect = CGRect(x: x, y: y, width: width, height: height)
-                    let opacity: Double = condition == .clear ? 0.035 : 0.09
+                    let opacity: Double = 0.03 + atmosphere.cloudCover * 0.07
                     context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(opacity)))
                 }
             }
@@ -123,8 +134,8 @@ struct AtmosphereBackgroundView: View {
 
     @ViewBuilder
     private var weatherSpecificLayer: some View {
-        switch condition {
-        case .rain:
+        switch mood {
+        case .wet:
             RainMoodLayer(windSpeed: windSpeed)
         case .storm:
             StormMoodLayer(windSpeed: windSpeed)
