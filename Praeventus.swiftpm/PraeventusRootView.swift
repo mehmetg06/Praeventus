@@ -7,11 +7,7 @@ struct PraeventusRootView: View {
     var body: some View {
         TabView {
             ZStack {
-                AtmosphereBackgroundView(
-                    atmosphere: store.atmosphere,
-                    hour: store.weather.hour,
-                    windSpeed: store.weather.windSpeed
-                )
+                background
                 HomeView(store: store)
             }
             .tabItem {
@@ -19,11 +15,7 @@ struct PraeventusRootView: View {
             }
 
             ZStack {
-                AtmosphereBackgroundView(
-                    atmosphere: store.atmosphere,
-                    hour: store.weather.hour,
-                    windSpeed: store.weather.windSpeed
-                )
+                background
                 WeatherLabView(store: store)
             }
             .tabItem {
@@ -31,11 +23,7 @@ struct PraeventusRootView: View {
             }
 
             ZStack {
-                AtmosphereBackgroundView(
-                    atmosphere: store.atmosphere,
-                    hour: store.weather.hour,
-                    windSpeed: store.weather.windSpeed
-                )
+                background
                 SettingsView()
             }
             .tabItem {
@@ -43,6 +31,23 @@ struct PraeventusRootView: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private var background: some View {
+        ZStack {
+            AtmosphereBackgroundView(
+                atmosphere: store.atmosphere,
+                hour: store.weather.hour,
+                windSpeed: store.weather.windSpeed
+            )
+
+            if store.atmosphere.backgroundMood == .wet || store.atmosphere.backgroundMood == .storm {
+                DropSymbolLayer(
+                    windSpeed: store.weather.windSpeed,
+                    intensity: store.atmosphere.rainSignal == .high ? 0.88 : 0.55
+                )
+            }
+        }
     }
 }
 #endif
