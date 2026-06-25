@@ -1,15 +1,90 @@
 #if canImport(SwiftUI)
 import SwiftUI
 
+/// A place the user has chosen (via search or "use my location"). Persisted so
+/// the app reopens on the last location. Coordinates are coarse on purpose.
+struct SavedLocation: Codable, Equatable {
+    var name: String
+    var country: String
+    var latitude: Double
+    var longitude: Double
+}
+
+/// Loading lifecycle for the live forecast.
+enum LoadPhase: Equatable {
+    case idle           // no location chosen yet — prompt to locate/search
+    case loading
+    case loaded
+    case failed(String)
+}
+
 @MainActor
 final class WeatherStore: ObservableObject {
     @Published private(set) var weather: WeatherData
     @Published private(set) var atmosphere: AtmosphericState
+    @Published private(set) var hourly: [HourlyPoint] = []
+    @Published private(set) var daily: [DailyRange] = []
+    @Published private(set) var phase: LoadPhase = .idle
+    @Published private(set) var location: SavedLocation?
+    /// True while showing the manually-driven Lab snapshot instead of live data.
+    @Published private(set) var isSimulating = false
 
-    init(weather: WeatherData = .mersin) {
-        self.weather = weather
-        self.atmosphere = AtmosphericEngine.calculate(from: weather)
+    private let client: OpenMeteoClient
+    private static let locationKey = "praeventus.savedLocation"
+
+    /// Seed snapshot used purely so the UI/background have something to render
+    /// before the first load. Not a real location — `phase` stays `.idle`.
+    init(client: OpenMeteoClient = OpenMeteoClient()) {
+        self.client = client
+        let seed = WeatherData(
+            city: "",
+            country: "",
+            temperature: 18,
+            feelsLike: 18,
+            condition: .partlyCloudy,
+            humidity: 60,
+            pressure: 1013,
+            windSpeed: 8,
+            rainProbability: 10,
+            hour: Double(Calendar.current.component(.hour, from: Date()))
+        )
+        self.weather = seed
+        self.atmosphere = AtmosphericEngine.calculate(from: seed)
+        self.location = Self.loadSavedLocation()
     }
+
+    /// Loads the most recent location on launch, if any.
+    func restoreOrPrompt() async {
+        guard let saved = location else { return }
+        await load(saved)
+    }
+
+    func load(_ place: SavedLocation) async {
+        isSimulating = false
+        phase = .loading
+        location = place
+        Self.persist(place)
+        do {
+            let response = try await client.forecast(latitude: place.latitude, longitude: place.longitude)
+            let mapped = WeatherMapping.map(response, city: place.name, country: place.country)
+            publish(mapped.weather)
+            hourly = mapped.hourly
+            daily = mapped.daily
+            phase = .loaded
+        } catch {
+            phase = .failed(Self.message(for: error))
+        }
+    }
+
+    func load(latitude: Double, longitude: Double, name: String, country: String) async {
+        await load(SavedLocation(name: name, country: country, latitude: latitude, longitude: longitude))
+    }
+
+    func retry() async {
+        if let location { await load(location) }
+    }
+
+    // MARK: - Lab (manual simulation, unchanged behaviour)
 
     func update(
         condition: WeatherCondition? = nil,
@@ -20,9 +95,10 @@ final class WeatherStore: ObservableObject {
         windSpeed: Double? = nil,
         rainProbability: Double? = nil
     ) {
+        isSimulating = true
         var next = weather
-        next.city = "Mock City"
-        next.country = "Weather Lab"
+        next.city = String(localized: "lab.city", defaultValue: "Mock City")
+        next.country = String(localized: "lab.country", defaultValue: "Weather Lab")
         if let condition { next.condition = condition }
         if let hour { next.hour = hour }
         if let temperature { next.temperature = temperature }
@@ -43,9 +119,10 @@ final class WeatherStore: ObservableObject {
         rain: Double,
         hour: Double
     ) {
+        isSimulating = true
         let next = WeatherData(
-            city: "Mock City",
-            country: "Weather Lab",
+            city: String(localized: "lab.city", defaultValue: "Mock City"),
+            country: String(localized: "lab.country", defaultValue: "Weather Lab"),
             temperature: temp,
             feelsLike: temp + max(0, humidity - 55) / 18,
             condition: condition,
@@ -58,9 +135,40 @@ final class WeatherStore: ObservableObject {
         publish(next)
     }
 
+    // MARK: - Internals
+
     private func publish(_ next: WeatherData) {
         weather = next
         atmosphere = AtmosphericEngine.calculate(from: next)
+    }
+
+    private static func message(for error: Error) -> String {
+        if let clientError = error as? WeatherClientError {
+            switch clientError {
+            case .badURL:
+                return String(localized: "error.badURL", defaultValue: "Invalid request address.")
+            case .badResponse(let code):
+                return String(localized: "error.badResponse", defaultValue: "Server error (\(code)).")
+            case .noResults:
+                return String(localized: "error.noResults", defaultValue: "No results found.")
+            case .transport(let detail):
+                return String(localized: "error.transport", defaultValue: "Connection problem: \(detail)")
+            }
+        }
+        return error.localizedDescription
+    }
+
+    // MARK: - Persistence
+
+    private static func persist(_ place: SavedLocation) {
+        if let data = try? JSONEncoder().encode(place) {
+            UserDefaults.standard.set(data, forKey: locationKey)
+        }
+    }
+
+    private static func loadSavedLocation() -> SavedLocation? {
+        guard let data = UserDefaults.standard.data(forKey: locationKey) else { return nil }
+        return try? JSONDecoder().decode(SavedLocation.self, from: data)
     }
 }
 #endif

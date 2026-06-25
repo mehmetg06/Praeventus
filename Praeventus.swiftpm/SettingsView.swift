@@ -2,28 +2,50 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @State private var proxyURL: String = WeatherEndpoint.proxyBaseURL ?? ""
+
     var body: some View {
-        VStack(spacing: 18) {
-            Spacer()
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("settings.proxy.placeholder", text: $proxyURL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .onSubmit(saveProxy)
+                    Button("settings.proxy.save", action: saveProxy)
+                } header: {
+                    Text("settings.proxy.title")
+                } footer: {
+                    Text("settings.proxy.footer")
+                }
 
-            Image(systemName: "gearshape")
-                .font(.system(size: 46, weight: .light))
-                .foregroundStyle(.white)
-                .padding(18)
-                .background(ThinGlassShape(cornerRadius: 30, intensity: 0.18))
+                Section("settings.privacy.title") {
+                    Label("settings.privacy.location", systemImage: "location.slash")
+                    Label("settings.privacy.ip", systemImage: "network.slash")
+                    Label("settings.privacy.onDevice", systemImage: "cpu")
+                    Label("settings.privacy.noKey", systemImage: "key.slash")
+                }
 
-            Text("Ayarlar")
-                .font(.system(size: 38, weight: .light, design: .rounded))
-                .foregroundStyle(.white)
-
-            Text("Yakında: birim seçimi, görünüm, uzman mod ve veri kaynakları.")
-                .font(.callout)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.white.opacity(0.72))
-                .padding(.horizontal, 36)
-
-            Spacer()
+                Section("settings.about.title") {
+                    LabeledContent("settings.about.source", value: "Open-Meteo (ECMWF)")
+                    LabeledContent("settings.about.version", value: appVersion)
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .navigationTitle("tab.settings")
         }
+    }
+
+    private func saveProxy() {
+        WeatherEndpoint.setProxyBaseURL(proxyURL)
+        proxyURL = WeatherEndpoint.proxyBaseURL ?? ""
+    }
+
+    private var appVersion: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "0.1"
+        return version
     }
 }
 #endif

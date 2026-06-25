@@ -17,9 +17,17 @@ struct AtmosphericState: Equatable {
 }
 
 enum AtmosphericRisk: String, Equatable {
-    case low = "Düşük"
-    case moderate = "Orta"
-    case high = "Yüksek"
+    case low
+    case moderate
+    case high
+
+    var displayName: String {
+        switch self {
+        case .low: return String(localized: "risk.low", defaultValue: "Low")
+        case .moderate: return String(localized: "risk.moderate", defaultValue: "Moderate")
+        case .high: return String(localized: "risk.high", defaultValue: "High")
+        }
+    }
 
     static func from(_ value: Double) -> AtmosphericRisk {
         switch value {
@@ -31,9 +39,17 @@ enum AtmosphericRisk: String, Equatable {
 }
 
 enum AtmosphericVisibility: String, Equatable {
-    case clear = "İyi"
-    case reduced = "Azalmış"
-    case poor = "Zayıf"
+    case clear
+    case reduced
+    case poor
+
+    var displayName: String {
+        switch self {
+        case .clear: return String(localized: "visibility.clear", defaultValue: "Good")
+        case .reduced: return String(localized: "visibility.reduced", defaultValue: "Reduced")
+        case .poor: return String(localized: "visibility.poor", defaultValue: "Poor")
+        }
+    }
 }
 
 enum BackgroundMood: Equatable {
@@ -156,16 +172,16 @@ enum AtmosphericEngine {
     }
 
     private static func title(for condition: WeatherCondition, stormRisk: AtmosphericRisk, visibility: AtmosphericVisibility) -> String {
-        if stormRisk == .high { return "Atmosfer Kararsız" }
-        if visibility == .poor { return "Görüş Zayıflıyor" }
+        if stormRisk == .high { return String(localized: "title.unstable", defaultValue: "Atmosphere Unstable") }
+        if visibility == .poor { return String(localized: "title.lowVisibility", defaultValue: "Visibility Weakening") }
         switch condition {
-        case .clear: return "Atmosfer Parlak"
-        case .partlyCloudy: return "Atmosfer Kararlı"
-        case .cloudy: return "Bulutlanma Artıyor"
-        case .rain: return "Yağış Sinyali Güçlü"
-        case .storm: return "Konvektif Risk"
-        case .fog: return "Yüzey Sisi Riski"
-        case .snow: return "Soğuk Yağış Profili"
+        case .clear: return String(localized: "title.clear", defaultValue: "Atmosphere Bright")
+        case .partlyCloudy: return String(localized: "title.partlyCloudy", defaultValue: "Atmosphere Stable")
+        case .cloudy: return String(localized: "title.cloudy", defaultValue: "Cloud Cover Increasing")
+        case .rain: return String(localized: "title.rain", defaultValue: "Strong Precipitation Signal")
+        case .storm: return String(localized: "title.storm", defaultValue: "Convective Risk")
+        case .fog: return String(localized: "title.fog", defaultValue: "Surface Fog Risk")
+        case .snow: return String(localized: "title.snow", defaultValue: "Cold Precipitation Profile")
         }
     }
 
@@ -180,23 +196,23 @@ enum AtmosphericEngine {
         var parts: [String] = [weather.timeOfDay.storyPrefix]
 
         if stormScore > 0.66 {
-            parts.append("Nem, düşük basınç ve rüzgar aynı yönde çalışıyor; atmosfer kararsızlaşıyor.")
+            parts.append(String(localized: "engineStory.storm", defaultValue: "Humidity, low pressure and wind are acting together; the atmosphere is becoming unstable."))
         } else if weather.rainProbability > 55 {
-            parts.append("Yağış sinyali belirgin. Bulut örtüsü ve nem birlikte artıyor.")
+            parts.append(String(localized: "engineStory.rain", defaultValue: "The precipitation signal is clear. Cloud cover and humidity are rising together."))
         } else if visibility == .poor {
-            parts.append("Yüzey nemi yüksek ve karışım zayıf; görüş düşebilir.")
+            parts.append(String(localized: "engineStory.lowVisibility", defaultValue: "Surface humidity is high and mixing is weak; visibility may drop."))
         } else if cloudCover > 0.65 {
-            parts.append("Bulut örtüsü kuvvetli fakat fırtına enerjisi sınırlı görünüyor.")
+            parts.append(String(localized: "engineStory.cloudy", defaultValue: "Cloud cover is strong, but storm energy looks limited."))
         } else if instability < 0.30 {
-            parts.append("Basınç ve nem dengeli; atmosfer daha sakin bir fazda.")
+            parts.append(String(localized: "engineStory.calm", defaultValue: "Pressure and humidity are balanced; the atmosphere is in a calmer phase."))
         } else {
-            parts.append("Atmosfer geçiş halinde; kısa vadede küçük değişimler hissedilebilir.")
+            parts.append(String(localized: "engineStory.transition", defaultValue: "The atmosphere is in transition; small short-term changes may be felt."))
         }
 
         if weather.windSpeed > 55 {
-            parts.append("Rüzgar kuvvetli, hissedilen hava ve bulut hareketi belirginleşir.")
+            parts.append(String(localized: "engineStory.windStrong", defaultValue: "Wind is strong, making the felt conditions and cloud motion more pronounced."))
         } else if weather.windSpeed < 8 && weather.humidity > 80 {
-            parts.append("Rüzgar zayıf olduğu için nem yüzeyde kalabilir.")
+            parts.append(String(localized: "engineStory.windWeak", defaultValue: "Because wind is weak, humidity may linger near the surface."))
         }
 
         return parts.joined(separator: " ")
