@@ -67,9 +67,9 @@ final class WeatherStore: ObservableObject {
         do {
             let response = try await client.forecast(latitude: place.latitude, longitude: place.longitude)
             let mapped = WeatherMapping.map(response, city: place.name, country: place.country)
-            publish(mapped.weather)
             hourly = mapped.hourly
             daily = mapped.daily
+            publish(mapped.weather)
             phase = .loaded
         } catch {
             phase = .failed(Self.message(for: error))
@@ -139,7 +139,14 @@ final class WeatherStore: ObservableObject {
 
     private func publish(_ next: WeatherData) {
         weather = next
-        atmosphere = AtmosphericEngine.calculate(from: next)
+        var nextAtmosphere = AtmosphericEngine.calculate(from: next)
+        nextAtmosphere.story = WeatherNarrativeEngine.story(
+            weather: next,
+            atmosphere: nextAtmosphere,
+            hourly: hourly,
+            daily: daily
+        )
+        atmosphere = nextAtmosphere
     }
 
     private static func message(for error: Error) -> String {

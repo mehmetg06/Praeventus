@@ -127,3 +127,37 @@
 "visibility.clear" = "İyi";
 "visibility.poor" = "Zayıf";
 "visibility.reduced" = "Azalmış";
+
+/* Scenario-aware narrative engine */
+"narrative.clear.hot" = "Gökyüzü çoğunlukla açık görünüyor ama asıl konu sıcaklık: hava çok yüksek değerlere çıkmış ve doğrudan güneş altında kalmak kısa sürede yorucu olabilir.";
+"narrative.clear.cold" = "Gökyüzü büyük ölçüde açık olsa da hava serin tarafta; özellikle gölge alanlarda veya gün batımından sonra daha keskin hissedilebilir.";
+"narrative.clear.normal" = "Atmosfer sakin ve aydınlık görünüyor; yakın vadede belirgin bir bulutlanma veya yağış sinyali öne çıkmıyor.";
+"narrative.partlyCloudy" = "Zaman zaman bulut geçişleri olabilir, fakat genel yapı hâlâ oldukça dengeli ve güçlü bir yağış sinyali vermiyor.";
+"narrative.cloudy" = "Şu anda ana sinyal bulutluluk; gökyüzü kapalı hissedebilir, ancak yağış ihtimali nem ve basınç desteğine bağlı.";
+"narrative.rain" = "Nem ve yağış sinyalleri aynı yöne işaret ediyor; kısa vadede sağanaklar görülebilir ve zeminler ıslanabilir.";
+"narrative.storm" = "Kararsızlık, nem ve rüzgâr birlikte çalışıyor; ani kuvvetli yağmur, yıldırım veya hızlı hava değişimleri için dikkatli olmak gerekir.";
+"narrative.fog" = "Yere yakın nem yüksek ve karışım zayıf; görüş yer yer düşebilir ve ulaşım daha yavaş ilerleyebilir.";
+"narrative.snow" = "Hava profili kış yağışı için yeterince soğuk görünüyor; nem devam ederse kaygan yüzeyler oluşabilir.";
+"narrative.feels.extremeHeatWind" = "Rüzgâr olsa bile bu bir serinleme senaryosu değil: bu sıcaklıkta esinti sıcak hava hareketi gibi hissedebilir, su kaybını artırabilir ve zamanla daha sıcak hissettirebilir.";
+"narrative.feels.extremeHeat" = "Bu sıcaklıkta vücudun serinlemesi zorlaşır; rüzgâr hafif olsa bile hissedilen sıcaklık riskli seviyelere çıkabilir.";
+"narrative.feels.hotHumid" = "Sıcaklık ve nem birlikte etkili oluyor; ter daha yavaş buharlaştığı için hava termometrede görünenden daha ağır ve sıcak hissedilebilir.";
+"narrative.feels.hotWind" = "Rüzgâr havayı soğuk hissettirmeyebilir; sıcak havada daha hızlı kurutabilir ve güneş altında kalmayı daha yorucu yapabilir.";
+"narrative.feels.hot" = "Sıcaklık yeterince yüksek; gölge, su tüketimi ve dışarıdaki tempoyu düşürmek başlıktaki hava durumundan daha önemli.";
+"narrative.feels.coldWind" = "Hava zaten serin olduğu için rüzgâr vücut ısısını daha hızlı uzaklaştırabilir ve ölçülen sıcaklıktan daha soğuk hissettirebilir.";
+"narrative.feels.warmer" = "Hissedilen sıcaklık gerçek ölçümün üzerinde; bu yüzden ekrandaki değerden daha sıcak gelebilir.";
+"narrative.feels.cooler" = "Hissedilen sıcaklık gerçek ölçümün altında; bu yüzden ekrandaki değerden daha serin gelebilir.";
+"narrative.feels.neutral" = "Ölçülen ve hissedilen sıcaklık birbirine yakın; konfor daha çok güneş, gölge, kıyafet ve aktivite düzeyine bağlı olacak.";
+"narrative.trend.warming" = "Önümüzdeki birkaç saatte sıcaklık yukarı yönlü; gün ilerledikçe hava daha sıcak hissedebilir.";
+"narrative.trend.cooling" = "Önümüzdeki birkaç saatte sıcaklık aşağı yönlü; ilerleyen saatlerde daha serin hissedilebilir.";
+"narrative.risk.extremeHeat" = "Öncelikli risk sıcak stresi: uzun süre güneşte kalmayın, sık sık su için; baş dönmesi, baş ağrısı veya olağandışı yorgunluğu ciddiye alın.";
+"narrative.risk.storm" = "Fırtına riski yüksek olduğu için açık ve korumasız alanlardan kaçının; şu an sakin görünse bile hızlı değişimlere hazır olun.";
+"narrative.risk.visibility" = "Görüş yer yer düşebilir; araç veya bisiklet kullanırken takip mesafesini artırmak ve daha yavaş tepki vermek gerekebilir.";
+"narrative.risk.wind" = "Rüzgâr şemsiye, gevşek eşyalar ve açık rotaları etkileyebilecek kadar güçlü.";
+"narrative.advice.extremeHeat" = "Gölgeyi veya kapalı alan molalarını tercih edin, yanınızda su taşıyın, hafif giyinin ve günün en sıcak bölümünde ağır egzersizden kaçının.";
+"narrative.advice.hot" = "Planınızı sıcağa göre yapın: su için, güneş koruyucu kullanın ve yorucu işleri mümkünse sabah erken ya da akşam yapın.";
+"narrative.advice.storm" = "Dışarı çıkmanız gerekiyorsa planınızı esnek tutun; gök gürültüsü veya ani kuvvetli yağmurda kapalı alana geçin.";
+"narrative.advice.rain" = "Kompakt bir şemsiye veya su geçirmez katman iyi olur; özellikle yürüyüş ve toplu taşıma aktarmalarında işinize yarar.";
+"narrative.advice.snow" = "Katmanlı giyinin; köprüler, merdivenler ve gölgeli yollarda kaygan noktalara dikkat edin.";
+"narrative.advice.fog" = "Ulaşım için ekstra zaman ayırın; araç veya bisiklet kullanıyorsanız görünür ışıkları açık tutun.";
+"narrative.advice.cold" = "Birkaç dakikadan uzun süre dışarıda kalacaksanız sıcak tutan bir katman faydalı olur.";
+"narrative.advice.calm" = "Genel olarak normal dış mekân planları uygun görünüyor; kıyafetinizi yerel esinti ve günün saatine göre ayarlayın.";
