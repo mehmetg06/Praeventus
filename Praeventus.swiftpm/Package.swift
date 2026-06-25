@@ -65,7 +65,11 @@ let package = Package(
             path: ".",
             sources: sources,
             resources: [
-                .process("Localizable.xcstrings")
+                // Legacy .strings catalogs (en/tr). Swift Playgrounds on iPad
+                // cannot run xcstringstool, so a String Catalog (.xcstrings)
+                // fails to build there ("stat(/xcstringstool): No such file").
+                .process("en.lproj/Localizable.strings"),
+                .process("tr.lproj/Localizable.strings")
             ]
         )
     ],
