@@ -48,6 +48,33 @@ struct WeatherLabView: View {
                 Button("lab.preset.sunsetRain") { store.applyPreset(.rain, temp: 22, humidity: 88, pressure: 1004, wind: 28, rain: 78, hour: 19) }
                 Button("lab.preset.nightStorm") { store.applyPreset(.storm, temp: 27, humidity: 91, pressure: 996, wind: 46, rain: 92, hour: 23) }
             }
+
+            Section(String(localized: "lab.section.computed", defaultValue: "Computed State")) {
+                LabeledContent(
+                    String(localized: "lab.computed.condition", defaultValue: "Condition"),
+                    value: store.atmosphere.condition.displayName
+                )
+                LabeledContent(
+                    String(localized: "lab.computed.mood", defaultValue: "Background"),
+                    value: moodDisplayName(store.atmosphere.backgroundMood)
+                )
+                LabeledContent(
+                    String(localized: "lab.computed.cloudCover", defaultValue: "Cloud Cover"),
+                    value: "\(Int(store.atmosphere.cloudCover * 100))%"
+                )
+                LabeledContent(
+                    String(localized: "lab.computed.instability", defaultValue: "Instability"),
+                    value: "\(Int(store.atmosphere.instability * 100))%"
+                )
+                LabeledContent(
+                    String(localized: "lab.computed.stormRisk", defaultValue: "Storm Risk"),
+                    value: store.atmosphere.stormRisk.displayName
+                )
+                LabeledContent(
+                    String(localized: "lab.computed.visibility", defaultValue: "Visibility"),
+                    value: store.atmosphere.visibility.displayName
+                )
+            }
         }
         .scrollContentBackground(.hidden)
     }
@@ -78,6 +105,18 @@ struct WeatherLabView: View {
 
     private var rainBinding: Binding<Double> {
         Binding(get: { weather.rainProbability }, set: { store.update(rainProbability: $0) })
+    }
+
+    private func moodDisplayName(_ mood: BackgroundMood) -> String {
+        switch mood {
+        case .clear:        return String(localized: "mood.clear", defaultValue: "Clear")
+        case .partlyCloudy: return String(localized: "mood.partlyCloudy", defaultValue: "Partly Cloudy")
+        case .cloudy:       return String(localized: "mood.cloudy", defaultValue: "Cloudy")
+        case .wet:          return String(localized: "mood.wet", defaultValue: "Wet / Rain")
+        case .storm:        return String(localized: "mood.storm", defaultValue: "Storm")
+        case .fog:          return String(localized: "mood.fog", defaultValue: "Fog")
+        case .snow:         return String(localized: "mood.snow", defaultValue: "Snow")
+        }
     }
 }
 #endif
