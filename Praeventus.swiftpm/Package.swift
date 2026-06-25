@@ -13,9 +13,11 @@ let sources = [
     "OpenMeteoClient.swift",
     "WeatherMapping.swift",
     "WeatherData.swift",
+    "LocalizedStringCompat.swift",
     "StorySentiment.swift",
     // Domain + state
     "AtmosphericEngine.swift",
+    "WeatherNarrativeEngine.swift",
     "WeatherStore.swift",
     // Location
     "LocationProvider.swift",

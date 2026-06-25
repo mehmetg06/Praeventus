@@ -5,7 +5,7 @@ struct AtmosphericState: Equatable {
     let condition: WeatherCondition
     let symbolName: String
     let title: String
-    let story: String
+    var story: String
     let stormRisk: AtmosphericRisk
     let rainSignal: AtmosphericRisk
     let visibility: AtmosphericVisibility
