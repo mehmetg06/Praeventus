@@ -3,7 +3,8 @@ import SwiftUI
 
 struct HomeView: View {
     @ObservedObject var store: WeatherStore
-    @State private var showingSearch = false
+    @StateObject private var searchVM = SearchViewModel()
+    @FocusState private var searchFocused: Bool
 
     private var weather: WeatherData { store.weather }
     private var atmosphere: AtmosphericState { store.atmosphere }
@@ -18,10 +19,62 @@ struct HomeView: View {
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            topBar
+            contentArea
+        }
+        .onChange(of: searchVM.query) { _, newValue in
+            searchVM.onQueryChanged(newValue)
+        }
+    }
+
+    // MARK: - Top bar (non-scrolling)
+
+    private var topBar: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            header
+            CitySearchBar(
+                text: $searchVM.query,
+                isFocused: $searchFocused,
+                isSearching: searchVM.isSearching,
+                isLocating: searchVM.isLocating,
+                onLocationTap: { Task { await handleLocationTap() } }
+            )
+            // Location / search errors shown inline when the dropdown is hidden
+            if let error = searchVM.searchError, !searchVM.isShowingSuggestions {
+                Text(error)
+                    .font(.system(size: 12, design: .rounded))
+                    .foregroundStyle(.red.opacity(0.78))
+                    .padding(.horizontal, 4)
+                    .transition(.opacity)
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 28)
+        .padding(.bottom, 10)
+        .animation(.easeInOut(duration: 0.20), value: searchVM.searchError != nil)
+    }
+
+    // MARK: - Content area with suggestions overlay
+
+    private var contentArea: some View {
+        ZStack(alignment: .top) {
+            scrollContent
+
+            if searchVM.isShowingSuggestions {
+                tapToDismiss
+                suggestionsOverlay
+            }
+        }
+        .animation(
+            .spring(response: 0.28, dampingFraction: 0.82),
+            value: searchVM.isShowingSuggestions
+        )
+    }
+
+    private var scrollContent: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
-                header
-
                 switch store.phase {
                 case .idle:
                     idlePrompt
@@ -34,12 +87,28 @@ struct HomeView: View {
                 }
             }
             .padding(.horizontal, 22)
-            .padding(.top, 28)
+            .padding(.top, 16)
             .padding(.bottom, 40)
         }
-        .sheet(isPresented: $showingSearch) {
-            LocationSearchView(store: store)
-        }
+    }
+
+    /// Invisible full-screen layer that catches taps outside the suggestions panel.
+    private var tapToDismiss: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .ignoresSafeArea()
+            .onTapGesture { dismissSearch() }
+    }
+
+    private var suggestionsOverlay: some View {
+        SearchSuggestionsView(
+            suggestions: searchVM.suggestions,
+            error: searchVM.searchError,
+            onSelect: { result in Task { await selectSuggestion(result) } }
+        )
+        .padding(.horizontal, 22)
+        .padding(.top, 4)
+        .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
     // MARK: - Header
@@ -47,27 +116,21 @@ struct HomeView: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 14) {
             AtmosphereOrb(symbolName: atmosphere.symbolName)
-                .frame(width: 58, height: 58)
+                .frame(width: 52, height: 52)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(headerTitle)
-                    .font(.system(size: 28, weight: .light, design: .rounded))
+                    .font(.system(size: 26, weight: .light, design: .rounded))
                     .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
                 Text(headerSubtitle)
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(.white.opacity(0.64))
+                    .lineLimit(1)
             }
 
             Spacer(minLength: 0)
-
-            Button(action: { showingSearch = true }) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(.white)
-                    .padding(12)
-                    .background(ThinGlassShape(cornerRadius: 18, intensity: 0.14))
-            }
-            .accessibilityLabel(Text("search.title"))
         }
     }
 
@@ -103,7 +166,8 @@ struct HomeView: View {
                 .foregroundStyle(.white.opacity(0.72))
                 .fixedSize(horizontal: false, vertical: true)
 
-            Button(action: { showingSearch = true }) {
+            // Focuses the search bar, letting the user type or tap the GPS button.
+            Button(action: { searchFocused = true }) {
                 Label("home.empty.cta", systemImage: "location.fill")
                     .font(.headline)
                     .foregroundStyle(.white)
@@ -148,7 +212,7 @@ struct HomeView: View {
                         .padding(.vertical, 10).padding(.horizontal, 16)
                         .background(ThinGlassShape(cornerRadius: 16, intensity: 0.16, tintColor: paletteTint))
                 }
-                Button(action: { showingSearch = true }) {
+                Button(action: { searchFocused = true }) {
                     Label("home.empty.cta", systemImage: "magnifyingglass")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
@@ -234,7 +298,14 @@ struct HomeView: View {
     }
 
     private var metricsGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+        LazyVGrid(
+            columns: [
+                GridItem(.flexible(), spacing: 10),
+                GridItem(.flexible(), spacing: 10),
+                GridItem(.flexible(), spacing: 10)
+            ],
+            spacing: 10
+        ) {
             GlassMetric(symbol: "gauge.with.dots.needle.bottom.50percent", title: String(localized: "metric.pressure", defaultValue: "Pressure"), value: "\(Int(weather.pressure.rounded()))", unit: "hPa", accent: .cyan, tintColor: paletteTint)
             GlassMetric(symbol: "humidity", title: String(localized: "metric.humidity", defaultValue: "Humidity"), value: "%\(Int(weather.humidity.rounded()))", unit: humidityLabel, accent: .blue, tintColor: paletteTint)
             GlassMetric(symbol: "wind", title: String(localized: "metric.wind", defaultValue: "Wind"), value: "\(Int(weather.windSpeed.rounded()))", unit: String(localized: "unit.kmh", defaultValue: "km/h"), accent: .mint, tintColor: paletteTint)
@@ -279,7 +350,6 @@ struct HomeView: View {
         .background(ThinGlassShape(cornerRadius: 26, intensity: 0.10, highlightOpacity: 0.14, innerShadowOpacity: 0.18, borderOpacity: 0.18, tintColor: paletteTint))
     }
 
-    /// Prefer real hourly data; fall back to the synthetic preview (Lab mode).
     private var hourlyStrip: [HourlyStripPoint] {
         if !store.hourly.isEmpty {
             let nowLabel = String(localized: "home.now", defaultValue: "Now")
@@ -300,16 +370,51 @@ struct HomeView: View {
         case ..<35: return String(localized: "humidity.dry", defaultValue: "dry")
         case ..<65: return String(localized: "humidity.balanced", defaultValue: "balanced")
         case ..<85: return String(localized: "humidity.humid", defaultValue: "humid")
-        default: return String(localized: "humidity.saturated", defaultValue: "saturated")
+        default:    return String(localized: "humidity.saturated", defaultValue: "saturated")
         }
     }
 
     private var riskSymbol: String { atmosphere.stormRisk == .high ? "bolt.trianglebadge.exclamationmark" : "eye" }
-    private var riskTitle: String { atmosphere.stormRisk == .high ? String(localized: "metric.storm", defaultValue: "Storm") : String(localized: "metric.visibility", defaultValue: "Visibility") }
-    private var riskValue: String { atmosphere.stormRisk == .high ? atmosphere.stormRisk.displayName : atmosphere.visibility.displayName }
-    private var riskUnit: String { atmosphere.stormRisk == .high ? String(localized: "metric.risk", defaultValue: "risk") : "" }
-    private var riskAccent: Color { atmosphere.stormRisk == .high ? .orange : .cyan }
+    private var riskTitle: String  { atmosphere.stormRisk == .high ? String(localized: "metric.storm", defaultValue: "Storm") : String(localized: "metric.visibility", defaultValue: "Visibility") }
+    private var riskValue: String  { atmosphere.stormRisk == .high ? atmosphere.stormRisk.displayName : atmosphere.visibility.displayName }
+    private var riskUnit: String   { atmosphere.stormRisk == .high ? String(localized: "metric.risk", defaultValue: "risk") : "" }
+    private var riskAccent: Color  { atmosphere.stormRisk == .high ? .orange : .cyan }
+
+    // MARK: - Search actions
+
+    private func selectSuggestion(_ result: GeocodingResult) async {
+        searchVM.dismissSuggestions()
+        searchFocused = false
+        searchVM.clearSearch()
+        await store.load(
+            latitude: result.latitude,
+            longitude: result.longitude,
+            name: result.name,
+            country: result.country ?? ""
+        )
+    }
+
+    private func handleLocationTap() async {
+        #if canImport(CoreLocation)
+        searchFocused = false
+        searchVM.dismissSuggestions()
+        guard let loc = await searchVM.requestCurrentLocation() else { return }
+        await store.load(
+            latitude: loc.latitude,
+            longitude: loc.longitude,
+            name: loc.name,
+            country: loc.country
+        )
+        #endif
+    }
+
+    private func dismissSearch() {
+        searchFocused = false
+        searchVM.dismissSuggestions()
+    }
 }
+
+// MARK: - Supporting types (private to this file)
 
 private struct HourlyStripPoint: Identifiable {
     let id = UUID()
@@ -320,11 +425,11 @@ private struct HourlyStripPoint: Identifiable {
 
     static func synthetic(from weather: WeatherData, atmosphere: AtmosphericState) -> [HourlyStripPoint] {
         let start = Int(weather.hour.rounded())
-        let base = Int(weather.temperature.rounded())
-        let rain = Int(weather.rainProbability.rounded())
+        let base  = Int(weather.temperature.rounded())
+        let rain  = Int(weather.rainProbability.rounded())
         let nowLabel = String(localized: "home.now", defaultValue: "Now")
         return (0..<6).map { index in
-            let wave = Int((sin(Double(index) * 0.85) * 2.2).rounded())
+            let wave    = Int((sin(Double(index) * 0.85) * 2.2).rounded())
             let cooling = index > 3 ? index - 3 : 0
             return HourlyStripPoint(
                 time: index == 0 ? nowLabel : String(format: "%02d", (start + index) % 24),

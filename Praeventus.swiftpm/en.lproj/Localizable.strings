@@ -69,6 +69,7 @@
 "risk.high" = "High";
 "risk.low" = "Low";
 "risk.moderate" = "Moderate";
+"search.inline.placeholder" = "Search for a city...";
 "search.noResults" = "No matching places.";
 "search.privacyNote" = "Only an approximate location is used (reduced accuracy), and it never leaves your device except as coarse coordinates sent through the privacy proxy.";
 "search.prompt" = "City name";
