@@ -60,11 +60,11 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         MainActor.assumeIsolated {
-            authorization = manager.authorizationStatus
+            authorization = self.manager.authorizationStatus
             guard continuation != nil else { return }
-            switch manager.authorizationStatus {
+            switch self.manager.authorizationStatus {
             case .authorizedWhenInUse, .authorizedAlways:
-                manager.requestLocation()
+                self.manager.requestLocation()
             case .denied, .restricted:
                 finish(.failure(LocationError.denied))
             default:

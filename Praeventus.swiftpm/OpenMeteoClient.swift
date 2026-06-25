@@ -62,7 +62,7 @@ struct OpenMeteoClient {
             URLQueryItem(name: "name", value: trimmedQuery),
             URLQueryItem(name: "count", value: String(count)),
             URLQueryItem(name: "format", value: "json"),
-            URLQueryItem(name: "language", value: Locale.current.languageCode ?? "en")
+            URLQueryItem(name: "language", value: Locale.current.language.languageCode?.identifier ?? "en")
         ]
 
         guard let url = WeatherEndpoint.geocodingURL(queryItems: items) else {
