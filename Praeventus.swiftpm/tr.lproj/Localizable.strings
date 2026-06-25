@@ -69,6 +69,7 @@
 "risk.high" = "Yüksek";
 "risk.low" = "Düşük";
 "risk.moderate" = "Orta";
+"search.inline.placeholder" = "Şehir ara...";
 "search.noResults" = "Eşleşen yer yok.";
 "search.privacyNote" = "Yalnızca yaklaşık konum kullanılır (düşük doğruluk) ve gizlilik proxy'si üzerinden gönderilen kaba koordinatlar dışında cihazınızdan asla çıkmaz.";
 "search.prompt" = "Şehir adı";

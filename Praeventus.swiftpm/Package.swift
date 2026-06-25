@@ -19,6 +19,8 @@ let sources = [
     "WeatherStore.swift",
     // Location
     "LocationProvider.swift",
+    // Search MVVM
+    "SearchViewModel.swift",
     // UI
     "WeatherCondition+Palette.swift",
     "PraeventusRootView.swift",
@@ -26,6 +28,8 @@ let sources = [
     "WeatherEffectLayers.swift",
     "SunHaloOpticsLayer.swift",
     "GlassComponents.swift",
+    "CitySearchBar.swift",
+    "SearchSuggestionsView.swift",
     "HomeView.swift",
     "LocationSearchView.swift",
     "WeatherChartsView.swift",
