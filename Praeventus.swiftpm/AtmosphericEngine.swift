@@ -157,8 +157,7 @@ enum AtmosphericEngine {
         if rain > 0.52 { return .rain }
         if cloudCover > 0.68 { return .cloudy }
         if cloudCover > 0.36 { return .partlyCloudy }
-        if base == .snow || base == .storm || base == .fog || base == .rain { return base }
-        return .clear
+        return base
     }
 
     private static func backgroundMood(for condition: WeatherCondition, stormScore: Double, rain: Double, visibilityScore: Double) -> BackgroundMood {
