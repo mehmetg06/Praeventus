@@ -1,6 +1,9 @@
-#if canImport(SwiftUI)
-import SwiftUI
+import Foundation
 
+/// Plain weather snapshot consumed by `AtmosphericEngine` and the UI.
+///
+/// This type is intentionally Foundation-only (no SwiftUI) so the data + mapping
+/// layer compiles and can be exercised on any platform, including Linux CI.
 struct WeatherData: Equatable {
     var city: String
     var country: String
@@ -23,13 +26,13 @@ struct WeatherData: Equatable {
 
     var statusText: String {
         switch condition {
-        case .clear: return "Atmosfer Parlak"
-        case .partlyCloudy: return "Atmosfer Kararlı"
-        case .cloudy: return "Bulutlanma Artıyor"
-        case .rain: return "Yağış Aktif"
-        case .storm: return "Konvektif Risk"
-        case .fog: return "Görüş Azalıyor"
-        case .snow: return "Soğuk Çekirdek"
+        case .clear: return String(localized: "status.clear", defaultValue: "Atmosphere Bright")
+        case .partlyCloudy: return String(localized: "status.partlyCloudy", defaultValue: "Atmosphere Stable")
+        case .cloudy: return String(localized: "status.cloudy", defaultValue: "Cloud Cover Increasing")
+        case .rain: return String(localized: "status.rain", defaultValue: "Precipitation Active")
+        case .storm: return String(localized: "status.storm", defaultValue: "Convective Risk")
+        case .fog: return String(localized: "status.fog", defaultValue: "Visibility Dropping")
+        case .snow: return String(localized: "status.snow", defaultValue: "Cold Core")
         }
     }
 
@@ -37,41 +40,28 @@ struct WeatherData: Equatable {
         let timePrefix = timeOfDay.storyPrefix
         switch condition {
         case .clear:
-            return "\(timePrefix) Basınç dengeli. Nem düşük-orta seviyede. Önümüzdeki saatlerde gökyüzü açık ve sakin kalabilir."
+            return timePrefix + " " + String(localized: "story.clear", defaultValue: "Pressure is balanced. Humidity is low to moderate. The sky may stay clear and calm in the coming hours.")
         case .partlyCloudy:
-            return "\(timePrefix) Atmosfer genel olarak kararlı. Yerel bulutlanma oluşabilir ama güçlü bir yağış sinyali öne çıkmıyor."
+            return timePrefix + " " + String(localized: "story.partlyCloudy", defaultValue: "The atmosphere is generally stable. Local clouds may form, but no strong precipitation signal stands out.")
         case .cloudy:
-            return "\(timePrefix) Nem ve bulut örtüsü artıyor. Basınç belirgin düşmezse yağış riski sınırlı kalabilir."
+            return timePrefix + " " + String(localized: "story.cloudy", defaultValue: "Humidity and cloud cover are rising. If pressure does not drop sharply, precipitation risk may stay limited.")
         case .rain:
-            return "\(timePrefix) Nem yüksek ve yağış sinyali belirgin. Kısa vadede aralıklı yağış beklenebilir."
+            return timePrefix + " " + String(localized: "story.rain", defaultValue: "Humidity is high and the precipitation signal is clear. Intermittent rain can be expected in the short term.")
         case .storm:
-            return "\(timePrefix) Basınç düşüşü, yüksek nem ve rüzgar birleşimi atmosferi kararsızlaştırıyor. Ani sağanak ve fırtına riski izlenmeli."
+            return timePrefix + " " + String(localized: "story.storm", defaultValue: "Falling pressure, high humidity and wind together are destabilizing the atmosphere. Watch for sudden showers and storms.")
         case .fog:
-            return "\(timePrefix) Yüzey nemi yüksek. Rüzgar zayıf kaldığı için görüşte azalma ve sis tabakası oluşabilir."
+            return timePrefix + " " + String(localized: "story.fog", defaultValue: "Surface humidity is high. With weak wind, visibility may drop and a fog layer can form.")
         case .snow:
-            return "\(timePrefix) Soğuk hava profili güçleniyor. Nem yeterli olursa kar veya karla karışık yağış görülebilir."
+            return timePrefix + " " + String(localized: "story.snow", defaultValue: "The cold air profile is strengthening. With enough moisture, snow or sleet may occur.")
         }
     }
-
-    static let mersin = WeatherData(
-        city: "Mersin",
-        country: "Türkiye",
-        temperature: 31,
-        feelsLike: 34,
-        condition: .partlyCloudy,
-        humidity: 58,
-        pressure: 1014,
-        windSpeed: 18,
-        rainProbability: 18,
-        hour: 14
-    )
 }
 
 enum TimeOfDay: String, Equatable {
-    case dawn = "Şafak"
-    case day = "Gündüz"
-    case sunset = "Gün Batımı"
-    case night = "Gece"
+    case dawn
+    case day
+    case sunset
+    case night
 
     init(hour: Int) {
         let normalized = ((hour % 24) + 24) % 24
@@ -87,12 +77,22 @@ enum TimeOfDay: String, Equatable {
         }
     }
 
+    /// Localized display name (e.g. "Day" / "Gündüz").
+    var displayName: String {
+        switch self {
+        case .dawn: return String(localized: "timeOfDay.dawn", defaultValue: "Dawn")
+        case .day: return String(localized: "timeOfDay.day", defaultValue: "Day")
+        case .sunset: return String(localized: "timeOfDay.sunset", defaultValue: "Sunset")
+        case .night: return String(localized: "timeOfDay.night", defaultValue: "Night")
+        }
+    }
+
     var storyPrefix: String {
         switch self {
-        case .dawn: return "Sabah ışığıyla yüzey tabakası yeni ısınıyor."
-        case .day: return "Gündüz ısınması atmosferi daha görünür hale getiriyor."
-        case .sunset: return "Gün batımında yüzey soğumaya başlıyor."
-        case .night: return "Gece radyatif soğuma ve zayıf karışım etkili."
+        case .dawn: return String(localized: "storyPrefix.dawn", defaultValue: "With the morning light, the surface layer is just warming up.")
+        case .day: return String(localized: "storyPrefix.day", defaultValue: "Daytime heating makes the atmosphere more visible.")
+        case .sunset: return String(localized: "storyPrefix.sunset", defaultValue: "At sunset the surface begins to cool.")
+        case .night: return String(localized: "storyPrefix.night", defaultValue: "At night, radiative cooling and weak mixing dominate.")
         }
     }
 
@@ -125,15 +125,28 @@ enum TimeOfDay: String, Equatable {
 }
 
 enum WeatherCondition: String, CaseIterable, Identifiable, Equatable {
-    case clear = "Açık"
-    case partlyCloudy = "Parçalı Bulutlu"
-    case cloudy = "Bulutlu"
-    case rain = "Yağmurlu"
-    case storm = "Fırtınalı"
-    case fog = "Sisli"
-    case snow = "Karlı"
+    case clear
+    case partlyCloudy
+    case cloudy
+    case rain
+    case storm
+    case fog
+    case snow
 
     var id: String { rawValue }
+
+    /// Localized display name (e.g. "Clear" / "Açık").
+    var displayName: String {
+        switch self {
+        case .clear: return String(localized: "condition.clear", defaultValue: "Clear")
+        case .partlyCloudy: return String(localized: "condition.partlyCloudy", defaultValue: "Partly Cloudy")
+        case .cloudy: return String(localized: "condition.cloudy", defaultValue: "Cloudy")
+        case .rain: return String(localized: "condition.rain", defaultValue: "Rainy")
+        case .storm: return String(localized: "condition.storm", defaultValue: "Stormy")
+        case .fog: return String(localized: "condition.fog", defaultValue: "Foggy")
+        case .snow: return String(localized: "condition.snow", defaultValue: "Snowy")
+        }
+    }
 
     var symbolName: String {
         switch self {
@@ -146,38 +159,4 @@ enum WeatherCondition: String, CaseIterable, Identifiable, Equatable {
         case .snow: return "snowflake"
         }
     }
-
-    var palette: [Color] {
-        switch self {
-        case .clear:
-            return [Color(red: 0.02, green: 0.28, blue: 0.84),
-                    Color(red: 0.14, green: 0.60, blue: 0.98),
-                    Color(red: 0.80, green: 0.94, blue: 1.0)]
-        case .partlyCloudy:
-            return [Color(red: 0.05, green: 0.20, blue: 0.62),
-                    Color(red: 0.22, green: 0.54, blue: 0.90),
-                    Color(red: 0.78, green: 0.88, blue: 0.98)]
-        case .cloudy:
-            return [Color(red: 0.10, green: 0.14, blue: 0.24),
-                    Color(red: 0.30, green: 0.38, blue: 0.50),
-                    Color(red: 0.62, green: 0.70, blue: 0.80)]
-        case .rain:
-            return [Color(red: 0.02, green: 0.06, blue: 0.18),
-                    Color(red: 0.10, green: 0.22, blue: 0.40),
-                    Color(red: 0.36, green: 0.56, blue: 0.74)]
-        case .storm:
-            return [Color(red: 0.01, green: 0.01, blue: 0.06),
-                    Color(red: 0.06, green: 0.04, blue: 0.18),
-                    Color(red: 0.24, green: 0.18, blue: 0.50)]
-        case .fog:
-            return [Color(red: 0.40, green: 0.46, blue: 0.54),
-                    Color(red: 0.64, green: 0.72, blue: 0.78),
-                    Color(red: 0.88, green: 0.90, blue: 0.92)]
-        case .snow:
-            return [Color(red: 0.04, green: 0.08, blue: 0.26),
-                    Color(red: 0.34, green: 0.62, blue: 0.90),
-                    Color(red: 0.90, green: 0.95, blue: 1.0)]
-        }
-    }
 }
-#endif

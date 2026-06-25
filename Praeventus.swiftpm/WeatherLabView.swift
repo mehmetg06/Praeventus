@@ -7,46 +7,46 @@ struct WeatherLabView: View {
 
     var body: some View {
         Form {
-            Section("Atmosfer Tipi") {
-                Picker("Durum", selection: conditionBinding) {
+            Section("lab.section.type") {
+                Picker("lab.condition", selection: conditionBinding) {
                     ForEach(WeatherCondition.allCases) {
-                        Text($0.rawValue).tag($0)
+                        Text($0.displayName).tag($0)
                     }
                 }
             }
 
-            Section("Saat / Işık") {
+            Section("lab.section.light") {
                 Slider(value: hourBinding, in: 0...23, step: 1)
                 HStack {
-                    Text("Saat: \(weather.formattedHour)")
+                    Text(String(localized: "lab.hour", defaultValue: "Hour: \(weather.formattedHour)"))
                     Spacer()
-                    Text(weather.timeOfDay.rawValue)
+                    Text(weather.timeOfDay.displayName)
                         .foregroundStyle(.secondary)
                 }
             }
 
-            Section("Canlı Simülasyon") {
+            Section("lab.section.simulation") {
                 Slider(value: temperatureBinding, in: -10...48)
-                Text("Sıcaklık: \(Int(weather.temperature))°C")
+                Text(String(localized: "lab.temperature", defaultValue: "Temperature: \(Int(weather.temperature))°C"))
 
                 Slider(value: humidityBinding, in: 0...100)
-                Text("Nem: %\(Int(weather.humidity))")
+                Text(String(localized: "lab.humidity", defaultValue: "Humidity:") + " %\(Int(weather.humidity))")
 
                 Slider(value: pressureBinding, in: 980...1040)
-                Text("Basınç: \(Int(weather.pressure)) hPa")
+                Text(String(localized: "lab.pressure", defaultValue: "Pressure: \(Int(weather.pressure)) hPa"))
 
                 Slider(value: windBinding, in: 0...100)
-                Text("Rüzgar: \(Int(weather.windSpeed)) km/sa")
+                Text(String(localized: "lab.wind", defaultValue: "Wind: \(Int(weather.windSpeed)) km/h"))
 
                 Slider(value: rainBinding, in: 0...100)
-                Text("Yağış: %\(Int(weather.rainProbability))")
+                Text(String(localized: "lab.rain", defaultValue: "Rain:") + " %\(Int(weather.rainProbability))")
             }
 
-            Section("Hızlı Senaryolar") {
-                Button("Yaz Günü") { store.applyPreset(.clear, temp: 34, humidity: 42, pressure: 1018, wind: 10, rain: 4, hour: 14) }
-                Button("Sabah Sisi") { store.applyPreset(.fog, temp: 14, humidity: 96, pressure: 1012, wind: 4, rain: 12, hour: 7) }
-                Button("Gün Batımı Yağmuru") { store.applyPreset(.rain, temp: 22, humidity: 88, pressure: 1004, wind: 28, rain: 78, hour: 19) }
-                Button("Gece Fırtınası") { store.applyPreset(.storm, temp: 27, humidity: 91, pressure: 996, wind: 46, rain: 92, hour: 23) }
+            Section("lab.section.scenarios") {
+                Button("lab.preset.summer") { store.applyPreset(.clear, temp: 34, humidity: 42, pressure: 1018, wind: 10, rain: 4, hour: 14) }
+                Button("lab.preset.fog") { store.applyPreset(.fog, temp: 14, humidity: 96, pressure: 1012, wind: 4, rain: 12, hour: 7) }
+                Button("lab.preset.sunsetRain") { store.applyPreset(.rain, temp: 22, humidity: 88, pressure: 1004, wind: 28, rain: 78, hour: 19) }
+                Button("lab.preset.nightStorm") { store.applyPreset(.storm, temp: 27, humidity: 91, pressure: 996, wind: 46, rain: 92, hour: 23) }
             }
         }
         .scrollContentBackground(.hidden)

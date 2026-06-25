@@ -7,15 +7,28 @@ import AppleProductTypes
 
 let sources = [
     "App.swift",
+    // Data layer (pure Foundation — also builds on Linux)
+    "WeatherEndpoint.swift",
+    "OpenMeteoModels.swift",
+    "OpenMeteoClient.swift",
+    "WeatherMapping.swift",
     "WeatherData.swift",
+    "StorySentiment.swift",
+    // Domain + state
     "AtmosphericEngine.swift",
     "WeatherStore.swift",
+    // Location
+    "LocationProvider.swift",
+    // UI
+    "WeatherCondition+Palette.swift",
     "PraeventusRootView.swift",
     "AtmosphereBackgroundView.swift",
     "WeatherEffectLayers.swift",
     "SunHaloOpticsLayer.swift",
     "GlassComponents.swift",
     "HomeView.swift",
+    "LocationSearchView.swift",
+    "WeatherChartsView.swift",
     "WeatherLabView.swift",
     "SettingsView.swift"
 ]
@@ -43,13 +56,17 @@ let packageProducts: [Product] = [.executable(name: "Praeventus", targets: ["App
 
 let package = Package(
     name: "Praeventus",
+    defaultLocalization: "en",
     platforms: supportedPlatforms,
     products: packageProducts,
     targets: [
         .executableTarget(
             name: "AppModule",
             path: ".",
-            sources: sources
+            sources: sources,
+            resources: [
+                .process("Localizable.xcstrings")
+            ]
         )
     ],
     swiftLanguageModes: [.v6]

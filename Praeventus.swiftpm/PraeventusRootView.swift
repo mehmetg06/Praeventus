@@ -11,7 +11,7 @@ struct PraeventusRootView: View {
                 HomeView(store: store)
             }
             .tabItem {
-                Label("Atmosfer", systemImage: "cloud.sun")
+                Label("tab.atmosphere", systemImage: "cloud.sun")
             }
 
             ZStack {
@@ -19,7 +19,7 @@ struct PraeventusRootView: View {
                 WeatherLabView(store: store)
             }
             .tabItem {
-                Label("Lab", systemImage: "flask")
+                Label("tab.lab", systemImage: "flask")
             }
 
             ZStack {
@@ -27,10 +27,14 @@ struct PraeventusRootView: View {
                 SettingsView()
             }
             .tabItem {
-                Label("Ayarlar", systemImage: "gearshape")
+                Label("tab.settings", systemImage: "gearshape")
             }
         }
         .preferredColorScheme(.dark)
+        .task {
+            // Restore the last location (if any) on launch.
+            await store.restoreOrPrompt()
+        }
     }
 
     private var background: some View {
