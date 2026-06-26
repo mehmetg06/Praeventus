@@ -14,16 +14,16 @@ struct ThinGlassShape: View {
             .fill(.ultraThinMaterial.opacity(intensity))
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(tintColor.opacity(0.09))
+                    .fill(tintColor.opacity(0.11))
             }
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [
-                                .white.opacity(highlightOpacity),
-                                .white.opacity(0.045),
-                                .black.opacity(innerShadowOpacity)
+                                .white.opacity(highlightOpacity + 0.04),
+                                .white.opacity(0.05),
+                                .black.opacity(innerShadowOpacity * 0.7)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -33,16 +33,16 @@ struct ThinGlassShape: View {
             }
             .overlay(alignment: .topLeading) {
                 RadialGradient(
-                    colors: [.white.opacity(highlightOpacity * 0.95), .clear],
+                    colors: [.white.opacity(highlightOpacity * 1.1), .clear],
                     center: .topLeading,
                     startRadius: 0,
-                    endRadius: 220
+                    endRadius: 240
                 )
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             }
             .overlay(alignment: .bottom) {
                 LinearGradient(
-                    colors: [.clear, .black.opacity(innerShadowOpacity)],
+                    colors: [.clear, .black.opacity(innerShadowOpacity * 0.6)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -53,17 +53,17 @@ struct ThinGlassShape: View {
                     .strokeBorder(
                         LinearGradient(
                             colors: [
-                                .white.opacity(borderOpacity + 0.12),
-                                .white.opacity(borderOpacity * 0.42),
-                                .black.opacity(0.22)
+                                .white.opacity(borderOpacity + 0.18),
+                                .white.opacity(borderOpacity * 0.5),
+                                .black.opacity(0.18)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
-                        lineWidth: 1
+                        lineWidth: 1.2
                     )
             }
-            .shadow(color: .black.opacity(0.28), radius: 28, y: 18)
+            .shadow(color: .black.opacity(0.32), radius: 32, y: 20)
     }
 }
 
@@ -76,32 +76,41 @@ struct GlassMetric: View {
     var tintColor: Color = .clear
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack {
-                Text(title.uppercased())
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .tracking(1.2)
-                    .foregroundStyle(.white.opacity(0.56))
-                Spacer(minLength: 4)
-                Image(systemName: symbol)
-                    .font(.system(size: 12, weight: .light))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(accent.opacity(0.80))
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top) {
+                ZStack {
+                    Circle()
+                        .fill(accent.opacity(0.15))
+                        .frame(width: 34, height: 34)
+                    Image(systemName: symbol)
+                        .font(.system(size: 15, weight: .medium))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(accent)
+                }
+                Spacer(minLength: 0)
             }
+
+            Spacer(minLength: 12)
 
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(value)
-                    .font(.system(size: 17, weight: .medium, design: .rounded))
+                    .font(.system(size: 22, weight: .semibold, design: .rounded))
                     .monospacedDigit()
+                    .foregroundStyle(.white)
                 Text(unit)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.72))
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.65))
             }
-            .foregroundStyle(.white)
+
+            Text(title)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.50))
+                .lineLimit(1)
+                .padding(.top, 3)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-        .background(ThinGlassShape(cornerRadius: 18, intensity: 0.10, highlightOpacity: 0.14, innerShadowOpacity: 0.18, borderOpacity: 0.18, tintColor: tintColor))
+        .padding(16)
+        .frame(width: 130, height: 110, alignment: .leading)
+        .background(ThinGlassShape(cornerRadius: 22, intensity: 0.13, highlightOpacity: 0.18, innerShadowOpacity: 0.20, borderOpacity: 0.22, tintColor: tintColor))
     }
 }
 
