@@ -13,6 +13,11 @@ struct WeatherData: Equatable {
     var humidity: Double
     var pressure: Double
     var windSpeed: Double
+    var windDirection: Int
+    var windGustSpeed: Double
+    var uvIndex: Int
+    var dewPoint: Double
+    var visibility: Double
     var rainProbability: Double
     var hour: Double
 

@@ -8,12 +8,23 @@ struct HourlyPoint: Identifiable, Equatable {
     let temperature: Double
     let precipitationProbability: Double
     let condition: WeatherCondition
+    let uvIndex: Int
+    let windSpeed: Double
+    let windDirection: Int
+    let windGustSpeed: Double
+    let humidity: Double
+    let dewPoint: Double
+    let visibility: Double
 
     static func == (lhs: HourlyPoint, rhs: HourlyPoint) -> Bool {
         lhs.date == rhs.date &&
         lhs.temperature == rhs.temperature &&
         lhs.precipitationProbability == rhs.precipitationProbability &&
-        lhs.condition == rhs.condition
+        lhs.condition == rhs.condition &&
+        lhs.uvIndex == rhs.uvIndex &&
+        lhs.windSpeed == rhs.windSpeed &&
+        lhs.windDirection == rhs.windDirection &&
+        lhs.windGustSpeed == rhs.windGustSpeed
     }
 }
 
@@ -23,10 +34,22 @@ struct DailyRange: Identifiable, Equatable {
     let date: Date
     let min: Double
     let max: Double
+    let feelsLikeMin: Double
+    let feelsLikeMax: Double
+    let uvIndexMax: Int
+    let windSpeedMax: Double
+    let windDirection: Int
+    let windGustMax: Double
+    let precipitationAmount: Double
+    let condition: WeatherCondition
+    let sunrise: Date?
+    let sunset: Date?
+
     var mean: Double { (min + max) / 2 }
 
     static func == (lhs: DailyRange, rhs: DailyRange) -> Bool {
-        lhs.date == rhs.date && lhs.min == rhs.min && lhs.max == rhs.max
+        lhs.date == rhs.date && lhs.min == rhs.min && lhs.max == rhs.max &&
+        lhs.uvIndexMax == rhs.uvIndexMax && lhs.windSpeedMax == rhs.windSpeedMax
     }
 }
 
@@ -77,6 +100,11 @@ enum WeatherMapping {
             humidity: humidity,
             pressure: pressure,
             windSpeed: current.windSpeed10m ?? 0,
+            windDirection: current.windDirection10m ?? 0,
+            windGustSpeed: current.windGusts10m ?? 0,
+            uvIndex: current.uvIndex ?? 0,
+            dewPoint: current.dewPoint2m ?? 0,
+            visibility: current.visibility ?? 10,
             rainProbability: current.precipitationProbability ?? 0,
             hour: hour
         )
@@ -95,6 +123,13 @@ enum WeatherMapping {
         let temps = hourly.temperature2m ?? []
         let probs = hourly.precipitationProbability ?? []
         let codes = hourly.weatherCode ?? []
+        let uvs = hourly.uvIndex ?? []
+        let windSpeeds = hourly.windSpeed10m ?? []
+        let windDirs = hourly.windDirection10m ?? []
+        let windGusts = hourly.windGusts10m ?? []
+        let humidities = hourly.relativeHumidity2m ?? []
+        let dewPoints = hourly.dewPoint2m ?? []
+        let visibilities = hourly.visibility ?? []
 
         // Start from the hour closest to "now" so the strip reads forward.
         let startIndex = nowIndex(in: hourly.time, currentTime: currentTime)
@@ -106,12 +141,27 @@ enum WeatherMapping {
             let temp = temps.indices.contains(i) ? (temps[i] ?? 0) : 0
             let prob = probs.indices.contains(i) ? (probs[i] ?? 0) : 0
             let code = codes.indices.contains(i) ? codes[i] : nil
+            let uv = uvs.indices.contains(i) ? (uvs[i] ?? 0) : 0
+            let wind = windSpeeds.indices.contains(i) ? (windSpeeds[i] ?? 0) : 0
+            let windDir = windDirs.indices.contains(i) ? (windDirs[i] ?? 0) : 0
+            let gust = windGusts.indices.contains(i) ? (windGusts[i] ?? 0) : 0
+            let humidity = humidities.indices.contains(i) ? Double(humidities[i] ?? 0) : 0
+            let dew = dewPoints.indices.contains(i) ? (dewPoints[i] ?? 0) : 0
+            let vis = visibilities.indices.contains(i) ? (visibilities[i] ?? 10) : 10
+
             return HourlyPoint(
                 date: date,
                 hour: hour(fromISO: hourly.time[i]) ?? 0,
                 temperature: temp,
                 precipitationProbability: prob,
-                condition: condition(forWMOCode: code)
+                condition: condition(forWMOCode: code),
+                uvIndex: Int(uv),
+                windSpeed: wind,
+                windDirection: windDir,
+                windGustSpeed: gust,
+                humidity: humidity,
+                dewPoint: dew,
+                visibility: vis
             )
         }
     }
@@ -120,11 +170,47 @@ enum WeatherMapping {
         guard let daily else { return [] }
         let maxes = daily.temperature2mMax ?? []
         let mins = daily.temperature2mMin ?? []
+        let feelsLikeMaxes = daily.apparentTemperatureMax ?? []
+        let feelsLikeMins = daily.apparentTemperatureMin ?? []
+        let uvMaxes = daily.uvIndexMax ?? []
+        let windMaxes = daily.windSpeed10mMax ?? []
+        let windDirs = daily.windDirection10mDominant ?? []
+        let windGustMaxes = daily.windGusts10mMax ?? []
+        let precips = daily.precipitationSum ?? []
+        let codes = daily.weatherCode ?? []
+        let sunrises = daily.sunrise ?? []
+        let sunsets = daily.sunset ?? []
+
         return daily.time.indices.compactMap { i in
             guard let date = date(fromISO: daily.time[i]) else { return nil }
             let lo = mins.indices.contains(i) ? (mins[i] ?? 0) : 0
             let hi = maxes.indices.contains(i) ? (maxes[i] ?? 0) : 0
-            return DailyRange(date: date, min: lo, max: hi)
+            let feelsLoMin = feelsLikeMins.indices.contains(i) ? (feelsLikeMins[i] ?? lo) : lo
+            let feelsLoMax = feelsLikeMaxes.indices.contains(i) ? (feelsLikeMaxes[i] ?? hi) : hi
+            let uv = uvMaxes.indices.contains(i) ? (uvMaxes[i] ?? 0) : 0
+            let windMax = windMaxes.indices.contains(i) ? (windMaxes[i] ?? 0) : 0
+            let windDir = windDirs.indices.contains(i) ? (windDirs[i] ?? 0) : 0
+            let gustMax = windGustMaxes.indices.contains(i) ? (windGustMaxes[i] ?? 0) : 0
+            let precip = precips.indices.contains(i) ? (precips[i] ?? 0) : 0
+            let code = codes.indices.contains(i) ? codes[i] : nil
+            let sunriseTime = sunrises.indices.contains(i) ? date(fromISO: sunrises[i] ?? "") : nil
+            let sunsetTime = sunsets.indices.contains(i) ? date(fromISO: sunsets[i] ?? "") : nil
+
+            return DailyRange(
+                date: date,
+                min: lo,
+                max: hi,
+                feelsLikeMin: feelsLoMin,
+                feelsLikeMax: feelsLoMax,
+                uvIndexMax: Int(uv),
+                windSpeedMax: windMax,
+                windDirection: windDir,
+                windGustMax: gustMax,
+                precipitationAmount: precip,
+                condition: condition(forWMOCode: code),
+                sunrise: sunriseTime,
+                sunset: sunsetTime
+            )
         }
     }
 

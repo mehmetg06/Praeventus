@@ -17,8 +17,12 @@ let sources = [
     "StorySentiment.swift",
     // Domain + state
     "AtmosphericEngine.swift",
+    "AstronomicalEngine.swift",
     "WeatherNarrativeEngine.swift",
     "WeatherStore.swift",
+    // Activity system
+    "Activity.swift",
+    "ActivityAnalysisEngine.swift",
     // Location
     "LocationProvider.swift",
     // Search MVVM

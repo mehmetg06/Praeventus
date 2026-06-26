@@ -24,8 +24,13 @@ struct ForecastResponse: Decodable, Equatable {
         let surfacePressure: Double?
         let pressureMsl: Double?
         let windSpeed10m: Double?
+        let windDirection10m: Int?
+        let windGusts10m: Double?
         let precipitationProbability: Double?
         let weatherCode: Int?
+        let uvIndex: Int?
+        let dewPoint2m: Double?
+        let visibility: Double?
 
         enum CodingKeys: String, CodingKey {
             case time
@@ -35,8 +40,13 @@ struct ForecastResponse: Decodable, Equatable {
             case surfacePressure = "surface_pressure"
             case pressureMsl = "pressure_msl"
             case windSpeed10m = "wind_speed_10m"
+            case windDirection10m = "wind_direction_10m"
+            case windGusts10m = "wind_gusts_10m"
             case precipitationProbability = "precipitation_probability"
             case weatherCode = "weather_code"
+            case uvIndex = "uv_index"
+            case dewPoint2m = "dew_point_2m"
+            case visibility
         }
     }
 
@@ -45,12 +55,26 @@ struct ForecastResponse: Decodable, Equatable {
         let temperature2m: [Double?]?
         let precipitationProbability: [Double?]?
         let weatherCode: [Int?]?
+        let uvIndex: [Int?]?
+        let windSpeed10m: [Double?]?
+        let windDirection10m: [Int?]?
+        let windGusts10m: [Double?]?
+        let relativeHumidity2m: [Int?]?
+        let dewPoint2m: [Double?]?
+        let visibility: [Double?]?
 
         enum CodingKeys: String, CodingKey {
             case time
             case temperature2m = "temperature_2m"
             case precipitationProbability = "precipitation_probability"
             case weatherCode = "weather_code"
+            case uvIndex = "uv_index"
+            case windSpeed10m = "wind_speed_10m"
+            case windDirection10m = "wind_direction_10m"
+            case windGusts10m = "wind_gusts_10m"
+            case relativeHumidity2m = "relative_humidity_2m"
+            case dewPoint2m = "dew_point_2m"
+            case visibility
         }
     }
 
@@ -58,11 +82,30 @@ struct ForecastResponse: Decodable, Equatable {
         let time: [String]
         let temperature2mMax: [Double?]?
         let temperature2mMin: [Double?]?
+        let apparentTemperatureMax: [Double?]?
+        let apparentTemperatureMin: [Double?]?
+        let uvIndexMax: [Int?]?
+        let windSpeed10mMax: [Double?]?
+        let windDirection10mDominant: [Int?]?
+        let windGusts10mMax: [Double?]?
+        let precipitationSum: [Double?]?
+        let weatherCode: [Int?]?
+        let sunrise: [String?]?
+        let sunset: [String?]?
 
         enum CodingKeys: String, CodingKey {
             case time
             case temperature2mMax = "temperature_2m_max"
             case temperature2mMin = "temperature_2m_min"
+            case apparentTemperatureMax = "apparent_temperature_max"
+            case apparentTemperatureMin = "apparent_temperature_min"
+            case uvIndexMax = "uv_index_max"
+            case windSpeed10mMax = "wind_speed_10m_max"
+            case windDirection10mDominant = "wind_direction_10m_dominant"
+            case windGusts10mMax = "wind_gusts_10m_max"
+            case precipitationSum = "precipitation_sum"
+            case weatherCode = "weather_code"
+            case sunrise, sunset
         }
     }
 

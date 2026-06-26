@@ -231,11 +231,71 @@ struct HomeView: View {
     private var loadedContent: some View {
         temperatureHero
         metricsGrid
+        if !recommendedActivities.isEmpty {
+            activitySuitabilityCard
+        }
         storyCard
         hourlyPreview
         #if canImport(Charts)
         WeatherChartsView(hourly: store.hourly, daily: store.daily, tint: paletteTint)
         #endif
+    }
+
+    private var activitySuitabilityCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 9) {
+                Image(systemName: "figure.walk")
+                    .font(.system(size: 15, weight: .light))
+                Text("home.activities.heading")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .tracking(1.4)
+                Spacer()
+            }
+            .foregroundStyle(.white.opacity(0.56))
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(recommendedActivities.prefix(3)) { suitability in
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(suitability.activity.name)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.white)
+                            if !suitability.warnings.isEmpty {
+                                Text(suitability.warnings.joined(separator: ", "))
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.66))
+                                    .lineLimit(1)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        Text(suitability.suitability.displayName)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 8)
+                            .background(suitabilityColor(suitability.suitability).opacity(0.3))
+                            .cornerRadius(6)
+                    }
+                }
+            }
+        }
+        .padding(18)
+        .background(ThinGlassShape(cornerRadius: 28, intensity: 0.13, highlightOpacity: 0.18, innerShadowOpacity: 0.22, borderOpacity: 0.22, tintColor: paletteTint))
+    }
+
+    private var recommendedActivities: [ActivitySuitability] {
+        let suitabilities = ActivityAnalysisEngine.evaluateAllActivities(given: weather)
+        return ActivityAnalysisEngine.recommendedActivities(from: suitabilities)
+    }
+
+    private func suitabilityColor(_ level: SuitabilityLevel) -> Color {
+        switch level {
+        case .excellent: return .green
+        case .good: return .blue
+        case .fair: return .yellow
+        case .poor: return .orange
+        case .unsuitable: return .red
+        }
     }
 
     private var temperatureHero: some View {
