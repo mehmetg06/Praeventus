@@ -18,34 +18,26 @@ struct PraeventusRootView: View {
     }
 
     var body: some View {
-        // One shared atmosphere behind all tabs. Building it per-tab kept three
-        // copies of every TimelineView/Canvas animation ticking at once (even
-        // for off-screen tabs), tripling the rendering cost.
-        ZStack {
-            background
+        TabView {
+            HomeView(store: store)
+                .background { atmosphereBackground }
+                .tabItem {
+                    Label("tab.atmosphere", systemImage: "cloud.sun")
+                }
 
-            TabView {
-                HomeView(store: store)
-                    .background(Color.clear)
-                    .tabItem {
-                        Label("tab.atmosphere", systemImage: "cloud.sun")
-                    }
+            WeatherLabView(store: store)
+                .background { atmosphereBackground }
+                .tabItem {
+                    Label("tab.lab", systemImage: "flask")
+                }
 
-                WeatherLabView(store: store)
-                    .background(Color.clear)
-                    .tabItem {
-                        Label("tab.lab", systemImage: "flask")
-                    }
-
-                SettingsView()
-                    .background(Color.clear)
-                    .tabItem {
-                        Label("tab.settings", systemImage: "gearshape")
-                    }
-            }
-            .background(Color.clear)
-            .toolbarBackground(.hidden, for: .tabBar)
+            SettingsView()
+                .background { atmosphereBackground }
+                .tabItem {
+                    Label("tab.settings", systemImage: "gearshape")
+                }
         }
+        .toolbarBackground(.hidden, for: .tabBar)
         .preferredColorScheme(.dark)
         .task {
             // Restore the last location (if any) on launch.
@@ -53,12 +45,16 @@ struct PraeventusRootView: View {
         }
     }
 
-    private var background: some View {
+    // Rendered inside each tab's UIHostingController so the atmosphere shows
+    // through the SwiftUI content tree, bypassing UITabBarController's opaque
+    // UIKit backing that would cover a shared ZStack background layer.
+    private var atmosphereBackground: some View {
         AtmosphereBackgroundView(
             atmosphere: store.atmosphere,
             hour: store.weather.hour,
             windSpeed: store.weather.windSpeed
         )
+        .ignoresSafeArea()
     }
 }
 #endif
