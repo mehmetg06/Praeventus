@@ -10,6 +10,9 @@ struct HomeView: View {
     private var atmosphere: AtmosphericState { store.atmosphere }
     private var paletteTint: Color { atmosphere.condition.palette[1] }
 
+    @State private var currentMetricIndex = 0
+    private let metricsTimer = Timer.publish(every: 6, on: .main, in: .common).autoconnect()
+
     private var severity: WeatherSeverity {
         StorySentiment.severity(
             story: atmosphere.story,
@@ -233,7 +236,7 @@ struct HomeView: View {
         temperatureHero
         storyCard
         HealthInsightsCard(insights: store.healthInsights)
-        metricsGrid
+        rotatingMetricCard
         if !recommendedActivities.isEmpty {
             activitySuitabilityCard
         }
@@ -383,20 +386,127 @@ struct HomeView: View {
         }
     }
 
-    private var metricsGrid: some View {
-        LazyVGrid(
-            columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3),
-            spacing: 12
-        ) {
-            GlassMetric(symbol: "gauge.with.dots.needle.bottom.50percent", title: String(localized: "metric.pressure", defaultValue: "Pressure"), value: "\(Int(weather.pressure.rounded()))", unit: "hPa", accent: .cyan)
-            GlassMetric(symbol: "humidity", title: String(localized: "metric.humidity", defaultValue: "Humidity"), value: "\(Int(weather.humidity.rounded()))", unit: "%", accent: .blue)
-            GlassMetric(symbol: "wind", title: String(localized: "metric.wind", defaultValue: "Wind"), value: "\(Int(weather.windSpeed.rounded()))", unit: String(localized: "unit.kmh", defaultValue: "km/h"), accent: .mint)
-            GlassMetric(symbol: "sun.max", title: String(localized: "metric.uvIndex", defaultValue: "UV Index"), value: "\(weather.uvIndex)", unit: uvIndexLabel, accent: uvIndexAccent)
-            GlassMetric(symbol: "thermometer.medium", title: String(localized: "metric.dewPoint", defaultValue: "Dew Point"), value: "\(Int(weather.dewPoint.rounded()))", unit: "°C", accent: .teal)
-            GlassMetric(symbol: "wind.circle", title: String(localized: "metric.windGust", defaultValue: "Wind Gust"), value: "\(Int(weather.windGustSpeed.rounded()))", unit: String(localized: "unit.kmh", defaultValue: "km/h"), accent: .orange)
-            GlassMetric(symbol: "safari", title: String(localized: "metric.windDir", defaultValue: "Direction"), value: windDirectionLabel(weather.windDirection), unit: "\(weather.windDirection)°", accent: .indigo)
-            GlassMetric(symbol: "eye", title: String(localized: "metric.visibility", defaultValue: "Visibility"), value: visibilityKmDisplay, unit: "km", accent: .purple)
-            GlassMetric(symbol: "umbrella.fill", title: String(localized: "metric.rainProb", defaultValue: "Rain"), value: "\(Int(weather.rainProbability.rounded()))", unit: "%", accent: Color(red: 0.2, green: 0.4, blue: 1.0))
+    private var rotatingMetrics: [MetricItem] {
+        [
+            MetricItem(
+                icon: "humidity",
+                title: String(localized: "metric.humidity", defaultValue: "Nem"),
+                value: "\(Int(weather.humidity.rounded()))%",
+                description: "Havadaki su buharı oranı. %60 üzeri bunaltıcı hissettirebilir.",
+                accent: .blue
+            ),
+            MetricItem(
+                icon: "gauge.with.dots.needle.bottom.50percent",
+                title: String(localized: "metric.pressure", defaultValue: "Basınç"),
+                value: "\(Int(weather.pressure.rounded())) hPa",
+                description: "Atmosferin uyguladığı kuvvet. Düşük basınç yağış, yüksek basınç açık hava getirir.",
+                accent: .cyan
+            ),
+            MetricItem(
+                icon: "wind",
+                title: String(localized: "metric.wind", defaultValue: "Rüzgar"),
+                value: "\(Int(weather.windSpeed.rounded())) km/h",
+                description: "Rüzgar hızlandıkça hissedilen sıcaklık düşer.",
+                accent: .mint
+            ),
+            MetricItem(
+                icon: "sun.max",
+                title: String(localized: "metric.uvIndex", defaultValue: "UV İndeksi"),
+                value: "\(weather.uvIndex) · \(uvIndexLabel)",
+                description: "Ultraviyole radyasyon seviyesi. Yüksek UV'de cilt koruması şarttır.",
+                accent: uvIndexAccent
+            ),
+            MetricItem(
+                icon: "thermometer.medium",
+                title: String(localized: "metric.dewPoint", defaultValue: "Çiy Noktası"),
+                value: "\(Int(weather.dewPoint.rounded()))°C",
+                description: "Havanın doygunluğa ulaştığı sıcaklık. Yüksekse yapışkan hava hissedilir.",
+                accent: .teal
+            ),
+            MetricItem(
+                icon: "wind.circle",
+                title: String(localized: "metric.windGust", defaultValue: "Ani Rüzgar"),
+                value: "\(Int(weather.windGustSpeed.rounded())) km/h",
+                description: "Anlık maksimum rüzgar hızı. Yüksek değerler dışarıda dikkat gerektirir.",
+                accent: .orange
+            ),
+            MetricItem(
+                icon: "safari",
+                title: String(localized: "metric.windDir", defaultValue: "Yön"),
+                value: windDirectionLabel(weather.windDirection),
+                description: "Rüzgarın estiği yön. Bulut hareketini ve hava koşullarını etkiler.",
+                accent: .indigo
+            ),
+            MetricItem(
+                icon: "eye",
+                title: String(localized: "metric.visibility", defaultValue: "Görüş"),
+                value: "\(visibilityKmDisplay) km",
+                description: "Gözle görülebilen maksimum mesafe. Sis ve yağış görüş mesafesini kısaltır.",
+                accent: .purple
+            ),
+            MetricItem(
+                icon: "umbrella.fill",
+                title: String(localized: "metric.rainProb", defaultValue: "Yağış"),
+                value: "%\(Int(weather.rainProbability.rounded()))",
+                description: "Bir saat içinde yağış düşme ihtimali. %70 üzeri yağmur kıyafeti önerilir.",
+                accent: Color(red: 0.2, green: 0.4, blue: 1.0)
+            )
+        ]
+    }
+
+    private var rotatingMetricCard: some View {
+        let metrics = rotatingMetrics
+        let safeIndex = currentMetricIndex % max(1, metrics.count)
+        let metric = metrics[safeIndex]
+
+        return VStack(alignment: .leading, spacing: 0) {
+            // Instagram-style story progress indicators
+            HStack(spacing: 4) {
+                ForEach(0..<metrics.count, id: \.self) { index in
+                    Capsule()
+                        .fill(index == safeIndex ? Color.white : Color.white.opacity(0.28))
+                        .frame(height: 2.5)
+                        .animation(.easeInOut(duration: 0.3), value: currentMetricIndex)
+                }
+            }
+            .padding(.bottom, 22)
+
+            VStack(alignment: .center, spacing: 10) {
+                Image(systemName: metric.icon)
+                    .font(.system(size: 42, weight: .thin))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(metric.accent)
+
+                Text(metric.value)
+                    .font(.system(size: 46, weight: .thin, design: .rounded))
+                    .foregroundStyle(.white)
+                    .monospacedDigit()
+
+                Text(metric.title.uppercased())
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .tracking(1.4)
+                    .foregroundStyle(.white.opacity(0.54))
+
+                Text(metric.description)
+                    .font(.subheadline.weight(.light))
+                    .foregroundStyle(.white.opacity(0.80))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 4)
+            }
+            .frame(maxWidth: .infinity)
+            .id(safeIndex)
+            .transition(.asymmetric(
+                insertion: .move(edge: .trailing).combined(with: .opacity),
+                removal: .move(edge: .leading).combined(with: .opacity)
+            ))
+        }
+        .padding(22)
+        .background(ThinGlassShape(cornerRadius: 28))
+        .onReceive(metricsTimer) { _ in
+            withAnimation(.easeInOut(duration: 0.5)) {
+                currentMetricIndex = (currentMetricIndex + 1) % metrics.count
+            }
         }
     }
 
@@ -519,6 +629,14 @@ struct HomeView: View {
 }
 
 // MARK: - Supporting types (private to this file)
+
+private struct MetricItem {
+    let icon: String
+    let title: String
+    let value: String
+    let description: String
+    let accent: Color
+}
 
 private struct HourlyStripPoint: Identifiable {
     let id = UUID()
