@@ -2,7 +2,7 @@
 import SwiftUI
 
 struct ThinGlassShape: View {
-    var cornerRadius: CGFloat = 28
+    var cornerRadius: CGFloat = 24
     var intensity: Double = 0.14
     var highlightOpacity: Double = 0.20
     var innerShadowOpacity: Double = 0.22
@@ -15,7 +15,7 @@ struct ThinGlassShape: View {
 
     var body: some View {
         shape
-            .fill(.ultraThinMaterial)
+            .fill(Material.ultraThinMaterial)
             // Colour-forward wash so the glass picks up the sky/palette instead of going flat grey.
             .overlay {
                 shape.fill(
@@ -70,10 +70,9 @@ struct ThinGlassShape: View {
                 shape.strokeBorder(
                     LinearGradient(
                         colors: [
-                            .white.opacity(borderOpacity + 0.40),
-                            .white.opacity(borderOpacity * 0.45),
-                            .white.opacity(0.06),
-                            .white.opacity(borderOpacity * 0.55)
+                            .white.opacity(0.60),
+                            .clear,
+                            .white.opacity(0.20)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -82,7 +81,31 @@ struct ThinGlassShape: View {
                 )
             }
             .clipShape(shape)
-            .shadow(color: .black.opacity(0.22), radius: 24, y: 14)
+            .shadow(color: .black.opacity(0.15), radius: 15, y: 8)
+    }
+}
+
+struct VisionGlassCard<Content: View>: View {
+    var cornerRadius: CGFloat = 24
+    var tintColor: Color = .clear
+    @ViewBuilder let content: Content
+
+    @State private var isBreathing = false
+
+    var body: some View {
+        content
+            .background(
+                ThinGlassShape(
+                    cornerRadius: cornerRadius,
+                    tintColor: tintColor
+                )
+            )
+            .scaleEffect(isBreathing ? 1.01 : 0.99)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 4.0).repeatForever(autoreverses: true)) {
+                    isBreathing = true
+                }
+            }
     }
 }
 
@@ -95,41 +118,42 @@ struct GlassMetric: View {
     var tintColor: Color = .clear
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: 9) {
-                ZStack {
-                    Circle()
-                        .fill(accent.opacity(0.18))
-                        .frame(width: 38, height: 38)
-                    Image(systemName: symbol)
-                        .font(.system(size: 16, weight: .medium))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(accent)
+        VisionGlassCard(cornerRadius: 24, tintColor: tintColor) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .top, spacing: 9) {
+                    ZStack {
+                        Circle()
+                            .fill(accent.opacity(0.18))
+                            .frame(width: 38, height: 38)
+                        Image(systemName: symbol)
+                            .font(.system(size: 16, weight: .medium))
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(accent)
+                    }
+                    Text(title)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.62))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                    Spacer(minLength: 0)
                 }
-                Text(title)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.62))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                Spacer(minLength: 0)
-            }
 
-            Spacer(minLength: 14)
+                Spacer(minLength: 14)
 
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(value)
-                    .font(.system(size: 26, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(.white)
-                Text(unit)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.68))
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text(value)
+                        .font(.system(size: 26, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(.white)
+                    Text(unit)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.68))
+                }
             }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, minHeight: 104, alignment: .leading)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 16)
-        .frame(maxWidth: .infinity, minHeight: 104, alignment: .leading)
-        .background(ThinGlassShape(cornerRadius: 24, intensity: 0.13, highlightOpacity: 0.20, innerShadowOpacity: 0.18, borderOpacity: 0.24, tintColor: tintColor))
     }
 }
 
