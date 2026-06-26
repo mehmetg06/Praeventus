@@ -231,12 +231,12 @@ struct HomeView: View {
     @ViewBuilder
     private var loadedContent: some View {
         temperatureHero
+        storyCard
         HealthInsightsCard(insights: store.healthInsights)
         metricsGrid
         if !recommendedActivities.isEmpty {
             activitySuitabilityCard
         }
-        storyCard
         astronomicalCard
         hourlyPreview
         #if canImport(Charts)
@@ -333,32 +333,24 @@ struct HomeView: View {
     }
 
     private var temperatureHero: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("\(Int(weather.temperature.rounded()))°")
-                    .font(.system(size: 98, weight: .ultraLight, design: .rounded))
-                    .minimumScaleFactor(0.70)
-                    .lineLimit(1)
-                    .foregroundStyle(.white)
-                Spacer(minLength: 0)
-            }
+        VStack(alignment: .center, spacing: 8) {
+            Text("\(Int(weather.temperature.rounded()))°")
+                .font(.system(size: 110, weight: .thin, design: .default))
+                .minimumScaleFactor(0.70)
+                .lineLimit(1)
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
 
-            HStack(spacing: 10) {
-                Text(atmosphere.condition.displayName)
-                    .font(.title3.weight(.regular))
-                    .foregroundStyle(.white.opacity(0.92))
-                Text("·")
-                    .foregroundStyle(.white.opacity(0.34))
-                Text(atmosphere.statusText)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.66))
-            }
+            Text(atmosphere.condition.displayName)
+                .font(.title2.weight(.medium))
+                .foregroundStyle(.white.opacity(0.92))
 
             Text(String(localized: "home.feelsLike", defaultValue: "Feels like \(Int(weather.feelsLike.rounded()))°"))
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.58))
         }
-        .padding(.top, 12)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.top, 24)
     }
 
     private var storyCard: some View {
@@ -374,7 +366,7 @@ struct HomeView: View {
             .foregroundStyle(severity.isNegative ? .white : .white.opacity(0.56))
 
             Text(atmosphere.story)
-                .font(.system(size: 15, weight: .regular, design: .rounded))
+                .font(.system(size: 20, weight: .regular))
                 .lineSpacing(6)
                 .foregroundStyle(.white.opacity(0.88))
                 .fixedSize(horizontal: false, vertical: true)
