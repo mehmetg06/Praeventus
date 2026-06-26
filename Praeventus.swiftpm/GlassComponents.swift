@@ -21,9 +21,9 @@ struct ThinGlassShape: View {
                 shape.fill(
                     LinearGradient(
                         colors: [
-                            tintColor.opacity(0.30),
-                            tintColor.opacity(0.12),
-                            .white.opacity(0.02)
+                            tintColor.opacity(0.18),
+                            tintColor.opacity(0.06),
+                            .white.opacity(0.0)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
@@ -59,7 +59,7 @@ struct ThinGlassShape: View {
             // Gentle inner shade at the base for depth (kept subtle to avoid greying the card).
             .overlay(alignment: .bottom) {
                 LinearGradient(
-                    colors: [.clear, .black.opacity(innerShadowOpacity * 0.45)],
+                    colors: [.clear, .black.opacity(innerShadowOpacity * 0.30)],
                     startPoint: .center,
                     endPoint: .bottom
                 )
@@ -128,7 +128,7 @@ struct GlassMetric: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
-        .frame(width: 162, height: 104, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 104, alignment: .leading)
         .background(ThinGlassShape(cornerRadius: 24, intensity: 0.13, highlightOpacity: 0.20, innerShadowOpacity: 0.18, borderOpacity: 0.24, tintColor: tintColor))
     }
 }

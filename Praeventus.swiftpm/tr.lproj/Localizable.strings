@@ -36,6 +36,7 @@
 "error.noResults" = "Sonuç bulunamadı.";
 "error.searchFailed" = "Arama başarısız.";
 "error.transport" = "Bağlantı sorunu: %@";
+"home.activities.heading" = "BUGÜNKÜ AKTİVİTELER";
 "home.empty.cta" = "Konum seç";
 "home.empty.subtitle" = "Dünyadaki herhangi bir şehri arayın veya yaklaşık konumunuzu kullanın. Hakkınızda hiçbir şey paylaşılmaz.";
 "home.empty.title" = "Henüz konum yok";
