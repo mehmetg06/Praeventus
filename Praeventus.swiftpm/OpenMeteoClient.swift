@@ -23,6 +23,11 @@ struct OpenMeteoClient {
     init(session: URLSession = .shared) {
         self.session = session
         self.decoder = JSONDecoder()
+        self.decoder.nonConformingNumberDecodingStrategy = .convertFromString(
+            positiveInfinity: "Infinity",
+            negativeInfinity: "-Infinity",
+            nan: "NaN"
+        )
     }
 
     /// Hourly steps to keep for the charts (next ~24h from "now").
