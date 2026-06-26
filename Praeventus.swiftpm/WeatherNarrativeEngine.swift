@@ -165,7 +165,7 @@ private struct NarrativeContext {
     var isCold: Bool { weather.temperature <= 10 }
 }
 
-private final class NeuralNarrativeSelector {
+private final class NeuralNarrativeSelector: @unchecked Sendable {
     static let shared = NeuralNarrativeSelector()
 
     #if canImport(CoreML)
