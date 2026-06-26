@@ -9,61 +9,80 @@ struct ThinGlassShape: View {
     var borderOpacity: Double = 0.26
     var tintColor: Color = .clear
 
-    var body: some View {
+    private var shape: RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(.ultraThinMaterial.opacity(intensity))
+    }
+
+    var body: some View {
+        shape
+            .fill(.ultraThinMaterial)
+            // Colour-forward wash so the glass picks up the sky/palette instead of going flat grey.
             .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(tintColor.opacity(0.11))
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                .white.opacity(highlightOpacity + 0.04),
-                                .white.opacity(0.05),
-                                .black.opacity(innerShadowOpacity * 0.7)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                shape.fill(
+                    LinearGradient(
+                        colors: [
+                            tintColor.opacity(0.30),
+                            tintColor.opacity(0.12),
+                            .white.opacity(0.02)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
                     )
-                    .blendMode(.screen)
+                )
             }
+            // Specular sheen across the upper portion — the glossy "reflection" catching the light.
+            .overlay(alignment: .top) {
+                shape.fill(
+                    LinearGradient(
+                        colors: [
+                            .white.opacity(highlightOpacity + 0.34),
+                            .white.opacity(highlightOpacity * 0.5),
+                            .clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .center
+                    )
+                )
+                .blendMode(.screen)
+            }
+            // Bright top-left light catch for a wet-glass highlight.
             .overlay(alignment: .topLeading) {
                 RadialGradient(
-                    colors: [.white.opacity(highlightOpacity * 1.1), .clear],
+                    colors: [.white.opacity(highlightOpacity * 1.5), .clear],
                     center: .topLeading,
                     startRadius: 0,
-                    endRadius: 240
+                    endRadius: 200
                 )
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .blendMode(.screen)
+                .clipShape(shape)
             }
+            // Gentle inner shade at the base for depth (kept subtle to avoid greying the card).
             .overlay(alignment: .bottom) {
                 LinearGradient(
-                    colors: [.clear, .black.opacity(innerShadowOpacity * 0.6)],
-                    startPoint: .top,
+                    colors: [.clear, .black.opacity(innerShadowOpacity * 0.45)],
+                    startPoint: .center,
                     endPoint: .bottom
                 )
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .clipShape(shape)
             }
+            // Glossy rim that brightens at the top edge and fades around the body.
             .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [
-                                .white.opacity(borderOpacity + 0.18),
-                                .white.opacity(borderOpacity * 0.5),
-                                .black.opacity(0.18)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1.2
-                    )
+                shape.strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            .white.opacity(borderOpacity + 0.40),
+                            .white.opacity(borderOpacity * 0.45),
+                            .white.opacity(0.06),
+                            .white.opacity(borderOpacity * 0.55)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
             }
-            .shadow(color: .black.opacity(0.32), radius: 32, y: 20)
+            .clipShape(shape)
+            .shadow(color: .black.opacity(0.22), radius: 24, y: 14)
     }
 }
 
@@ -77,40 +96,40 @@ struct GlassMetric: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top) {
+            HStack(alignment: .top, spacing: 9) {
                 ZStack {
                     Circle()
-                        .fill(accent.opacity(0.15))
-                        .frame(width: 34, height: 34)
+                        .fill(accent.opacity(0.18))
+                        .frame(width: 38, height: 38)
                     Image(systemName: symbol)
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.system(size: 16, weight: .medium))
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(accent)
                 }
+                Text(title)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
                 Spacer(minLength: 0)
             }
 
-            Spacer(minLength: 12)
+            Spacer(minLength: 14)
 
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(value)
-                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .font(.system(size: 26, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(.white)
                 Text(unit)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.65))
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.68))
             }
-
-            Text(title)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.50))
-                .lineLimit(1)
-                .padding(.top, 3)
         }
-        .padding(16)
-        .frame(width: 130, height: 110, alignment: .leading)
-        .background(ThinGlassShape(cornerRadius: 22, intensity: 0.13, highlightOpacity: 0.18, innerShadowOpacity: 0.20, borderOpacity: 0.22, tintColor: tintColor))
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
+        .frame(width: 162, height: 104, alignment: .leading)
+        .background(ThinGlassShape(cornerRadius: 24, intensity: 0.13, highlightOpacity: 0.20, innerShadowOpacity: 0.18, borderOpacity: 0.24, tintColor: tintColor))
     }
 }
 
