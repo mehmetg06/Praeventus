@@ -173,13 +173,13 @@ struct HomeView: View {
                     .foregroundStyle(.white)
                     .padding(.vertical, 14)
                     .frame(maxWidth: .infinity)
-                    .background(ThinGlassShape(cornerRadius: 20, intensity: 0.18, tintColor: paletteTint))
+                    .background(ThinGlassShape(cornerRadius: 20))
             }
             .padding(.top, 6)
         }
         .padding(22)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(ThinGlassShape(cornerRadius: 28, intensity: 0.12, tintColor: paletteTint))
+        .background(ThinGlassShape(cornerRadius: 28))
         .padding(.top, 24)
     }
 
@@ -191,7 +191,7 @@ struct HomeView: View {
                 .foregroundStyle(.white.opacity(0.8))
         }
         .frame(maxWidth: .infinity, minHeight: 120)
-        .background(ThinGlassShape(cornerRadius: 28, intensity: 0.12, tintColor: paletteTint))
+        .background(ThinGlassShape(cornerRadius: 28))
         .padding(.top, 24)
     }
 
@@ -210,20 +210,20 @@ struct HomeView: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
                         .padding(.vertical, 10).padding(.horizontal, 16)
-                        .background(ThinGlassShape(cornerRadius: 16, intensity: 0.16, tintColor: paletteTint))
+                        .background(ThinGlassShape(cornerRadius: 16))
                 }
                 Button(action: { searchFocused = true }) {
                     Label("home.empty.cta", systemImage: "magnifyingglass")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
                         .padding(.vertical, 10).padding(.horizontal, 16)
-                        .background(ThinGlassShape(cornerRadius: 16, intensity: 0.16))
+                        .background(ThinGlassShape(cornerRadius: 16))
                 }
             }
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(ThinGlassShape(cornerRadius: 28, intensity: 0.12, tintColor: .red))
+        .background(ThinGlassShape(cornerRadius: 28))
         .padding(.top, 24)
     }
 
@@ -248,8 +248,8 @@ struct HomeView: View {
                 at: Date(),
                 latitude: store.location?.latitude ?? 0,
                 longitude: store.location?.longitude ?? 0
-            ),
-            tintColor: paletteTint
+            )
+
         )
     }
 
@@ -312,7 +312,7 @@ struct HomeView: View {
             }
         }
         .padding(20)
-        .background(ThinGlassShape(cornerRadius: 28, intensity: 0.13, highlightOpacity: 0.18, innerShadowOpacity: 0.22, borderOpacity: 0.22, tintColor: paletteTint))
+        .background(ThinGlassShape(cornerRadius: 28))
     }
 
     private var recommendedActivities: [ActivitySuitability] {
@@ -378,7 +378,7 @@ struct HomeView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(22)
-        .background(ThinGlassShape(cornerRadius: 28, intensity: 0.13, highlightOpacity: 0.18, innerShadowOpacity: 0.22, borderOpacity: 0.22, tintColor: storyTint))
+        .background(ThinGlassShape(cornerRadius: 28))
     }
 
     private var storyTint: Color {
@@ -394,15 +394,15 @@ struct HomeView: View {
             columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3),
             spacing: 12
         ) {
-            GlassMetric(symbol: "gauge.with.dots.needle.bottom.50percent", title: String(localized: "metric.pressure", defaultValue: "Pressure"), value: "\(Int(weather.pressure.rounded()))", unit: "hPa", accent: .cyan, tintColor: paletteTint)
-            GlassMetric(symbol: "humidity", title: String(localized: "metric.humidity", defaultValue: "Humidity"), value: "\(Int(weather.humidity.rounded()))", unit: "%", accent: .blue, tintColor: paletteTint)
-            GlassMetric(symbol: "wind", title: String(localized: "metric.wind", defaultValue: "Wind"), value: "\(Int(weather.windSpeed.rounded()))", unit: String(localized: "unit.kmh", defaultValue: "km/h"), accent: .mint, tintColor: paletteTint)
-            GlassMetric(symbol: "sun.max", title: String(localized: "metric.uvIndex", defaultValue: "UV Index"), value: "\(weather.uvIndex)", unit: uvIndexLabel, accent: uvIndexAccent, tintColor: paletteTint)
-            GlassMetric(symbol: "thermometer.medium", title: String(localized: "metric.dewPoint", defaultValue: "Dew Point"), value: "\(Int(weather.dewPoint.rounded()))", unit: "°C", accent: .teal, tintColor: paletteTint)
-            GlassMetric(symbol: "wind.circle", title: String(localized: "metric.windGust", defaultValue: "Wind Gust"), value: "\(Int(weather.windGustSpeed.rounded()))", unit: String(localized: "unit.kmh", defaultValue: "km/h"), accent: .orange, tintColor: paletteTint)
-            GlassMetric(symbol: "safari", title: String(localized: "metric.windDir", defaultValue: "Direction"), value: windDirectionLabel(weather.windDirection), unit: "\(weather.windDirection)°", accent: .indigo, tintColor: paletteTint)
-            GlassMetric(symbol: "eye", title: String(localized: "metric.visibility", defaultValue: "Visibility"), value: visibilityKmDisplay, unit: "km", accent: .purple, tintColor: paletteTint)
-            GlassMetric(symbol: "umbrella.fill", title: String(localized: "metric.rainProb", defaultValue: "Rain"), value: "\(Int(weather.rainProbability.rounded()))", unit: "%", accent: Color(red: 0.2, green: 0.4, blue: 1.0), tintColor: paletteTint)
+            GlassMetric(symbol: "gauge.with.dots.needle.bottom.50percent", title: String(localized: "metric.pressure", defaultValue: "Pressure"), value: "\(Int(weather.pressure.rounded()))", unit: "hPa", accent: .cyan)
+            GlassMetric(symbol: "humidity", title: String(localized: "metric.humidity", defaultValue: "Humidity"), value: "\(Int(weather.humidity.rounded()))", unit: "%", accent: .blue)
+            GlassMetric(symbol: "wind", title: String(localized: "metric.wind", defaultValue: "Wind"), value: "\(Int(weather.windSpeed.rounded()))", unit: String(localized: "unit.kmh", defaultValue: "km/h"), accent: .mint)
+            GlassMetric(symbol: "sun.max", title: String(localized: "metric.uvIndex", defaultValue: "UV Index"), value: "\(weather.uvIndex)", unit: uvIndexLabel, accent: uvIndexAccent)
+            GlassMetric(symbol: "thermometer.medium", title: String(localized: "metric.dewPoint", defaultValue: "Dew Point"), value: "\(Int(weather.dewPoint.rounded()))", unit: "°C", accent: .teal)
+            GlassMetric(symbol: "wind.circle", title: String(localized: "metric.windGust", defaultValue: "Wind Gust"), value: "\(Int(weather.windGustSpeed.rounded()))", unit: String(localized: "unit.kmh", defaultValue: "km/h"), accent: .orange)
+            GlassMetric(symbol: "safari", title: String(localized: "metric.windDir", defaultValue: "Direction"), value: windDirectionLabel(weather.windDirection), unit: "\(weather.windDirection)°", accent: .indigo)
+            GlassMetric(symbol: "eye", title: String(localized: "metric.visibility", defaultValue: "Visibility"), value: visibilityKmDisplay, unit: "km", accent: .purple)
+            GlassMetric(symbol: "umbrella.fill", title: String(localized: "metric.rainProb", defaultValue: "Rain"), value: "\(Int(weather.rainProbability.rounded()))", unit: "%", accent: Color(red: 0.2, green: 0.4, blue: 1.0))
         }
     }
 
@@ -440,7 +440,7 @@ struct HomeView: View {
             }
         }
         .padding(16)
-        .background(ThinGlassShape(cornerRadius: 26, intensity: 0.10, highlightOpacity: 0.14, innerShadowOpacity: 0.18, borderOpacity: 0.18, tintColor: paletteTint))
+        .background(ThinGlassShape(cornerRadius: 26))
     }
 
     private var hourlyStrip: [HourlyStripPoint] {
@@ -576,7 +576,7 @@ struct AtmosphereOrb: View {
 
 private struct AstronomicalCard: View {
     let analysis: AstronomicalAnalysis
-    let tintColor: Color
+
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -599,12 +599,7 @@ private struct AstronomicalCard: View {
         }
         .padding(18)
         .background(ThinGlassShape(
-            cornerRadius: 28,
-            intensity: 0.13,
-            highlightOpacity: 0.18,
-            innerShadowOpacity: 0.22,
-            borderOpacity: 0.22,
-            tintColor: tintColor
+            cornerRadius: 28
         ))
     }
 

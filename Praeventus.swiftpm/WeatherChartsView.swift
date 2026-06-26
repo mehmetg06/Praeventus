@@ -130,7 +130,7 @@ struct WeatherChartsView: View {
                 .tint(tint)
         }
         .padding(18)
-        .background(ThinGlassShape(cornerRadius: 26, intensity: 0.12, highlightOpacity: 0.16, innerShadowOpacity: 0.20, borderOpacity: 0.20, tintColor: tint))
+        .background(ThinGlassShape(cornerRadius: 26))
     }
 }
 #endif

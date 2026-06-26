@@ -3,11 +3,6 @@ import SwiftUI
 
 struct ThinGlassShape: View {
     var cornerRadius: CGFloat = 24
-    var intensity: Double = 0.14
-    var highlightOpacity: Double = 0.20
-    var innerShadowOpacity: Double = 0.22
-    var borderOpacity: Double = 0.26
-    var tintColor: Color = .clear
 
     private var shape: RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -16,78 +11,26 @@ struct ThinGlassShape: View {
     var body: some View {
         shape
             .fill(Material.ultraThinMaterial)
-            // Colour-forward wash so the glass picks up the sky/palette instead of going flat grey.
-            .overlay {
-                shape.fill(
-                    LinearGradient(
-                        colors: [
-                            tintColor.opacity(0.18),
-                            tintColor.opacity(0.06),
-                            .white.opacity(0.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-            }
-            // Specular sheen across the upper portion — the glossy "reflection" catching the light.
-            .overlay(alignment: .top) {
-                shape.fill(
-                    LinearGradient(
-                        colors: [
-                            .white.opacity(highlightOpacity + 0.34),
-                            .white.opacity(highlightOpacity * 0.5),
-                            .clear
-                        ],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-                )
-                .blendMode(.screen)
-            }
-            // Bright top-left light catch for a wet-glass highlight.
-            .overlay(alignment: .topLeading) {
-                RadialGradient(
-                    colors: [.white.opacity(highlightOpacity * 1.5), .clear],
-                    center: .topLeading,
-                    startRadius: 0,
-                    endRadius: 200
-                )
-                .blendMode(.screen)
-                .clipShape(shape)
-            }
-            // Gentle inner shade at the base for depth (kept subtle to avoid greying the card).
-            .overlay(alignment: .bottom) {
-                LinearGradient(
-                    colors: [.clear, .black.opacity(innerShadowOpacity * 0.30)],
-                    startPoint: .center,
-                    endPoint: .bottom
-                )
-                .clipShape(shape)
-            }
-            // Glossy rim that brightens at the top edge and fades around the body.
+            .environment(\.colorScheme, .dark)
             .overlay {
                 shape.strokeBorder(
                     LinearGradient(
-                        colors: [
-                            .white.opacity(0.60),
-                            .clear,
-                            .white.opacity(0.20)
+                        stops: [
+                            .init(color: .white.opacity(0.4), location: 0.0),
+                            .init(color: .clear, location: 0.25)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
-                    lineWidth: 1
+                    lineWidth: 0.5
                 )
             }
-            .clipShape(shape)
             .shadow(color: .black.opacity(0.15), radius: 15, y: 8)
     }
 }
 
 struct VisionGlassCard<Content: View>: View {
     var cornerRadius: CGFloat = 24
-    var tintColor: Color = .clear
     @ViewBuilder let content: Content
 
     @State private var isBreathing = false
@@ -96,8 +39,7 @@ struct VisionGlassCard<Content: View>: View {
         content
             .background(
                 ThinGlassShape(
-                    cornerRadius: cornerRadius,
-                    tintColor: tintColor
+                    cornerRadius: cornerRadius
                 )
             )
             .scaleEffect(isBreathing ? 1.01 : 0.99)
@@ -115,10 +57,9 @@ struct GlassMetric: View {
     let value: String
     let unit: String
     var accent: Color = .white
-    var tintColor: Color = .clear
 
     var body: some View {
-        VisionGlassCard(cornerRadius: 24, tintColor: tintColor) {
+        VisionGlassCard(cornerRadius: 24) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .top, spacing: 9) {
                     ZStack {
