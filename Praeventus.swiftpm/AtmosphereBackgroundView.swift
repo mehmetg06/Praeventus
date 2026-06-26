@@ -268,16 +268,32 @@ struct AtmosphereBackgroundView: View {
                     with: .color(.white.opacity(a))
                 )
             }
-            let moonX = Double(size.width) * 0.76
-            let moonY = Double(size.height) * 0.13
+            let moonX = Double(size.width) * 0.74
+            let moonY = Double(size.height) * 0.18
+            let moonR = 20.0
+            // Outer atmospheric glow
             context.fill(
-                Path(ellipseIn: CGRect(x: moonX - 22, y: moonY - 22, width: 44, height: 44)),
-                with: .color(.white.opacity(0.92))
+                Path(ellipseIn: CGRect(x: moonX - 48, y: moonY - 48, width: 96, height: 96)),
+                with: .color(.white.opacity(0.04))
             )
             context.fill(
-                Path(ellipseIn: CGRect(x: moonX - 68, y: moonY - 68, width: 136, height: 136)),
-                with: .color(.white.opacity(0.08))
+                Path(ellipseIn: CGRect(x: moonX - 30, y: moonY - 30, width: 60, height: 60)),
+                with: .color(.white.opacity(0.07))
             )
+            // Crescent shape: full circle minus offset bite
+            context.drawLayer { moon in
+                moon.fill(
+                    Path(ellipseIn: CGRect(x: moonX - moonR, y: moonY - moonR,
+                                          width: moonR * 2, height: moonR * 2)),
+                    with: .color(.white.opacity(0.90))
+                )
+                moon.blendMode = .destinationOut
+                moon.fill(
+                    Path(ellipseIn: CGRect(x: moonX - moonR + 11, y: moonY - moonR - 2,
+                                          width: moonR * 2, height: moonR * 2)),
+                    with: .color(.white)
+                )
+            }
         }
         .blur(radius: 0.5)
         .ignoresSafeArea()
