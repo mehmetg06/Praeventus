@@ -17,10 +17,8 @@ struct SunHaloOpticsLayer: View {
                 OrbitalLensHalo(sunPoint: sunPoint, rotate: rotate, pulse: pulse)
                 MovingAtmosphericDust(size: size, pulse: pulse, windIntensity: windIntensity)
             }
-            // Flatten the whole halo (dozens of blurred glows + rotating rays)
-            // into a single Metal-rendered layer instead of one offscreen blur
-            // pass per element composited every frame.
-            .drawingGroup()
+            // Avoid flattening the halo into one Metal texture: on some devices
+            // that offscreen texture shows up as a faint square/line in the sky.
             .blendMode(.screen)
             .onAppear {
                 withAnimation(.linear(duration: 18).repeatForever(autoreverses: false)) {
@@ -42,7 +40,7 @@ private struct SunCameraBloom: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(Color.white.opacity(0.20))
+                .fill(Color.white.opacity(0.14))
                 .frame(width: pulse ? 168 : 138, height: pulse ? 168 : 138)
                 .blur(radius: 20)
 
@@ -52,17 +50,17 @@ private struct SunCameraBloom: View {
                 .blur(radius: 0.35)
 
             Circle()
-                .stroke(Color.white.opacity(pulse ? 0.32 : 0.20), lineWidth: 1.1)
+                .stroke(Color.white.opacity(pulse ? 0.22 : 0.14), lineWidth: 1.1)
                 .frame(width: pulse ? 170 : 145, height: pulse ? 170 : 145)
                 .blur(radius: 2.4)
 
             Circle()
-                .stroke(Color(red: 1.0, green: 0.86, blue: 0.52).opacity(pulse ? 0.24 : 0.14), lineWidth: 1.0)
+                .stroke(Color(red: 1.0, green: 0.86, blue: 0.52).opacity(pulse ? 0.16 : 0.09), lineWidth: 1.0)
                 .frame(width: pulse ? 290 : 238, height: pulse ? 290 : 238)
                 .blur(radius: 7)
 
             Circle()
-                .stroke(Color.white.opacity(pulse ? 0.13 : 0.07), lineWidth: 0.8)
+                .stroke(Color.white.opacity(pulse ? 0.08 : 0.04), lineWidth: 0.8)
                 .frame(width: pulse ? 465 : 390, height: pulse ? 465 : 390)
                 .blur(radius: 18)
         }
@@ -150,7 +148,7 @@ private struct OrbitalLensHalo: View {
             Capsule(style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [.clear, Color.white.opacity(pulse ? 0.13 : 0.07), Color(red: 1.0, green: 0.78, blue: 0.34).opacity(0.06), .clear],
+                        colors: [.clear, Color.white.opacity(pulse ? 0.08 : 0.04), Color(red: 1.0, green: 0.78, blue: 0.34).opacity(0.06), .clear],
                         startPoint: .leading,
                         endPoint: .trailing
                     )

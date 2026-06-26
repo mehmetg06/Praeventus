@@ -179,7 +179,7 @@ struct AtmosphereBackgroundView: View {
 
             if hotSunny {
                 Circle()
-                    .fill(Color(red: 1.0, green: 0.72, blue: 0.28).opacity(breathe ? 0.20 : 0.09))
+                    .fill(Color(red: 1.0, green: 0.72, blue: 0.28).opacity(breathe ? 0.14 : 0.06))
                     .frame(width: 650, height: 650)
                     .blur(radius: 160)
                     .offset(x: 140, y: -60)
@@ -220,17 +220,16 @@ struct AtmosphereBackgroundView: View {
 
             if clearNight {
                 Circle()
-                    .fill(Color(red: 0.20, green: 0.30, blue: 0.90).opacity(breathe ? 0.12 : 0.05))
+                    .fill(Color(red: 0.20, green: 0.30, blue: 0.90).opacity(breathe ? 0.07 : 0.03))
                     .frame(width: 500, height: 500)
                     .blur(radius: 130)
                     .offset(x: -100, y: -200)
             }
         }
-        // Collapse the large soft glow discs (blur 120–160) into one Metal
-        // layer so the breathing scale is a cheap bitmap transform rather than
-        // re-running several full-screen Gaussian blurs every frame.
-        .drawingGroup()
-        .scaleEffect(breathe ? 1.020 : 0.990)
+        // Keep the glow stack as native transparent views. Flattening these
+        // oversized blurred discs into a Metal layer can leave a faint boxed
+        // edge visible behind the weather UI on some iPadOS renderers.
+        .scaleEffect(breathe ? 1.012 : 0.994)
         .animation(.easeInOut(duration: hotSunny ? 18 : 14).repeatForever(autoreverses: true), value: breathe)
         .ignoresSafeArea()
     }
