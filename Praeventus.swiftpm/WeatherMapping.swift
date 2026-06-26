@@ -102,7 +102,7 @@ enum WeatherMapping {
             windSpeed: current.windSpeed10m ?? 0,
             windDirection: current.windDirection10m ?? 0,
             windGustSpeed: current.windGusts10m ?? 0,
-            uvIndex: current.uvIndex ?? 0,
+            uvIndex: Int((current.uvIndex ?? 0).rounded()),
             dewPoint: current.dewPoint2m ?? 0,
             visibility: current.visibility ?? 10,
             rainProbability: current.precipitationProbability ?? 0,

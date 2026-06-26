@@ -28,7 +28,7 @@ struct ForecastResponse: Decodable, Equatable {
         let windGusts10m: Double?
         let precipitationProbability: Double?
         let weatherCode: Int?
-        let uvIndex: Int?
+        let uvIndex: Double?
         let dewPoint2m: Double?
         let visibility: Double?
 
@@ -55,7 +55,7 @@ struct ForecastResponse: Decodable, Equatable {
         let temperature2m: [Double?]?
         let precipitationProbability: [Double?]?
         let weatherCode: [Int?]?
-        let uvIndex: [Int?]?
+        let uvIndex: [Double?]?
         let windSpeed10m: [Double?]?
         let windDirection10m: [Int?]?
         let windGusts10m: [Double?]?
@@ -84,7 +84,7 @@ struct ForecastResponse: Decodable, Equatable {
         let temperature2mMin: [Double?]?
         let apparentTemperatureMax: [Double?]?
         let apparentTemperatureMin: [Double?]?
-        let uvIndexMax: [Int?]?
+        let uvIndexMax: [Double?]?
         let windSpeed10mMax: [Double?]?
         let windDirection10mDominant: [Int?]?
         let windGusts10mMax: [Double?]?
