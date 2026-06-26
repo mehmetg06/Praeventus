@@ -90,6 +90,7 @@ struct HomeView: View {
             .padding(.top, 16)
             .padding(.bottom, 40)
         }
+        .scrollContentBackground(.hidden)
     }
 
     /// Invisible full-screen layer that catches taps outside the suggestions panel.
