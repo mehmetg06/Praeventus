@@ -124,21 +124,21 @@ struct AtmosphereBackgroundView: View {
     private func nightPalette(base: [Color]) -> [Color] {
         switch mood {
         case .storm:
-            return [Color(red: 0.01, green: 0.01, blue: 0.04),
-                    Color(red: 0.04, green: 0.03, blue: 0.12),
-                    Color(red: 0.14, green: 0.08, blue: 0.26)]
+            return [Color(red: 0.06, green: 0.04, blue: 0.16),
+                    Color(red: 0.14, green: 0.10, blue: 0.28),
+                    Color(red: 0.28, green: 0.16, blue: 0.42)]
         case .fog:
-            return [Color(red: 0.18, green: 0.20, blue: 0.24),
-                    Color(red: 0.36, green: 0.38, blue: 0.44),
-                    Color(red: 0.56, green: 0.58, blue: 0.62)]
+            return [Color(red: 0.28, green: 0.30, blue: 0.36),
+                    Color(red: 0.46, green: 0.48, blue: 0.54),
+                    Color(red: 0.66, green: 0.68, blue: 0.72)]
         case .snow:
-            return [Color(red: 0.03, green: 0.04, blue: 0.14),
-                    Color(red: 0.10, green: 0.16, blue: 0.34),
-                    Color(red: 0.28, green: 0.42, blue: 0.62)]
+            return [Color(red: 0.10, green: 0.12, blue: 0.26),
+                    Color(red: 0.20, green: 0.28, blue: 0.46),
+                    Color(red: 0.38, green: 0.54, blue: 0.74)]
         default:
-            return [Color(red: 0.01, green: 0.01, blue: 0.06),
-                    Color(red: 0.02, green: 0.04, blue: 0.14),
-                    base[0].opacity(0.45)]
+            return [Color(red: 0.08, green: 0.06, blue: 0.18),
+                    Color(red: 0.14, green: 0.12, blue: 0.28),
+                    Color(red: 0.24, green: 0.30, blue: 0.56)]
         }
     }
 
@@ -247,9 +247,9 @@ struct AtmosphereBackgroundView: View {
 
     private var accentLightOpacity: Double {
         switch mood {
-        case .wet, .fog, .snow: return 0.14
-        case .storm:            return 0.10
-        default:                return hotSunny ? 0.04 : 0.09
+        case .wet, .fog, .snow: return 0.18
+        case .storm:            return 0.14
+        default:                return hotSunny ? 0.06 : 0.15
         }
     }
 
@@ -439,7 +439,7 @@ struct AtmosphereBackgroundView: View {
                 endPoint: .bottom
             )
             RadialGradient(
-                colors: [.clear, .black.opacity(mood == .storm ? 0.60 : (hotSunny ? 0.18 : 0.30))],
+                colors: [.clear, .black.opacity(mood == .storm ? 0.40 : (hotSunny ? 0.12 : 0.20))],
                 center: .center,
                 startRadius: 110,
                 endRadius: 640
@@ -467,7 +467,7 @@ struct AtmosphereBackgroundView: View {
         case .fog:          weather = 0.08
         case .snow:         weather = 0.10
         }
-        return min(0.66, weather + timeOfDay.darkness)
+        return min(0.50, weather + timeOfDay.darkness * 0.5)
     }
 }
 
