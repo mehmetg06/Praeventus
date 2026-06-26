@@ -302,15 +302,18 @@ final class WeatherStore: ObservableObject {
         let now = Date()
         let startHour = Int(w.hour.rounded())
         return (0..<24).map { offset in
-            let hour = (startHour + offset) % 24
-            let date = calendar.date(byAdding: .hour, value: offset, to: now) ?? now
-            let diurnal = sin(Double(hour) / 24.0 * 2 * .pi - .pi / 2)   // shape, peak midday
-            let daylight = max(0, sin(Double(hour - 6) / 12.0 * .pi))    // 0 at 06/18h
-            let uv = max(0, Int((Double(w.uvIndex) * daylight).rounded()))
+            let hour: Int = (startHour + offset) % 24
+            let date: Date = calendar.date(byAdding: .hour, value: offset, to: now) ?? now
+            let hourDouble: Double = Double(hour)
+            let diurnal: Double = sin(hourDouble / 24.0 * 2 * .pi - .pi / 2)
+            let daylight: Double = max(0, sin((hourDouble - 6) / 12.0 * .pi))
+            let uvValue: Double = Double(w.uvIndex) * daylight
+            let uv: Int = max(0, Int(uvValue.rounded()))
+            let temp: Double = w.temperature + diurnal * 2.5
             return HourlyPoint(
                 date: date,
                 hour: hour,
-                temperature: w.temperature + diurnal * 2.5,
+                temperature: temp,
                 precipitationProbability: w.rainProbability,
                 condition: w.condition,
                 uvIndex: uv,
