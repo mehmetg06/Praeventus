@@ -76,7 +76,6 @@ enum AstronomicalEngine {
 
     private static func moonIllumination(at date: Date) -> Double {
         let knownNewMoon = Date(timeIntervalSince1970: 947182800)
-        let lunarCycle: TimeInterval = 29.530588 * 24 * 3600
 
         let timeSinceNewMoon = date.timeIntervalSince(knownNewMoon)
         let daysSinceNewMoon = timeSinceNewMoon / (24 * 3600)
@@ -94,8 +93,7 @@ enum AstronomicalEngine {
         guard let year = components.year, let month = components.month, let day = components.day else { return 0 }
         guard let hour = components.hour, let minute = components.minute, let second = components.second else { return 0 }
 
-        let J2000 = 2451545.0
-        var N = Double(dayOfYear(year: year, month: month, day: day)) + (Double(hour) + Double(minute) / 60.0 + Double(second) / 3600.0) / 24.0 - 1.0
+        let N = Double(dayOfYear(year: year, month: month, day: day)) + (Double(hour) + Double(minute) / 60.0 + Double(second) / 3600.0) / 24.0 - 1.0
 
         let J = N + 0.0008
         let M = 357.52910 + 0.98560025 * J
@@ -104,7 +102,6 @@ enum AstronomicalEngine {
             + 0.000289 * sin(3 * M.toRadians())
 
         let sunLongitude = 280.46645 + 0.9856474 * J + C
-        let sunLatitude = 0.0
         let obliquity = 23.43929111 - 0.0130041667 * (J / 36525.0)
 
         let alpha = atan2(sin(sunLongitude.toRadians()) * cos(obliquity.toRadians()), cos(sunLongitude.toRadians())).toDegrees()
@@ -119,9 +116,6 @@ enum AstronomicalEngine {
     }
 
     static func sunTiming(at date: Date, latitude: Double, longitude: Double) -> SunTiming {
-        let calendar = Calendar.current
-        var dayComponents = calendar.dateComponents([.year, .month, .day], from: date)
-
         let sunrise = calculateSunriseTime(date: date, latitude: latitude, longitude: longitude, isRise: true)
         let sunset = calculateSunsetTime(date: date, latitude: latitude, longitude: longitude, isRise: false)
 
@@ -137,7 +131,7 @@ enum AstronomicalEngine {
         }
 
         let zenith = 90.833
-        var N = Double(dayOfYear(year: year, month: month, day: day))
+        let N = Double(dayOfYear(year: year, month: month, day: day))
         let lngHour = longitude / 15.0
         let t = isRise ? N + (6 - lngHour) / 24 : N + (18 - lngHour) / 24
         let M = 0.9856 * t - 3.289
@@ -145,7 +139,7 @@ enum AstronomicalEngine {
         L = fmod(L, 360)
         if L < 0 { L += 360 }
 
-        let RA = atan(0.91764 * tan(L.toRadians())).toDegrees()
+        var RA = atan(0.91764 * tan(L.toRadians())).toDegrees()
         var RA_QUAD = floor(L / 90) * 90
         RA_QUAD = floor(RA_QUAD / 90) * 90
         RA = RA + RA_QUAD - RA

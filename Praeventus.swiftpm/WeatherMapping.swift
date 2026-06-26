@@ -193,8 +193,8 @@ enum WeatherMapping {
             let gustMax = windGustMaxes.indices.contains(i) ? (windGustMaxes[i] ?? 0) : 0
             let precip = precips.indices.contains(i) ? (precips[i] ?? 0) : 0
             let code = codes.indices.contains(i) ? codes[i] : nil
-            let sunriseTime = sunrises.indices.contains(i) ? date(fromISO: sunrises[i] ?? "") : nil
-            let sunsetTime = sunsets.indices.contains(i) ? date(fromISO: sunsets[i] ?? "") : nil
+            let sunriseTime = sunrises.indices.contains(i) ? Self.date(fromISO: sunrises[i] ?? "") : nil
+            let sunsetTime = sunsets.indices.contains(i) ? Self.date(fromISO: sunsets[i] ?? "") : nil
 
             return DailyRange(
                 date: date,

@@ -231,7 +231,8 @@ struct Activity: Codable, Identifiable, Equatable {
     }
 }
 
-struct ActivitySuitability: Equatable {
+struct ActivitySuitability: Equatable, Identifiable {
+    var id: UUID { activity.id }
     let activity: Activity
     let suitability: SuitabilityLevel
     let warnings: [String]
