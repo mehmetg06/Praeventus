@@ -89,6 +89,18 @@ final class WeatherStore: ObservableObject {
         if let location { await load(location) }
     }
 
+    // MARK: - Health insights
+
+    /// Medical-grade thermal/UV insights for the current snapshot, recomputed
+    /// from live data on each access. Defaults to Fitzpatrick type 3 / SPF 1.
+    var healthInsights: HealthInsights {
+        HealthInsights.make(
+            current: weather,
+            hourly: hourly,
+            dailyMaxTemperatures: daily.map(\.max)
+        )
+    }
+
     // MARK: - Lab (manual simulation, unchanged behaviour)
 
     func update(
