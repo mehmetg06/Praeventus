@@ -5,29 +5,27 @@ struct PraeventusRootView: View {
     @StateObject private var store = WeatherStore()
 
     var body: some View {
-        TabView {
-            ZStack {
-                background
+        // One shared atmosphere behind all tabs. Building it per-tab kept three
+        // copies of every TimelineView/Canvas animation ticking at once (even
+        // for off-screen tabs), tripling the rendering cost.
+        ZStack {
+            background
+
+            TabView {
                 HomeView(store: store)
-            }
-            .tabItem {
-                Label("tab.atmosphere", systemImage: "cloud.sun")
-            }
+                    .tabItem {
+                        Label("tab.atmosphere", systemImage: "cloud.sun")
+                    }
 
-            ZStack {
-                background
                 WeatherLabView(store: store)
-            }
-            .tabItem {
-                Label("tab.lab", systemImage: "flask")
-            }
+                    .tabItem {
+                        Label("tab.lab", systemImage: "flask")
+                    }
 
-            ZStack {
-                background
                 SettingsView()
-            }
-            .tabItem {
-                Label("tab.settings", systemImage: "gearshape")
+                    .tabItem {
+                        Label("tab.settings", systemImage: "gearshape")
+                    }
             }
         }
         .preferredColorScheme(.dark)

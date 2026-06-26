@@ -226,6 +226,10 @@ struct AtmosphereBackgroundView: View {
                     .offset(x: -100, y: -200)
             }
         }
+        // Collapse the large soft glow discs (blur 120–160) into one Metal
+        // layer so the breathing scale is a cheap bitmap transform rather than
+        // re-running several full-screen Gaussian blurs every frame.
+        .drawingGroup()
         .scaleEffect(breathe ? 1.020 : 0.990)
         .animation(.easeInOut(duration: hotSunny ? 18 : 14).repeatForever(autoreverses: true), value: breathe)
         .ignoresSafeArea()
@@ -298,7 +302,7 @@ struct AtmosphereBackgroundView: View {
                             endRadius: 148
                         )
                     )
-                    .frame(width: breathe ? 268 : 246, height: breathe ? 268 : 246)
+                    .frame(width: 246, height: 246)
                     .blur(radius: 20)
 
                 Circle()
@@ -318,7 +322,7 @@ struct AtmosphereBackgroundView: View {
                         ),
                         lineWidth: 1.2
                     )
-                    .frame(width: breathe ? 132 : 118, height: breathe ? 132 : 118)
+                    .frame(width: 118, height: 118)
                     .blur(radius: 2.2)
 
                 Ellipse()
@@ -328,6 +332,10 @@ struct AtmosphereBackgroundView: View {
                     .rotationEffect(.degrees(-30))
                     .offset(x: -75, y: 24)
             }
+            // Render the sun disc once, then breathe via a GPU scale transform
+            // instead of resizing the blurred frames (which re-blurs each frame).
+            .drawingGroup()
+            .scaleEffect(breathe ? 1.045 : 1.0)
             .blendMode(.screen)
             .position(x: geometry.size.width * 0.84, y: geometry.size.height * 0.16)
             .opacity(0.98)
