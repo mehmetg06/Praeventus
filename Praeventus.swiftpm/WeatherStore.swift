@@ -45,6 +45,11 @@ final class WeatherStore: ObservableObject {
             humidity: 60,
             pressure: 1013,
             windSpeed: 8,
+            windDirection: 0,
+            windGustSpeed: 0,
+            uvIndex: 0,
+            dewPoint: 0,
+            visibility: 10,
             rainProbability: 10,
             hour: Double(Calendar.current.component(.hour, from: Date()))
         )
@@ -129,6 +134,11 @@ final class WeatherStore: ObservableObject {
             humidity: humidity,
             pressure: pressure,
             windSpeed: wind,
+            windDirection: 0,
+            windGustSpeed: 0,
+            uvIndex: 0,
+            dewPoint: 0,
+            visibility: 10,
             rainProbability: rain,
             hour: hour
         )

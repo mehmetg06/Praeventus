@@ -84,8 +84,8 @@ struct ActivityManagementView: View {
             }
         }
         .navigationTitle("settings.activities.manage")
-        .onChange(of: activities) { _ in
-            ActivityStorage.saveActivities(activities)
+        .onChange(of: activities) { _, newValue in
+            ActivityStorage.saveActivities(newValue)
         }
         .alert("settings.activities.resetConfirm", isPresented: $showResetAlert) {
             Button("common.cancel", role: .cancel) { }
