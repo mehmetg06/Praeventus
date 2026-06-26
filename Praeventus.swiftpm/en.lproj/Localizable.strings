@@ -36,6 +36,7 @@
 "error.noResults" = "No results found.";
 "error.searchFailed" = "Search failed.";
 "error.transport" = "Connection problem: %@";
+"home.activities.heading" = "TODAY'S ACTIVITIES";
 "home.empty.cta" = "Choose a location";
 "home.empty.subtitle" = "Search for any city in the world, or use your approximate location. Nothing about you is shared.";
 "home.empty.title" = "No location yet";
