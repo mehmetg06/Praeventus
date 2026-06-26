@@ -230,6 +230,7 @@ struct HomeView: View {
     @ViewBuilder
     private var loadedContent: some View {
         temperatureHero
+        HealthInsightsCard(insights: store.healthInsights)
         metricsGrid
         if !recommendedActivities.isEmpty {
             activitySuitabilityCard

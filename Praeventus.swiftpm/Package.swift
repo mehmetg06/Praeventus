@@ -20,6 +20,7 @@ let sources = [
     "AstronomicalEngine.swift",
     "WeatherNarrativeEngine.swift",
     "ThermalPredictionEngine.swift",
+    "HealthInsights.swift",
     "WeatherStore.swift",
     // Activity system
     "Activity.swift",
@@ -35,6 +36,7 @@ let sources = [
     "WeatherEffectLayers.swift",
     "SunHaloOpticsLayer.swift",
     "GlassComponents.swift",
+    "HealthInsightsCard.swift",
     "CitySearchBar.swift",
     "SearchSuggestionsView.swift",
     "HomeView.swift",
