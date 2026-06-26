@@ -248,14 +248,7 @@ struct HomeView: View {
     }
 
     private var astronomicalCard: some View {
-        AstronomicalCard(
-            analysis: AstronomicalEngine.analyze(
-                at: Date(),
-                latitude: store.location?.latitude ?? 0,
-                longitude: store.location?.longitude ?? 0
-            )
-
-        )
+        AstronomicalCard(analysis: store.astronomicalAnalysis(at: Date()))
     }
 
     private var activitySuitabilityCard: some View {

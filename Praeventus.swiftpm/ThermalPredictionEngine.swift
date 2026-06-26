@@ -255,6 +255,35 @@ final class ThermalPredictionEngine {
         return "Bugün dışarı çıkmak için en elverişli ve serin saatler: " + windows.joined(separator: " ile ") + " arası."
     }
 
+    // MARK: - Feature 6: Cold stress (wind chill, hypothermia & frostbite)
+
+    /// Environment Canada wind-chill index in °C. Valid for cold, breezy air;
+    /// for mild or near-still conditions it returns the air temperature so the
+    /// caller can treat "no meaningful chill" uniformly.
+    static func windChillIndex(temperatureC: Double, windSpeedKmh: Double) -> Double {
+        guard temperatureC <= 10.0, windSpeedKmh > 4.8 else { return temperatureC }
+        let v = pow(windSpeedKmh, 0.16)
+        return 13.12 + 0.6215 * temperatureC - 11.37 * v + 0.3965 * temperatureC * v
+    }
+
+    /// Cold-exposure band + Turkish guidance from the wind-chill apparent
+    /// temperature, or `nil` when it is not cold enough to be a hazard. Mirrors
+    /// the heat path so the UI can headline whichever extreme is worse.
+    static func assessColdRisk(temperature: Double, windSpeed: Double) -> (level: ActivityRiskLevel, warning: String)? {
+        let apparent = windChillIndex(temperatureC: temperature, windSpeedKmh: windSpeed)
+        let felt = Int(apparent.rounded())
+        switch apparent {
+        case ..<(-27):
+            return (.extremeDanger,
+                "Aşırı soğuk tehlikesi! Hissedilen sıcaklık \(felt)°C. Açıkta kalan ciltte birkaç dakika içinde donma (frostbite) ve hipotermi riski var. Dışarı çıkmayın; çıkmanız gerekirse tüm cildi örtün.")
+        case -27 ..< (-10):
+            return (.caution,
+                "Şiddetli soğuk. Hissedilen sıcaklık \(felt)°C. Uzun süre dışarıda kalmak hipotermiye yol açabilir; katmanlı giyinin ve cildinizi rüzgârdan koruyun.")
+        default:
+            return nil
+        }
+    }
+
     // MARK: - Heat index (apparent temperature)
 
     /// NWS Rothfusz heat-index regression, expressed in °C.

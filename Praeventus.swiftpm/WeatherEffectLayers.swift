@@ -21,10 +21,12 @@ struct RaindropGlassLayer: View {
     let intensity: Double      // 0...1
     let windSpeed: Double
 
+    @Environment(\.sandboxAnimationSpeed) private var animSpeed
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { timeline in
             Canvas { context, size in
-                let t = timeline.date.timeIntervalSinceReferenceDate
+                let t = timeline.date.timeIntervalSinceReferenceDate * animSpeed
                 let windTilt = CGFloat(min(windSpeed / 90.0, 1.0))
 
                 // Resting condensation beads — mostly static, gently breathing.
@@ -115,6 +117,8 @@ struct VolumetricRainLayer: View {
     let windSpeed: Double
     let rainSignal: AtmosphericRisk
 
+    @Environment(\.sandboxAnimationSpeed) private var animSpeed
+
     private var intensity: Double {
         switch rainSignal {
         case .low:      return 0.30
@@ -126,7 +130,7 @@ struct VolumetricRainLayer: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { timeline in
             Canvas { context, size in
-                let time = timeline.date.timeIntervalSinceReferenceDate
+                let time = timeline.date.timeIntervalSinceReferenceDate * animSpeed
                 let tilt = CGFloat(4 + windSpeed * 0.14)
                 let groundY = size.height * 0.90
 
@@ -210,19 +214,22 @@ struct LightningStormLayer: View {
     @State private var strikeSeed: Int = 1
     @State private var pulse = false
 
+    @Environment(\.sandboxAnimationSpeed) private var animSpeed
+    @Environment(\.performanceMode) private var performanceMode
+
     var body: some View {
         ZStack {
             // Ambient charged-cloud glows.
             Circle()
                 .fill(Color(red: 0.28, green: 0.10, blue: 0.62).opacity(pulse ? 0.26 : 0.08))
                 .frame(width: 720, height: 720)
-                .blur(radius: 150)
+                .blur(radius: performanceMode ? 0 : 150)
                 .offset(x: -110, y: -260)
 
             Circle()
                 .fill(Color(red: 0.08, green: 0.02, blue: 0.28).opacity(pulse ? 0.20 : 0.06))
                 .frame(width: 500, height: 500)
-                .blur(radius: 110)
+                .blur(radius: performanceMode ? 0 : 110)
                 .offset(x: 140, y: -120)
 
             TimelineView(.animation) { timeline in
@@ -273,7 +280,7 @@ struct LightningStormLayer: View {
             }
             .ignoresSafeArea()
         }
-        .animation(.easeInOut(duration: 8.5).repeatForever(autoreverses: true), value: pulse)
+        .animation(.easeInOut(duration: 8.5 / animSpeed).repeatForever(autoreverses: true), value: pulse)
         .onAppear {
             pulse = true
             scheduleStrike()
@@ -347,17 +354,20 @@ struct RealisticSnowLayer: View {
     let windSpeed: Double
     @State private var glow = false
 
+    @Environment(\.sandboxAnimationSpeed) private var animSpeed
+    @Environment(\.performanceMode) private var performanceMode
+
     var body: some View {
         ZStack {
             Circle()
                 .fill(Color(red: 0.72, green: 0.86, blue: 1.0).opacity(glow ? 0.18 : 0.08))
                 .frame(width: 620, height: 620)
-                .blur(radius: 145)
+                .blur(radius: performanceMode ? 0 : 145)
                 .offset(x: 70, y: -130)
 
             TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { timeline in
                 Canvas { context, size in
-                    let time = timeline.date.timeIntervalSinceReferenceDate
+                    let time = timeline.date.timeIntervalSinceReferenceDate * animSpeed
                     let wind = windSpeed * 0.05
 
                     flakeBand(context, size: size, time: time, wind: wind,
@@ -422,10 +432,13 @@ struct VolumetricCloudLayer: View {
     let timeOfDay: TimeOfDay
     var scattered: Bool = false
 
+    @Environment(\.sandboxAnimationSpeed) private var animSpeed
+    @Environment(\.performanceMode) private var performanceMode
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1.0 / 15.0)) { timeline in
             Canvas { context, size in
-                let t = timeline.date.timeIntervalSinceReferenceDate
+                let t = timeline.date.timeIntervalSinceReferenceDate * animSpeed
                 let rows = scattered ? 4 : 6
                 let speedBase = 0.5 + windSpeed * 0.022
 
@@ -455,7 +468,7 @@ struct VolumetricCloudLayer: View {
                 }
             }
         }
-        .blur(radius: scattered ? 7 : 5)
+        .blur(radius: performanceMode ? 0 : (scattered ? 7 : 5))
         .ignoresSafeArea()
     }
 
@@ -505,10 +518,13 @@ struct VolumetricCloudLayer: View {
 struct DriftingFogLayer: View {
     let windSpeed: Double
 
+    @Environment(\.sandboxAnimationSpeed) private var animSpeed
+    @Environment(\.performanceMode) private var performanceMode
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1.0 / 12.0)) { timeline in
             Canvas { context, size in
-                let t = timeline.date.timeIntervalSinceReferenceDate
+                let t = timeline.date.timeIntervalSinceReferenceDate * animSpeed
 
                 for layer in 0..<11 {
                     let yFrac = 0.08 + Double(layer) * 0.085
@@ -541,7 +557,7 @@ struct DriftingFogLayer: View {
                 context.fill(Path(baseRect), with: .color(.white.opacity(0.11)))
             }
         }
-        .blur(radius: 34)
+        .blur(radius: performanceMode ? 0 : 34)
         .ignoresSafeArea()
     }
 }

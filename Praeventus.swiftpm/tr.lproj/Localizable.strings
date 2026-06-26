@@ -43,6 +43,9 @@
 "health.risk.caution" = "Orta düzey termal stres";
 "health.risk.danger" = "Aşırı sıcak tehlikesi";
 "health.risk.safe" = "Düşük termal risk";
+"health.risk.cold.caution" = "Şiddetli soğuk";
+"health.risk.cold.danger" = "Donma ve hipotermi riski";
+"health.risk.cold.safe" = "Düşük soğuk riski";
 "health.uv.hour" = "%lld sa";
 "health.uv.hourMin" = "%lld sa %lld dk";
 "health.uv.min" = "%lld dk";

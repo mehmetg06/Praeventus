@@ -205,6 +205,13 @@ struct HealthInsightsCard: View {
     }
 
     private var riskSymbol: String {
+        if insights.riskKind == .cold {
+            switch insights.currentRiskLevel {
+            case .safe: return "checkmark.shield.fill"
+            case .caution: return "thermometer.snowflake"
+            case .extremeDanger: return "snowflake"
+            }
+        }
         switch insights.currentRiskLevel {
         case .safe: return "checkmark.shield.fill"
         case .caution: return "exclamationmark.triangle.fill"
@@ -213,6 +220,13 @@ struct HealthInsightsCard: View {
     }
 
     private var riskTitle: String {
+        if insights.riskKind == .cold {
+            switch insights.currentRiskLevel {
+            case .safe: return String(localized: "health.risk.cold.safe", defaultValue: "Low cold risk")
+            case .caution: return String(localized: "health.risk.cold.caution", defaultValue: "Severe cold")
+            case .extremeDanger: return String(localized: "health.risk.cold.danger", defaultValue: "Frostbite & hypothermia risk")
+            }
+        }
         switch insights.currentRiskLevel {
         case .safe: return String(localized: "health.risk.safe", defaultValue: "Low thermal risk")
         case .caution: return String(localized: "health.risk.caution", defaultValue: "Moderate heat stress")

@@ -29,6 +29,13 @@ struct WeatherData: Equatable {
         String(format: "%02d:00", Int(hour.rounded()) % 24)
     }
 
+    /// Wall-clock label including minutes, derived from the fractional `hour`.
+    /// Used by the Lab time-scrubber, which drives sub-hour values.
+    var formattedClock: String {
+        let totalMinutes = ((Int((hour * 60).rounded()) % 1440) + 1440) % 1440
+        return String(format: "%02d:%02d", totalMinutes / 60, totalMinutes % 60)
+    }
+
     var statusText: String {
         switch condition {
         case .clear: return String(localized: "status.clear", defaultValue: "Atmosphere Bright")

@@ -4,13 +4,14 @@ import SwiftUI
 struct ThinGlassShape: View {
     var cornerRadius: CGFloat = 24
 
+    @Environment(\.performanceMode) private var performanceMode
+
     private var shape: RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
 
     var body: some View {
-        shape
-            .fill(Material.ultraThinMaterial)
+        glassFill
             .overlay {
                 shape.strokeBorder(
                     LinearGradient(
@@ -24,7 +25,17 @@ struct ThinGlassShape: View {
                     lineWidth: 0.5
                 )
             }
-            .shadow(color: .black.opacity(0.15), radius: 15, y: 8)
+            // Performance mode drops the costly blur-backed material + shadow.
+            .shadow(color: .black.opacity(performanceMode ? 0 : 0.15), radius: performanceMode ? 0 : 15, y: performanceMode ? 0 : 8)
+    }
+
+    @ViewBuilder
+    private var glassFill: some View {
+        if performanceMode {
+            shape.fill(Color.white.opacity(0.08))
+        } else {
+            shape.fill(Material.ultraThinMaterial)
+        }
     }
 }
 
@@ -33,6 +44,8 @@ struct VisionGlassCard<Content: View>: View {
     @ViewBuilder let content: Content
 
     @State private var isBreathing = false
+    @Environment(\.performanceMode) private var performanceMode
+    @Environment(\.sandboxAnimationSpeed) private var animSpeed
 
     var body: some View {
         content
@@ -43,7 +56,9 @@ struct VisionGlassCard<Content: View>: View {
             )
             .scaleEffect(isBreathing ? 1.01 : 0.99)
             .onAppear {
-                withAnimation(.easeInOut(duration: 4.0).repeatForever(autoreverses: true)) {
+                // Skip the perpetual scale animation in performance mode.
+                guard !performanceMode else { return }
+                withAnimation(.easeInOut(duration: 4.0 / animSpeed).repeatForever(autoreverses: true)) {
                     isBreathing = true
                 }
             }

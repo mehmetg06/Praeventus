@@ -8,17 +8,42 @@ struct WeatherLabView: View {
     private var weather: WeatherData { store.weather }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 14) {
+        Form {
+            Section {
                 GodModeHeader(store: store)
+            }
+            .listRowBackground(Color.clear)
+
+            Section {
                 conditionStrip
                 parameterGrid
-                presetSection
-                atmosphericPanel
+            } header: {
+                sectionLabel("LIVE PHYSICS", "slider.horizontal.3")
             }
-            .padding(.bottom, 32)
+            .listRowBackground(Color.white.opacity(0.03))
+
+            timeAstronomySection
+            biomeSection
+            medicalSection
+            rendererSection
+            scenarioSection
+
+            Section {
+                AtmosphericPanel(store: store)
+            }
+            .listRowBackground(Color.clear)
         }
         .scrollContentBackground(.hidden)
+        .tint(.cyan)
+    }
+
+    // MARK: - Section header helper
+
+    private func sectionLabel(_ title: String, _ symbol: String) -> some View {
+        Label(title, systemImage: symbol)
+            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .tracking(1.0)
+            .foregroundStyle(.white.opacity(0.6))
     }
 
     // MARK: - Condition Strip
@@ -34,7 +59,7 @@ struct WeatherLabView: View {
                     )
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.vertical, 2)
         }
     }
 
@@ -70,24 +95,187 @@ struct WeatherLabView: View {
                 range: 0...100, value: rainBinding,
                 accent: Color(red: 0.2, green: 0.4, blue: 1.0)
             )
-            GodSliderCard(
-                label: "HOUR", display: weather.formattedHour,
-                range: 0...23, value: hourBinding,
-                accent: hourColor(weather.timeOfDay)
-            )
         }
-        .padding(.horizontal, 16)
     }
 
-    // MARK: - Preset Section
+    // MARK: - Time & Astronomy
 
-    private var presetSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("// QUICK SCENARIOS")
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.3))
-                .padding(.horizontal, 16)
+    private var timeAstronomySection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Time of day", systemImage: "clock.fill")
+                        .foregroundStyle(.white)
+                    Spacer()
+                    Text(weather.formattedClock)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(.cyan)
+                }
+                Slider(value: timeBinding, in: 0...(24 - 1.0 / 60.0))
+                    .tint(hourColor(weather.timeOfDay))
+            }
+            .padding(.vertical, 2)
 
+            Picker(selection: moonBinding) {
+                Text("Live").tag(MoonPhase?.none)
+                ForEach(MoonPhase.allCases, id: \.self) { phase in
+                    Text(phase.displayName).tag(MoonPhase?.some(phase))
+                }
+            } label: {
+                Label("Moon phase", systemImage: "moon.stars.fill")
+                    .foregroundStyle(.white)
+            }
+        } header: {
+            sectionLabel("TIME & ASTRONOMY", "clock")
+        } footer: {
+            Text("Scrub time to drive the background lighting; the moon phase overrides the astronomical card.")
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.4))
+        }
+        .listRowBackground(Color.white.opacity(0.04))
+    }
+
+    // MARK: - Biome Quick-Travel
+
+    private var biomeSection: some View {
+        Section {
+            biomeButton("Death Valley", "sun.max.trianglebadge.exclamationmark.fill",
+                        .orange, "52°C · 5% humidity · Clear · Max UV") {
+                store.applyBiome(condition: .clear, temperature: 52, humidity: 5, pressure: 1006,
+                                 windSpeed: 12, windGust: 22, uvIndex: 11, visibility: 40000,
+                                 rainProbability: 0, hour: 14)
+            }
+            biomeButton("Antarctica Blizzard", "wind.snow",
+                        .cyan, "-40°C · Snow · 120 km/h · 0 visibility") {
+                store.applyBiome(condition: .snow, temperature: -40, humidity: 70, pressure: 980,
+                                 windSpeed: 120, windGust: 150, uvIndex: 0, visibility: 50,
+                                 rainProbability: 95, hour: 11)
+            }
+            biomeButton("Amazon Rainforest", "cloud.heavyrain.fill",
+                        .green, "34°C · 98% humidity · Rain · Low pressure") {
+                store.applyBiome(condition: .rain, temperature: 34, humidity: 98, pressure: 1002,
+                                 windSpeed: 8, windGust: 18, uvIndex: 7, visibility: 6000,
+                                 rainProbability: 92, hour: 16)
+            }
+        } header: {
+            sectionLabel("BIOME QUICK-TRAVEL", "globe.americas.fill")
+        }
+        .listRowBackground(Color.white.opacity(0.04))
+    }
+
+    private func biomeButton(_ title: String, _ icon: String, _ accent: Color,
+                             _ detail: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 22))
+                    .foregroundStyle(accent)
+                    .frame(width: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white)
+                    Text(detail)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Medical Stress Tests
+
+    private var medicalSection: some View {
+        Section {
+            medicalButton("Force Heatstroke Danger", "thermometer.sun.fill", .red) {
+                store.forceHealthState(.forcedHeatstroke)
+            }
+            medicalButton("Force Frostbite / Hypothermia", "thermometer.snowflake", .cyan) {
+                store.forceHealthState(.forcedHypothermia)
+            }
+            medicalButton("Force Extreme UV Warning", "sun.max.trianglebadge.exclamationmark.fill", .purple) {
+                store.forceHealthState(.forcedExtremeUV)
+            }
+            if store.forcedHealthInsights != nil {
+                Button(role: .destructive) {
+                    store.clearForcedHealthState()
+                } label: {
+                    Label("Clear forced health state", systemImage: "xmark.circle")
+                }
+            }
+        } header: {
+            sectionLabel("MEDICAL STRESS TESTS", "cross.case.fill")
+        } footer: {
+            Text("Forced states appear on the Atmosphere tab's Health Insights card.")
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.4))
+        }
+        .listRowBackground(Color.white.opacity(0.04))
+    }
+
+    private func medicalButton(_ title: String, _ icon: String, _ accent: Color,
+                               action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 18))
+                    .foregroundStyle(accent)
+                    .frame(width: 32)
+                Text(title)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white)
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Visual & Rendering Debugger
+
+    private var rendererSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Animation speed", systemImage: "gauge.with.needle")
+                        .foregroundStyle(.white)
+                    Spacer()
+                    Text(String(format: "%.1f×", store.animationSpeed))
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(.yellow)
+                }
+                Slider(value: $store.animationSpeed, in: 0.1...2.0)
+                    .tint(.yellow)
+            }
+            .padding(.vertical, 2)
+
+            Toggle(isOn: $store.performanceMode) {
+                Label("Performance mode (disable blurs)", systemImage: "speedometer")
+                    .foregroundStyle(.white)
+            }
+            Toggle(isOn: $store.showLayoutBounds) {
+                Label("Show layout bounds", systemImage: "grid")
+                    .foregroundStyle(.white)
+            }
+            Button {
+                store.resumeLiveData()
+            } label: {
+                Label("Resume live data", systemImage: "antenna.radiowaves.left.and.right")
+                    .foregroundStyle(.cyan)
+            }
+        } header: {
+            sectionLabel("VISUAL & RENDERING DEBUGGER", "wrench.and.screwdriver.fill")
+        }
+        .listRowBackground(Color.white.opacity(0.04))
+    }
+
+    // MARK: - Quick Scenarios
+
+    private var scenarioSection: some View {
+        Section {
             LazyVGrid(
                 columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible())],
                 spacing: 8
@@ -105,15 +293,10 @@ struct WeatherLabView: View {
                     store.applyPreset(.storm, temp: 27, humidity: 91, pressure: 996, wind: 46, rain: 92, hour: 23)
                 }
             }
-            .padding(.horizontal, 16)
+        } header: {
+            sectionLabel("QUICK SCENARIOS", "wand.and.stars")
         }
-    }
-
-    // MARK: - Atmospheric Panel
-
-    private var atmosphericPanel: some View {
-        AtmosphericPanel(store: store)
-            .padding(.horizontal, 16)
+        .listRowBackground(Color.white.opacity(0.03))
     }
 
     // MARK: - Color Helpers
@@ -149,8 +332,11 @@ struct WeatherLabView: View {
 
     // MARK: - Bindings
 
-    private var hourBinding: Binding<Double> {
+    private var timeBinding: Binding<Double> {
         Binding(get: { weather.hour }, set: { store.update(hour: $0) })
+    }
+    private var moonBinding: Binding<MoonPhase?> {
+        Binding(get: { store.moonPhaseOverride }, set: { store.moonPhaseOverride = $0 })
     }
     private var temperatureBinding: Binding<Double> {
         Binding(get: { weather.temperature }, set: { store.update(temperature: $0) })

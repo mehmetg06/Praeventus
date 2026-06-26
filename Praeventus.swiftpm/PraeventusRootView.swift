@@ -39,6 +39,12 @@ struct PraeventusRootView: View {
         }
         .toolbarBackground(.hidden, for: .tabBar)
         .preferredColorScheme(.dark)
+        // Push the sandbox overrides into the whole tree so the shared
+        // atmosphere, glass and particle layers react in real time.
+        .environment(\.performanceMode, store.performanceMode)
+        .environment(\.showLayoutBounds, store.showLayoutBounds)
+        .environment(\.sandboxAnimationSpeed, store.animationSpeed)
+        .environment(\.moonCycleOverride, store.moonPhaseOverride?.cyclePosition ?? -1)
         .task {
             // Restore the last location (if any) on launch.
             await store.restoreOrPrompt()

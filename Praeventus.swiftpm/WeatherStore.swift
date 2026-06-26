@@ -29,6 +29,19 @@ final class WeatherStore: ObservableObject {
     /// True while showing the manually-driven Lab snapshot instead of live data.
     @Published private(set) var isSimulating = false
 
+    // MARK: - Developer sandbox overrides
+
+    /// Playback multiplier (0.1…2.0) for the atmosphere's particle layers.
+    @Published var animationSpeed: Double = 1.0
+    /// Drops blurs / ultra-thin materials to test layout performance.
+    @Published var performanceMode = false
+    /// Outlines major render layers in red for clipping/tiling debug.
+    @Published var showLayoutBounds = false
+    /// Overrides the live moon phase in the astronomical readouts, if set.
+    @Published var moonPhaseOverride: MoonPhase?
+    /// Forces the health card into a specific medical state, if set.
+    @Published private(set) var forcedHealthInsights: HealthInsights?
+
     private let client: OpenMeteoClient
     private static let locationKey = "praeventus.savedLocation"
 
@@ -66,6 +79,7 @@ final class WeatherStore: ObservableObject {
 
     func load(_ place: SavedLocation) async {
         isSimulating = false
+        forcedHealthInsights = nil
         phase = .loading
         location = place
         Self.persist(place)
@@ -93,11 +107,31 @@ final class WeatherStore: ObservableObject {
 
     /// Medical-grade thermal/UV insights for the current snapshot, recomputed
     /// from live data on each access. Defaults to Fitzpatrick type 3 / SPF 1.
+    /// Returns the sandbox-forced state instead when a medical test is active.
     var healthInsights: HealthInsights {
-        HealthInsights.make(
+        if let forcedHealthInsights { return forcedHealthInsights }
+        return HealthInsights.make(
             current: weather,
             hourly: hourly,
             dailyMaxTemperatures: daily.map(\.max)
+        )
+    }
+
+    /// Astronomical analysis for the current location, with the moon phase
+    /// replaced when the sandbox is overriding it.
+    func astronomicalAnalysis(at date: Date) -> AstronomicalAnalysis {
+        let base = AstronomicalEngine.analyze(
+            at: date,
+            latitude: location?.latitude ?? 0,
+            longitude: location?.longitude ?? 0
+        )
+        guard let phase = moonPhaseOverride else { return base }
+        return AstronomicalAnalysis(
+            moonPhase: phase,
+            moonBrightness: phase.cyclePosition,
+            daylightHours: base.daylightHours,
+            sunAltitude: base.sunAltitude,
+            sunriseSunset: base.sunriseSunset
         )
     }
 
@@ -113,6 +147,7 @@ final class WeatherStore: ObservableObject {
         rainProbability: Double? = nil
     ) {
         isSimulating = true
+        forcedHealthInsights = nil
         phase = .loaded
         var next = weather
         next.city = String(localized: "lab.city", defaultValue: "Mock City")
@@ -138,6 +173,7 @@ final class WeatherStore: ObservableObject {
         hour: Double
     ) {
         isSimulating = true
+        forcedHealthInsights = nil
         phase = .loaded
         let next = WeatherData(
             city: String(localized: "lab.city", defaultValue: "Mock City"),
@@ -159,6 +195,71 @@ final class WeatherStore: ObservableObject {
         publish(next)
     }
 
+    // MARK: - Sandbox: biome quick-travel
+
+    /// Overwrites the snapshot *and* the hourly/daily series with an extreme
+    /// environmental preset, so the home tab's health card and charts reflect
+    /// the biome (e.g. Death Valley triggers a heatwave; Antarctica triggers
+    /// the cold-stress path organically).
+    func applyBiome(
+        condition: WeatherCondition,
+        temperature: Double,
+        humidity: Double,
+        pressure: Double,
+        windSpeed: Double,
+        windGust: Double,
+        uvIndex: Int,
+        visibility: Double,
+        rainProbability: Double,
+        hour: Double
+    ) {
+        isSimulating = true
+        forcedHealthInsights = nil
+        phase = .loaded
+
+        let snapshot = WeatherData(
+            city: String(localized: "lab.city", defaultValue: "Mock City"),
+            country: String(localized: "lab.country", defaultValue: "Weather Lab"),
+            temperature: temperature,
+            feelsLike: Self.feelsLike(temperature: temperature, humidity: humidity, windSpeed: windSpeed),
+            condition: condition,
+            humidity: humidity,
+            pressure: pressure,
+            windSpeed: windSpeed,
+            windDirection: 0,
+            windGustSpeed: windGust,
+            uvIndex: uvIndex,
+            dewPoint: Self.dewPoint(temperature: temperature, humidity: humidity),
+            visibility: visibility,
+            rainProbability: rainProbability,
+            hour: hour
+        )
+        hourly = Self.syntheticHourly(from: snapshot)
+        daily = Self.syntheticDaily(from: snapshot)
+        publish(snapshot)
+    }
+
+    // MARK: - Sandbox: medical stress tests
+
+    /// Pins the health card to a hand-built medical state for UI testing.
+    func forceHealthState(_ insights: HealthInsights) {
+        isSimulating = true
+        phase = .loaded
+        forcedHealthInsights = insights
+    }
+
+    /// Clears a forced medical state, returning to computed insights.
+    func clearForcedHealthState() {
+        forcedHealthInsights = nil
+    }
+
+    /// Drops all sandbox overrides and reloads the last real location.
+    func resumeLiveData() {
+        forcedHealthInsights = nil
+        moonPhaseOverride = nil
+        Task { await retry() }
+    }
+
     // MARK: - Internals
 
     private func publish(_ next: WeatherData) {
@@ -171,6 +272,81 @@ final class WeatherStore: ObservableObject {
             daily: daily
         )
         atmosphere = nextAtmosphere
+    }
+
+    // MARK: - Sandbox synthesis helpers
+
+    /// Apparent temperature: heat index when hot, wind chill when cold.
+    private static func feelsLike(temperature: Double, humidity: Double, windSpeed: Double) -> Double {
+        if temperature >= 27 {
+            return ThermalPredictionEngine.heatIndex(temperatureC: temperature, humidity: humidity)
+        }
+        if temperature <= 10 {
+            return ThermalPredictionEngine.windChillIndex(temperatureC: temperature, windSpeedKmh: windSpeed)
+        }
+        return temperature
+    }
+
+    /// Magnus-formula dew point (°C) from temperature and relative humidity.
+    private static func dewPoint(temperature: Double, humidity: Double) -> Double {
+        let h = max(1, min(100, humidity)) / 100
+        let a = 17.27, b = 237.7
+        let gamma = (a * temperature) / (b + temperature) + log(h)
+        return (b * gamma) / (a - gamma)
+    }
+
+    /// 24 hourly points around the snapshot with a mild diurnal wobble so the
+    /// charts and best-hours logic have texture; UV is zeroed overnight.
+    private static func syntheticHourly(from w: WeatherData) -> [HourlyPoint] {
+        let calendar = Calendar.current
+        let now = Date()
+        let startHour = Int(w.hour.rounded())
+        return (0..<24).map { offset in
+            let hour = (startHour + offset) % 24
+            let date = calendar.date(byAdding: .hour, value: offset, to: now) ?? now
+            let diurnal = sin(Double(hour) / 24.0 * 2 * .pi - .pi / 2)   // shape, peak midday
+            let daylight = max(0, sin(Double(hour - 6) / 12.0 * .pi))    // 0 at 06/18h
+            let uv = max(0, Int((Double(w.uvIndex) * daylight).rounded()))
+            return HourlyPoint(
+                date: date,
+                hour: hour,
+                temperature: w.temperature + diurnal * 2.5,
+                precipitationProbability: w.rainProbability,
+                condition: w.condition,
+                uvIndex: uv,
+                windSpeed: w.windSpeed,
+                windDirection: w.windDirection,
+                windGustSpeed: w.windGustSpeed,
+                humidity: w.humidity,
+                dewPoint: w.dewPoint,
+                visibility: w.visibility
+            )
+        }
+    }
+
+    /// 7 daily ranges holding the snapshot's extreme, so multi-day detectors
+    /// (e.g. the heatwave alert) fire for the chosen biome.
+    private static func syntheticDaily(from w: WeatherData) -> [DailyRange] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        return (0..<7).map { offset in
+            let date = calendar.date(byAdding: .day, value: offset, to: today) ?? today
+            return DailyRange(
+                date: date,
+                min: w.temperature - 8,
+                max: w.temperature,
+                feelsLikeMin: w.temperature - 8,
+                feelsLikeMax: w.feelsLike,
+                uvIndexMax: w.uvIndex,
+                windSpeedMax: w.windSpeed,
+                windDirection: w.windDirection,
+                windGustMax: w.windGustSpeed,
+                precipitationAmount: w.rainProbability > 50 ? 12 : 0,
+                condition: w.condition,
+                sunrise: nil,
+                sunset: nil
+            )
+        }
     }
 
     private static func message(for error: Error) -> String {

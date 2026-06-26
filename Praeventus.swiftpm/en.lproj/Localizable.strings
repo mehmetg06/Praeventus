@@ -43,6 +43,9 @@
 "health.risk.caution" = "Moderate heat stress";
 "health.risk.danger" = "Extreme heat danger";
 "health.risk.safe" = "Low thermal risk";
+"health.risk.cold.caution" = "Severe cold";
+"health.risk.cold.danger" = "Frostbite & hypothermia risk";
+"health.risk.cold.safe" = "Low cold risk";
 "health.uv.hour" = "%lld h";
 "health.uv.hourMin" = "%lld h %lld min";
 "health.uv.min" = "%lld min";
