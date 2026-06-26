@@ -17,6 +17,10 @@ struct SunHaloOpticsLayer: View {
                 OrbitalLensHalo(sunPoint: sunPoint, rotate: rotate, pulse: pulse)
                 MovingAtmosphericDust(size: size, pulse: pulse, windIntensity: windIntensity)
             }
+            // Flatten the whole halo (dozens of blurred glows + rotating rays)
+            // into a single Metal-rendered layer instead of one offscreen blur
+            // pass per element composited every frame.
+            .drawingGroup()
             .blendMode(.screen)
             .onAppear {
                 withAnimation(.linear(duration: 18).repeatForever(autoreverses: false)) {
@@ -40,7 +44,7 @@ private struct SunCameraBloom: View {
             Circle()
                 .fill(Color.white.opacity(0.20))
                 .frame(width: pulse ? 168 : 138, height: pulse ? 168 : 138)
-                .blur(radius: pulse ? 23 : 16)
+                .blur(radius: 20)
 
             Circle()
                 .fill(Color.white.opacity(0.90))
@@ -136,12 +140,12 @@ private struct OrbitalLensHalo: View {
             Circle()
                 .stroke(Color.white.opacity(pulse ? 0.14 : 0.08), lineWidth: 0.9)
                 .frame(width: pulse ? 365 : 315, height: pulse ? 365 : 315)
-                .blur(radius: pulse ? 11 : 7)
+                .blur(radius: 9)
 
             Circle()
                 .stroke(Color.white.opacity(pulse ? 0.09 : 0.045), lineWidth: 0.8)
                 .frame(width: pulse ? 530 : 455, height: pulse ? 530 : 455)
-                .blur(radius: pulse ? 22 : 16)
+                .blur(radius: 19)
 
             Capsule(style: .continuous)
                 .fill(
@@ -152,7 +156,7 @@ private struct OrbitalLensHalo: View {
                     )
                 )
                 .frame(width: pulse ? 670 : 510, height: pulse ? 40 : 28)
-                .blur(radius: pulse ? 9 : 5)
+                .blur(radius: 7)
                 .rotationEffect(.degrees(rotate ? 360 : 0))
         }
         .position(x: sunPoint.x, y: sunPoint.y)
@@ -166,7 +170,7 @@ private struct MovingAtmosphericDust: View {
 
     var body: some View {
         ZStack {
-            ForEach(0..<20, id: \.self) { index in
+            ForEach(0..<12, id: \.self) { index in
                 dust(index: index)
             }
         }
@@ -180,7 +184,6 @@ private struct MovingAtmosphericDust: View {
         return Circle()
             .fill(Color(red: 1.0, green: 0.91, blue: 0.62).opacity(0.050))
             .frame(width: side, height: side)
-            .blur(radius: 0.45)
             .position(
                 x: size.width * dustX(index) + movement + wind,
                 y: size.height * dustY(index)
