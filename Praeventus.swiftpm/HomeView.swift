@@ -254,10 +254,10 @@ struct HomeView: View {
     }
 
     private var activitySuitabilityCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 9) {
                 Image(systemName: "figure.walk")
-                    .font(.system(size: 15, weight: .light))
+                    .font(.system(size: 13, weight: .semibold))
                 Text("home.activities.heading")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .tracking(1.4)
@@ -265,33 +265,53 @@ struct HomeView: View {
             }
             .foregroundStyle(.white.opacity(0.56))
 
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(recommendedActivities.prefix(3)) { suitability in
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(suitability.activity.name)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.white)
-                            if !suitability.warnings.isEmpty {
-                                Text(suitability.warnings.joined(separator: ", "))
-                                    .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.66))
-                                    .lineLimit(1)
+            VStack(spacing: 0) {
+                ForEach(Array(recommendedActivities.prefix(3).enumerated()), id: \.offset) { index, suitability in
+                    VStack(spacing: 0) {
+                        HStack(spacing: 14) {
+                            ZStack {
+                                Circle()
+                                    .fill(suitabilityColor(suitability.suitability).opacity(0.15))
+                                    .frame(width: 38, height: 38)
+                                Image(systemName: suitability.activity.type.symbolName)
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundStyle(suitabilityColor(suitability.suitability))
                             }
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(suitability.activity.name)
+                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(.white)
+                                if !suitability.warnings.isEmpty {
+                                    Text(suitability.warnings.first ?? "")
+                                        .font(.system(size: 12, design: .rounded))
+                                        .foregroundStyle(.white.opacity(0.55))
+                                        .lineLimit(1)
+                                }
+                            }
+
+                            Spacer(minLength: 0)
+
+                            Text(suitability.suitability.displayName)
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(suitabilityColor(suitability.suitability))
+                                .padding(.vertical, 5)
+                                .padding(.horizontal, 12)
+                                .background(suitabilityColor(suitability.suitability).opacity(0.18))
+                                .clipShape(Capsule())
                         }
-                        Spacer(minLength: 0)
-                        Text(suitability.suitability.displayName)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.white)
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 8)
-                            .background(suitabilityColor(suitability.suitability).opacity(0.3))
-                            .cornerRadius(6)
+                        .padding(.vertical, 12)
+
+                        if index < recommendedActivities.prefix(3).count - 1 {
+                            Rectangle()
+                                .fill(.white.opacity(0.08))
+                                .frame(height: 0.5)
+                        }
                     }
                 }
             }
         }
-        .padding(18)
+        .padding(20)
         .background(ThinGlassShape(cornerRadius: 28, intensity: 0.13, highlightOpacity: 0.18, innerShadowOpacity: 0.22, borderOpacity: 0.22, tintColor: paletteTint))
     }
 
@@ -340,10 +360,10 @@ struct HomeView: View {
     }
 
     private var storyCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 9) {
                 Image(systemName: severity.isNegative ? "exclamationmark.triangle.fill" : "sparkles")
-                    .font(.system(size: 15, weight: .light))
+                    .font(.system(size: 14, weight: .semibold))
                 Text("home.story.heading")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .tracking(1.4)
@@ -352,12 +372,12 @@ struct HomeView: View {
             .foregroundStyle(severity.isNegative ? .white : .white.opacity(0.56))
 
             Text(atmosphere.story)
-                .font(.system(size: 14, weight: .regular, design: .rounded))
-                .lineSpacing(4)
+                .font(.system(size: 15, weight: .regular, design: .rounded))
+                .lineSpacing(6)
                 .foregroundStyle(.white.opacity(0.88))
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(18)
+        .padding(22)
         .background(ThinGlassShape(cornerRadius: 28, intensity: 0.13, highlightOpacity: 0.18, innerShadowOpacity: 0.22, borderOpacity: 0.22, tintColor: storyTint))
     }
 
@@ -370,24 +390,21 @@ struct HomeView: View {
     }
 
     private var metricsGrid: some View {
-        LazyVGrid(
-            columns: [
-                GridItem(.flexible(), spacing: 10),
-                GridItem(.flexible(), spacing: 10),
-                GridItem(.flexible(), spacing: 10)
-            ],
-            spacing: 10
-        ) {
-            GlassMetric(symbol: "gauge.with.dots.needle.bottom.50percent", title: String(localized: "metric.pressure", defaultValue: "Pressure"), value: "\(Int(weather.pressure.rounded()))", unit: "hPa", accent: .cyan, tintColor: paletteTint)
-            GlassMetric(symbol: "humidity", title: String(localized: "metric.humidity", defaultValue: "Humidity"), value: "\(Int(weather.humidity.rounded()))", unit: "%", accent: .blue, tintColor: paletteTint)
-            GlassMetric(symbol: "wind", title: String(localized: "metric.wind", defaultValue: "Wind"), value: "\(Int(weather.windSpeed.rounded()))", unit: String(localized: "unit.kmh", defaultValue: "km/h"), accent: .mint, tintColor: paletteTint)
-            GlassMetric(symbol: "sun.max", title: String(localized: "metric.uvIndex", defaultValue: "UV Index"), value: "\(weather.uvIndex)", unit: uvIndexLabel, accent: uvIndexAccent, tintColor: paletteTint)
-            GlassMetric(symbol: "thermometer.medium", title: String(localized: "metric.dewPoint", defaultValue: "Dew Point"), value: "\(Int(weather.dewPoint.rounded()))", unit: "°C", accent: .teal, tintColor: paletteTint)
-            GlassMetric(symbol: "wind.circle", title: String(localized: "metric.windGust", defaultValue: "Wind Gust"), value: "\(Int(weather.windGustSpeed.rounded()))", unit: String(localized: "unit.kmh", defaultValue: "km/h"), accent: .orange, tintColor: paletteTint)
-            GlassMetric(symbol: "safari", title: String(localized: "metric.windDir", defaultValue: "Direction"), value: windDirectionLabel(weather.windDirection), unit: "\(weather.windDirection)°", accent: .indigo, tintColor: paletteTint)
-            GlassMetric(symbol: "eye", title: String(localized: "metric.visibility", defaultValue: "Visibility"), value: visibilityKmDisplay, unit: "km", accent: .purple, tintColor: paletteTint)
-            GlassMetric(symbol: "umbrella.fill", title: String(localized: "metric.rainProb", defaultValue: "Rain"), value: "\(Int(weather.rainProbability.rounded()))", unit: "%", accent: Color(red: 0.2, green: 0.4, blue: 1.0), tintColor: paletteTint)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                GlassMetric(symbol: "gauge.with.dots.needle.bottom.50percent", title: String(localized: "metric.pressure", defaultValue: "Pressure"), value: "\(Int(weather.pressure.rounded()))", unit: "hPa", accent: .cyan, tintColor: paletteTint)
+                GlassMetric(symbol: "humidity", title: String(localized: "metric.humidity", defaultValue: "Humidity"), value: "\(Int(weather.humidity.rounded()))", unit: "%", accent: .blue, tintColor: paletteTint)
+                GlassMetric(symbol: "wind", title: String(localized: "metric.wind", defaultValue: "Wind"), value: "\(Int(weather.windSpeed.rounded()))", unit: String(localized: "unit.kmh", defaultValue: "km/h"), accent: .mint, tintColor: paletteTint)
+                GlassMetric(symbol: "sun.max", title: String(localized: "metric.uvIndex", defaultValue: "UV Index"), value: "\(weather.uvIndex)", unit: uvIndexLabel, accent: uvIndexAccent, tintColor: paletteTint)
+                GlassMetric(symbol: "thermometer.medium", title: String(localized: "metric.dewPoint", defaultValue: "Dew Point"), value: "\(Int(weather.dewPoint.rounded()))", unit: "°C", accent: .teal, tintColor: paletteTint)
+                GlassMetric(symbol: "wind.circle", title: String(localized: "metric.windGust", defaultValue: "Wind Gust"), value: "\(Int(weather.windGustSpeed.rounded()))", unit: String(localized: "unit.kmh", defaultValue: "km/h"), accent: .orange, tintColor: paletteTint)
+                GlassMetric(symbol: "safari", title: String(localized: "metric.windDir", defaultValue: "Direction"), value: windDirectionLabel(weather.windDirection), unit: "\(weather.windDirection)°", accent: .indigo, tintColor: paletteTint)
+                GlassMetric(symbol: "eye", title: String(localized: "metric.visibility", defaultValue: "Visibility"), value: visibilityKmDisplay, unit: "km", accent: .purple, tintColor: paletteTint)
+                GlassMetric(symbol: "umbrella.fill", title: String(localized: "metric.rainProb", defaultValue: "Rain"), value: "\(Int(weather.rainProbability.rounded()))", unit: "%", accent: Color(red: 0.2, green: 0.4, blue: 1.0), tintColor: paletteTint)
+            }
+            .padding(.horizontal, 2)
         }
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private var hourlyPreview: some View {

@@ -26,6 +26,21 @@ enum ActivityType: String, CaseIterable, Codable {
         case .tennis: return String(localized: "activity.tennis", defaultValue: "Tennis")
         }
     }
+
+    var symbolName: String {
+        switch self {
+        case .hiking: return "figure.hiking"
+        case .cycling: return "figure.outdoor.cycle"
+        case .running: return "figure.run"
+        case .waterSports: return "figure.open.water.swim"
+        case .stargazing: return "moon.stars.fill"
+        case .gardening: return "leaf.fill"
+        case .fishing: return "fish.fill"
+        case .picnic: return "sun.and.horizon.fill"
+        case .golf: return "figure.golf"
+        case .tennis: return "figure.tennis"
+        }
+    }
 }
 
 enum SuitabilityLevel: String, CaseIterable {
