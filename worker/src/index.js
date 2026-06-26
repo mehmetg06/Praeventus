@@ -41,7 +41,6 @@ const STRIP_HEADERS = [
 const GENERIC_USER_AGENT = "Praeventus-Proxy/1.0";
 
 const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Max-Age": "86400",
