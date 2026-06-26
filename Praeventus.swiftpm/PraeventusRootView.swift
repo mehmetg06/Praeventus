@@ -1,8 +1,21 @@
 #if canImport(SwiftUI)
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct PraeventusRootView: View {
     @StateObject private var store = WeatherStore()
+
+    init() {
+        #if canImport(UIKit)
+        // Make the tab bar itself transparent so the shared atmosphere shows through.
+        let appearance = UITabBarAppearance()
+        appearance.configureWithTransparentBackground()
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
+        #endif
+    }
 
     var body: some View {
         // One shared atmosphere behind all tabs. Building it per-tab kept three
@@ -13,20 +26,25 @@ struct PraeventusRootView: View {
 
             TabView {
                 HomeView(store: store)
+                    .background(Color.clear)
                     .tabItem {
                         Label("tab.atmosphere", systemImage: "cloud.sun")
                     }
 
                 WeatherLabView(store: store)
+                    .background(Color.clear)
                     .tabItem {
                         Label("tab.lab", systemImage: "flask")
                     }
 
                 SettingsView()
+                    .background(Color.clear)
                     .tabItem {
                         Label("tab.settings", systemImage: "gearshape")
                     }
             }
+            .background(Color.clear)
+            .toolbarBackground(.hidden, for: .tabBar)
         }
         .preferredColorScheme(.dark)
         .task {
