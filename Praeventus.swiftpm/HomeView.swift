@@ -367,9 +367,14 @@ struct HomeView: View {
             spacing: 10
         ) {
             GlassMetric(symbol: "gauge.with.dots.needle.bottom.50percent", title: String(localized: "metric.pressure", defaultValue: "Pressure"), value: "\(Int(weather.pressure.rounded()))", unit: "hPa", accent: .cyan, tintColor: paletteTint)
-            GlassMetric(symbol: "humidity", title: String(localized: "metric.humidity", defaultValue: "Humidity"), value: "%\(Int(weather.humidity.rounded()))", unit: humidityLabel, accent: .blue, tintColor: paletteTint)
+            GlassMetric(symbol: "humidity", title: String(localized: "metric.humidity", defaultValue: "Humidity"), value: "\(Int(weather.humidity.rounded()))", unit: "%", accent: .blue, tintColor: paletteTint)
             GlassMetric(symbol: "wind", title: String(localized: "metric.wind", defaultValue: "Wind"), value: "\(Int(weather.windSpeed.rounded()))", unit: String(localized: "unit.kmh", defaultValue: "km/h"), accent: .mint, tintColor: paletteTint)
-            GlassMetric(symbol: riskSymbol, title: riskTitle, value: riskValue, unit: riskUnit, accent: riskAccent, tintColor: paletteTint)
+            GlassMetric(symbol: "sun.max", title: String(localized: "metric.uvIndex", defaultValue: "UV Index"), value: "\(weather.uvIndex)", unit: uvIndexLabel, accent: uvIndexAccent, tintColor: paletteTint)
+            GlassMetric(symbol: "thermometer.medium", title: String(localized: "metric.dewPoint", defaultValue: "Dew Point"), value: "\(Int(weather.dewPoint.rounded()))", unit: "°C", accent: .teal, tintColor: paletteTint)
+            GlassMetric(symbol: "wind.circle", title: String(localized: "metric.windGust", defaultValue: "Wind Gust"), value: "\(Int(weather.windGustSpeed.rounded()))", unit: String(localized: "unit.kmh", defaultValue: "km/h"), accent: .orange, tintColor: paletteTint)
+            GlassMetric(symbol: "safari", title: String(localized: "metric.windDir", defaultValue: "Direction"), value: windDirectionLabel(weather.windDirection), unit: "\(weather.windDirection)°", accent: .indigo, tintColor: paletteTint)
+            GlassMetric(symbol: "eye", title: String(localized: "metric.visibility", defaultValue: "Visibility"), value: visibilityKmDisplay, unit: "km", accent: .purple, tintColor: paletteTint)
+            GlassMetric(symbol: "umbrella.fill", title: String(localized: "metric.rainProb", defaultValue: "Rain"), value: "\(Int(weather.rainProbability.rounded()))", unit: "%", accent: Color(red: 0.2, green: 0.4, blue: 1.0), tintColor: paletteTint)
         }
     }
 
@@ -425,20 +430,37 @@ struct HomeView: View {
         return HourlyStripPoint.synthetic(from: weather, atmosphere: atmosphere)
     }
 
-    private var humidityLabel: String {
-        switch weather.humidity {
-        case ..<35: return String(localized: "humidity.dry", defaultValue: "dry")
-        case ..<65: return String(localized: "humidity.balanced", defaultValue: "balanced")
-        case ..<85: return String(localized: "humidity.humid", defaultValue: "humid")
-        default:    return String(localized: "humidity.saturated", defaultValue: "saturated")
+    private var uvIndexLabel: String {
+        switch weather.uvIndex {
+        case 0...2: return String(localized: "uv.low", defaultValue: "Low")
+        case 3...5: return String(localized: "uv.moderate", defaultValue: "Moderate")
+        case 6...7: return String(localized: "uv.high", defaultValue: "High")
+        case 8...10: return String(localized: "uv.veryHigh", defaultValue: "Very High")
+        default:    return String(localized: "uv.extreme", defaultValue: "Extreme")
         }
     }
 
-    private var riskSymbol: String { atmosphere.stormRisk == .high ? "bolt.trianglebadge.exclamationmark" : "eye" }
-    private var riskTitle: String  { atmosphere.stormRisk == .high ? String(localized: "metric.storm", defaultValue: "Storm") : String(localized: "metric.visibility", defaultValue: "Visibility") }
-    private var riskValue: String  { atmosphere.stormRisk == .high ? atmosphere.stormRisk.displayName : atmosphere.visibility.displayName }
-    private var riskUnit: String   { atmosphere.stormRisk == .high ? String(localized: "metric.risk", defaultValue: "risk") : "" }
-    private var riskAccent: Color  { atmosphere.stormRisk == .high ? .orange : .cyan }
+    private var uvIndexAccent: Color {
+        switch weather.uvIndex {
+        case 0...2: return .green
+        case 3...5: return .yellow
+        case 6...7: return .orange
+        case 8...10: return .red
+        default:    return .purple
+        }
+    }
+
+    private func windDirectionLabel(_ degrees: Int) -> String {
+        let normalized = ((degrees % 360) + 360) % 360
+        let index = Int((Double(normalized) / 45.0).rounded()) % 8
+        return ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][index]
+    }
+
+    private var visibilityKmDisplay: String {
+        // Open-Meteo returns visibility in meters; convert to km for display.
+        let km = weather.visibility > 200 ? weather.visibility / 1000 : weather.visibility
+        return "\(Int(km.rounded()))"
+    }
 
     // MARK: - Search actions
 
