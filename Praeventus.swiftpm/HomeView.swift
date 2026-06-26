@@ -11,7 +11,7 @@ struct HomeView: View {
     private var paletteTint: Color { atmosphere.condition.palette[1] }
 
     @State private var currentMetricIndex = 0
-    private let metricsTimer = Timer.publish(every: 6, on: .main, in: .common).autoconnect()
+    @State private var progress: CGFloat = 0.0
 
     private var severity: WeatherSeverity {
         StorySentiment.severity(
@@ -464,9 +464,15 @@ struct HomeView: View {
             HStack(spacing: 4) {
                 ForEach(0..<metrics.count, id: \.self) { index in
                     Capsule()
-                        .fill(index == safeIndex ? Color.white : Color.white.opacity(0.28))
-                        .frame(height: 2.5)
-                        .animation(.easeInOut(duration: 0.3), value: currentMetricIndex)
+                        .fill(Color.white.opacity(0.3))
+                        .frame(height: 3)
+                        .overlay(alignment: .leading) {
+                            GeometryReader { geometry in
+                                Capsule()
+                                    .fill(Color.white)
+                                    .frame(width: storyBarWidth(for: index, totalWidth: geometry.size.width))
+                            }
+                        }
                 }
             }
             .padding(.bottom, 22)
@@ -503,10 +509,42 @@ struct HomeView: View {
         }
         .padding(22)
         .background(ThinGlassShape(cornerRadius: 28))
-        .onReceive(metricsTimer) { _ in
-            withAnimation(.easeInOut(duration: 0.5)) {
+        .overlay {
+            GeometryReader { geometry in
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { location in
+                        withAnimation(.easeInOut(duration: 0.4)) {
+                            if location.x < geometry.size.width / 2 {
+                                currentMetricIndex = max(0, currentMetricIndex - 1)
+                            } else {
+                                currentMetricIndex = (currentMetricIndex + 1) % metrics.count
+                            }
+                        }
+                    }
+            }
+        }
+        .task(id: currentMetricIndex) {
+            progress = 0
+            withAnimation(.linear(duration: 6.0)) {
+                progress = 1.0
+            }
+            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.4)) {
                 currentMetricIndex = (currentMetricIndex + 1) % metrics.count
             }
+        }
+    }
+
+    private func storyBarWidth(for index: Int, totalWidth: CGFloat) -> CGFloat {
+        let safeIndex = currentMetricIndex % max(1, rotatingMetrics.count)
+        if index < safeIndex {
+            return totalWidth
+        } else if index > safeIndex {
+            return 0
+        } else {
+            return totalWidth * progress
         }
     }
 
