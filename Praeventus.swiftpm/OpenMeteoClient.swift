@@ -23,7 +23,7 @@ struct OpenMeteoClient {
     init(session: URLSession = .shared) {
         self.session = session
         self.decoder = JSONDecoder()
-        self.decoder.nonConformingNumberDecodingStrategy = .convertFromString(
+        self.decoder.nonConformingFloatDecodingStrategy = .convertFromString(
             positiveInfinity: "Infinity",
             negativeInfinity: "-Infinity",
             nan: "NaN"
