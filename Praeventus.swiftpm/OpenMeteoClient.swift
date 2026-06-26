@@ -34,14 +34,20 @@ struct OpenMeteoClient {
             URLQueryItem(name: "longitude", value: trimmed(longitude)),
             URLQueryItem(name: "current", value: [
                 "temperature_2m", "apparent_temperature", "relative_humidity_2m",
-                "surface_pressure", "pressure_msl", "wind_speed_10m",
+                "surface_pressure", "pressure_msl", "wind_speed_10m", "wind_direction_10m",
+                "wind_gusts_10m", "uv_index", "dew_point_2m", "visibility",
                 "precipitation_probability", "weather_code"
             ].joined(separator: ",")),
             URLQueryItem(name: "hourly", value: [
-                "temperature_2m", "precipitation_probability", "weather_code"
+                "temperature_2m", "precipitation_probability", "weather_code",
+                "uv_index", "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m",
+                "relative_humidity_2m", "dew_point_2m", "visibility"
             ].joined(separator: ",")),
             URLQueryItem(name: "daily", value: [
-                "temperature_2m_max", "temperature_2m_min"
+                "temperature_2m_max", "temperature_2m_min", "apparent_temperature_max",
+                "apparent_temperature_min", "uv_index_max", "wind_speed_10m_max",
+                "wind_direction_10m_dominant", "wind_gusts_10m_max", "precipitation_sum",
+                "weather_code", "sunrise", "sunset"
             ].joined(separator: ",")),
             URLQueryItem(name: "timezone", value: "auto"),
             URLQueryItem(name: "forecast_days", value: "7"),
