@@ -35,7 +35,6 @@ enum WeatherNarrativeEngine {
     }
 
     private static func opening(for context: NarrativeContext) -> String {
-        let w = context.weather
         switch context.atmosphere.condition {
         case .clear:
             if context.isExtremeHeat {
