@@ -31,6 +31,7 @@ let sources = [
     "SearchViewModel.swift",
     // UI
     "WeatherCondition+Palette.swift",
+    "SandboxEnvironment.swift",
     "PraeventusRootView.swift",
     "AtmosphereBackgroundView.swift",
     "WeatherEffectLayers.swift",

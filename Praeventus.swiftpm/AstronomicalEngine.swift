@@ -1,7 +1,22 @@
 import Foundation
 
-enum MoonPhase: Equatable {
+enum MoonPhase: Equatable, Hashable, CaseIterable {
     case newMoon, waxingCrescent, firstQuarter, waxingGibbous, fullMoon, waningGibbous, lastQuarter, waningCrescent
+
+    /// Representative position in the 0…1 synodic cycle (new → full → new),
+    /// used when the developer sandbox overrides the live phase.
+    var cyclePosition: Double {
+        switch self {
+        case .newMoon:        return 0.0
+        case .waxingCrescent: return 0.125
+        case .firstQuarter:   return 0.25
+        case .waxingGibbous:  return 0.375
+        case .fullMoon:       return 0.5
+        case .waningGibbous:  return 0.625
+        case .lastQuarter:    return 0.75
+        case .waningCrescent: return 0.875
+        }
+    }
 
     var displayName: String {
         switch self {

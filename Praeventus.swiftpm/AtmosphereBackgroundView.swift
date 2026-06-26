@@ -21,6 +21,13 @@ struct AtmosphereBackgroundView: View {
     @State private var drift = false
     @State private var breathe = false
 
+    @Environment(\.performanceMode) private var performanceMode
+    @Environment(\.sandboxAnimationSpeed) private var animSpeed
+    @Environment(\.moonCycleOverride) private var moonCycleOverride
+
+    /// Drops a blur radius to zero in performance mode.
+    private func perfBlur(_ radius: CGFloat) -> CGFloat { performanceMode ? 0 : radius }
+
     var body: some View {
         ZStack {
             LinearGradient(
@@ -38,7 +45,8 @@ struct AtmosphereBackgroundView: View {
             moodLayer
             depthOverlay
         }
-        .animation(.easeInOut(duration: 22).repeatForever(autoreverses: true), value: drift)
+        .layoutBounds()
+        .animation(.easeInOut(duration: 22 / animSpeed).repeatForever(autoreverses: true), value: drift)
         .animation(.easeInOut(duration: 0.65), value: mood)
         .animation(.easeInOut(duration: 0.65), value: Int(hour.rounded()))
         .onAppear {
@@ -168,20 +176,20 @@ struct AtmosphereBackgroundView: View {
             Circle()
                 .fill(horizonColor.opacity(hotSunny ? 0.36 : (mood == .storm ? 0.10 : 0.24)))
                 .frame(width: hotSunny ? 720 : 580, height: hotSunny ? 720 : 580)
-                .blur(radius: hotSunny ? 155 : 120)
+                .blur(radius: perfBlur(hotSunny ? 155 : 120))
                 .offset(x: drift ? -140 : -70, y: drift ? -330 : -240)
 
             Circle()
                 .fill(accentLightColor.opacity(accentLightOpacity))
                 .frame(width: 480, height: 480)
-                .blur(radius: 125)
+                .blur(radius: perfBlur(125))
                 .offset(x: drift ? 160 : 100, y: drift ? 200 : 260)
 
             if hotSunny {
                 Circle()
                     .fill(Color(red: 1.0, green: 0.72, blue: 0.28).opacity(breathe ? 0.14 : 0.06))
                     .frame(width: 650, height: 650)
-                    .blur(radius: 160)
+                    .blur(radius: perfBlur(160))
                     .offset(x: 140, y: -60)
 
                 LinearGradient(
@@ -201,12 +209,12 @@ struct AtmosphereBackgroundView: View {
                 Circle()
                     .fill(Color(red: 0.28, green: 0.10, blue: 0.60).opacity(breathe ? 0.24 : 0.08))
                     .frame(width: 580, height: 580)
-                    .blur(radius: 130)
+                    .blur(radius: perfBlur(130))
                     .offset(x: -160, y: -180)
                 Circle()
                     .fill(Color(red: 0.10, green: 0.02, blue: 0.30).opacity(breathe ? 0.18 : 0.06))
                     .frame(width: 420, height: 420)
-                    .blur(radius: 100)
+                    .blur(radius: perfBlur(100))
                     .offset(x: 120, y: -80)
             }
 
@@ -214,7 +222,7 @@ struct AtmosphereBackgroundView: View {
                 Circle()
                     .fill(Color(red: 0.70, green: 0.86, blue: 1.0).opacity(breathe ? 0.18 : 0.08))
                     .frame(width: 540, height: 540)
-                    .blur(radius: 140)
+                    .blur(radius: perfBlur(140))
                     .offset(x: 60, y: -140)
             }
 
@@ -222,7 +230,7 @@ struct AtmosphereBackgroundView: View {
                 Circle()
                     .fill(Color(red: 0.20, green: 0.30, blue: 0.90).opacity(breathe ? 0.07 : 0.03))
                     .frame(width: 500, height: 500)
-                    .blur(radius: 130)
+                    .blur(radius: perfBlur(130))
                     .offset(x: -100, y: -200)
             }
         }
@@ -230,7 +238,7 @@ struct AtmosphereBackgroundView: View {
         // oversized blurred discs into a Metal layer can leave a faint boxed
         // edge visible behind the weather UI on some iPadOS renderers.
         .scaleEffect(breathe ? 1.012 : 0.994)
-        .animation(.easeInOut(duration: hotSunny ? 18 : 14).repeatForever(autoreverses: true), value: breathe)
+        .animation(.easeInOut(duration: (hotSunny ? 18 : 14) / animSpeed).repeatForever(autoreverses: true), value: breathe)
         .ignoresSafeArea()
     }
 
@@ -277,6 +285,18 @@ struct AtmosphereBackgroundView: View {
                 Path(ellipseIn: CGRect(x: moonX - 68, y: moonY - 68, width: 136, height: 136)),
                 with: .color(.white.opacity(0.08))
             )
+
+            // Sandbox override: carve a phase terminator into the moon disc by
+            // sliding a sky-coloured shadow disc across it.
+            if moonCycleOverride >= 0 {
+                let illumination = (1 - cos(moonCycleOverride * 2 * .pi)) / 2  // 0=new … 1=full
+                let waxing = moonCycleOverride < 0.5
+                let shift = illumination * 44 * (waxing ? -1 : 1)
+                context.fill(
+                    Path(ellipseIn: CGRect(x: moonX - 22 + shift, y: moonY - 22, width: 44, height: 44)),
+                    with: .color(Color(red: 0.02, green: 0.03, blue: 0.12).opacity(0.97))
+                )
+            }
         }
         .blur(radius: 0.5)
         .ignoresSafeArea()
@@ -345,7 +365,7 @@ struct AtmosphereBackgroundView: View {
     private var airMassLayer: some View {
         TimelineView(.periodic(from: .now, by: 1.0 / 14.0)) { timeline in
             Canvas { context, size in
-                let time = timeline.date.timeIntervalSinceReferenceDate
+                let time = timeline.date.timeIntervalSinceReferenceDate * animSpeed
                 let bands = max(2, min(6, Int(2 + atmosphere.cloudCover * 5)))
                 let speed = 1.2 + windSpeed * 0.022
 
@@ -474,6 +494,8 @@ private struct HotSunnyLayer: View {
     let drift: Bool
     let windIntensity: Double
 
+    @Environment(\.sandboxAnimationSpeed) private var animSpeed
+
     var body: some View {
         ZStack {
             LinearGradient(
@@ -489,7 +511,7 @@ private struct HotSunnyLayer: View {
 
             TimelineView(.periodic(from: .now, by: 1.0 / 12.0)) { timeline in
                 Canvas { context, size in
-                    let time = timeline.date.timeIntervalSinceReferenceDate
+                    let time = timeline.date.timeIntervalSinceReferenceDate * animSpeed
                     for index in 0..<6 {
                         let y = size.height * (0.55 + CGFloat(index) * 0.075)
                         let phase = CGFloat(time * 0.36 + Double(index) * 1.7)
