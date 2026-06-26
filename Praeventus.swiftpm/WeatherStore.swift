@@ -101,6 +101,7 @@ final class WeatherStore: ObservableObject {
         rainProbability: Double? = nil
     ) {
         isSimulating = true
+        phase = .loaded
         var next = weather
         next.city = String(localized: "lab.city", defaultValue: "Mock City")
         next.country = String(localized: "lab.country", defaultValue: "Weather Lab")
@@ -125,6 +126,7 @@ final class WeatherStore: ObservableObject {
         hour: Double
     ) {
         isSimulating = true
+        phase = .loaded
         let next = WeatherData(
             city: String(localized: "lab.city", defaultValue: "Mock City"),
             country: String(localized: "lab.country", defaultValue: "Weather Lab"),
@@ -169,7 +171,7 @@ final class WeatherStore: ObservableObject {
             case .noResults:
                 return String(localized: "error.noResults", defaultValue: "No results found.")
             case .transport(let detail):
-                return String(localized: "error.transport", defaultValue: "Connection problem: \(detail)")
+                return String(format: String(localized: "error.transport", defaultValue: "Connection problem: %@"), detail)
             }
         }
         return error.localizedDescription
