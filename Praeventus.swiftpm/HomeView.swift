@@ -235,10 +235,22 @@ struct HomeView: View {
             activitySuitabilityCard
         }
         storyCard
+        astronomicalCard
         hourlyPreview
         #if canImport(Charts)
         WeatherChartsView(hourly: store.hourly, daily: store.daily, tint: paletteTint)
         #endif
+    }
+
+    private var astronomicalCard: some View {
+        AstronomicalCard(
+            analysis: AstronomicalEngine.analyze(
+                at: Date(),
+                latitude: store.location?.latitude ?? 0,
+                longitude: store.location?.longitude ?? 0
+            ),
+            tintColor: paletteTint
+        )
     }
 
     private var activitySuitabilityCard: some View {
@@ -541,6 +553,294 @@ struct AtmosphereOrb: View {
                     .foregroundStyle(.white.opacity(0.95))
             }
             .shadow(color: .blue.opacity(0.24), radius: 16)
+    }
+}
+
+// MARK: - Astronomical Card
+
+private struct AstronomicalCard: View {
+    let analysis: AstronomicalAnalysis
+    let tintColor: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 9) {
+                Image(systemName: "moon.stars.fill")
+                    .font(.system(size: 15, weight: .light))
+                Text(String(localized: "astro.heading", defaultValue: "ASTRONOMICAL"))
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .tracking(1.4)
+                Spacer()
+            }
+            .foregroundStyle(.white.opacity(0.56))
+
+            SunArcView(analysis: analysis)
+
+            HStack(spacing: 10) {
+                moonPanel.frame(maxWidth: .infinity)
+                altitudePanel.frame(maxWidth: .infinity)
+            }
+        }
+        .padding(18)
+        .background(ThinGlassShape(
+            cornerRadius: 28,
+            intensity: 0.13,
+            highlightOpacity: 0.18,
+            innerShadowOpacity: 0.22,
+            borderOpacity: 0.22,
+            tintColor: tintColor
+        ))
+    }
+
+    private var moonPanel: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Image(systemName: moonSymbol)
+                    .font(.system(size: 36, weight: .thin))
+                    .foregroundStyle(.white.opacity(0.22))
+                    .blur(radius: 10)
+                Image(systemName: moonSymbol)
+                    .font(.system(size: 36, weight: .thin))
+                    .foregroundStyle(.white.opacity(0.92))
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(analysis.moonPhase.displayName)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.white.opacity(0.10)).frame(height: 3)
+                        Capsule()
+                            .fill(.white.opacity(0.80))
+                            .frame(width: max(2, geo.size.width * actualMoonIllumination), height: 3)
+                    }
+                }
+                .frame(height: 3)
+
+                Text("\(Int(actualMoonIllumination * 100))% " + String(localized: "astro.lit", defaultValue: "lit"))
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.52))
+            }
+        }
+        .padding(12)
+        .background(.white.opacity(0.05))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(.white.opacity(0.10), lineWidth: 0.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private var altitudePanel: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(altitudeColor)
+                Text(String(localized: "astro.sunAltitude", defaultValue: "Altitude"))
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.54))
+            }
+
+            Text(String(format: "%.1f°", analysis.sunAltitude))
+                .font(.system(size: 22, weight: .thin, design: .monospaced))
+                .foregroundStyle(.white)
+
+            Text(altitudeLabel)
+                .font(.caption2)
+                .foregroundStyle(altitudeColor)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
+        .background(.white.opacity(0.05))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(.white.opacity(0.10), lineWidth: 0.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    // Converts cycle position (0–1) to actual visible illumination (0=new, 1=full, 0=new).
+    private var actualMoonIllumination: Double {
+        (1.0 - cos(analysis.moonBrightness * 2.0 * .pi)) / 2.0
+    }
+
+    private var moonSymbol: String {
+        switch analysis.moonPhase {
+        case .newMoon:        return "moonphase.new.moon"
+        case .waxingCrescent: return "moonphase.waxing.crescent"
+        case .firstQuarter:   return "moonphase.first.quarter"
+        case .waxingGibbous:  return "moonphase.waxing.gibbous"
+        case .fullMoon:       return "moonphase.full.moon"
+        case .waningGibbous:  return "moonphase.waning.gibbous"
+        case .lastQuarter:    return "moonphase.last.quarter"
+        case .waningCrescent: return "moonphase.waning.crescent"
+        }
+    }
+
+    private var altitudeLabel: String {
+        switch analysis.sunAltitude {
+        case 45...:   return String(localized: "astro.alt.high",  defaultValue: "High in sky")
+        case 15..<45: return String(localized: "astro.alt.above", defaultValue: "Above horizon")
+        case 0..<15:  return String(localized: "astro.alt.near",  defaultValue: "Near horizon")
+        case -6..<0:  return String(localized: "astro.alt.civil", defaultValue: "Civil twilight")
+        default:      return String(localized: "astro.alt.below", defaultValue: "Below horizon")
+        }
+    }
+
+    private var altitudeColor: Color {
+        switch analysis.sunAltitude {
+        case 45...:   return .yellow
+        case 15..<45: return Color(red: 1.0, green: 0.85, blue: 0.3)
+        case 0..<15:  return .orange
+        case -6..<0:  return Color(red: 1.0, green: 0.52, blue: 0.25)
+        default:      return .white.opacity(0.32)
+        }
+    }
+}
+
+// MARK: - Sun Arc Canvas
+
+private struct SunArcView: View {
+    let analysis: AstronomicalAnalysis
+
+    private var sunProgress: Double {
+        let now  = Date()
+        let rise = analysis.sunriseSunset.sunrise
+        let set  = analysis.sunriseSunset.sunset
+        guard rise < set,
+              abs(rise.timeIntervalSinceNow) < 365 * 24 * 3600,
+              abs(set.timeIntervalSinceNow)  < 365 * 24 * 3600
+        else { return 0 }
+        if now <= rise { return 0 }
+        if now >= set  { return 1 }
+        return now.timeIntervalSince(rise) / set.timeIntervalSince(rise)
+    }
+
+    private var isAboveHorizon: Bool { analysis.sunAltitude > 0 }
+
+    private static let timeFmt: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+
+    private func timeStr(_ date: Date) -> String {
+        guard abs(date.timeIntervalSinceNow) < 365 * 24 * 3600 else { return "--:--" }
+        return Self.timeFmt.string(from: date)
+    }
+
+    private var daylightLabel: String {
+        let h = Int(analysis.daylightHours)
+        let m = Int((analysis.daylightHours - Double(h)) * 60)
+        return "\(h)h \(m)m"
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Canvas { ctx, size in
+                let cx     = size.width / 2
+                let cy     = size.height - 4
+                let radius = min(size.width / 2 - 12, size.height - 10)
+                let t      = sunProgress
+
+                // Faint dashed background arc
+                var bgArc = Path()
+                bgArc.addArc(center: CGPoint(x: cx, y: cy), radius: radius,
+                             startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
+                ctx.stroke(bgArc, with: .color(.white.opacity(0.10)),
+                           style: StrokeStyle(lineWidth: 1.5, dash: [3, 4]))
+
+                // Coloured progress arc (orange → yellow → orange)
+                if t > 0.005 {
+                    let endDeg = 180.0 - t * 180.0
+                    var prog = Path()
+                    prog.addArc(center: CGPoint(x: cx, y: cy), radius: radius,
+                                startAngle: .degrees(180), endAngle: .degrees(endDeg), clockwise: false)
+                    ctx.stroke(
+                        prog,
+                        with: .linearGradient(
+                            Gradient(stops: [
+                                .init(color: Color(red: 1.0, green: 0.45, blue: 0.2).opacity(0.75), location: 0),
+                                .init(color: Color(red: 1.0, green: 0.88, blue: 0.3).opacity(0.95), location: 0.5),
+                                .init(color: Color(red: 1.0, green: 0.55, blue: 0.2).opacity(0.75), location: 1),
+                            ]),
+                            startPoint: CGPoint(x: cx - radius, y: cy),
+                            endPoint:   CGPoint(x: cx + radius, y: cy)
+                        ),
+                        lineWidth: 2.5
+                    )
+                }
+
+                // Dashed horizon line
+                var hor = Path()
+                hor.move(to: CGPoint(x: cx - radius - 10, y: cy))
+                hor.addLine(to: CGPoint(x: cx + radius + 10, y: cy))
+                ctx.stroke(hor, with: .color(.white.opacity(0.18)),
+                           style: StrokeStyle(lineWidth: 0.75, dash: [4, 3]))
+
+                // Sunrise / sunset endpoint dots
+                let riseR = CGRect(x: cx - radius - 3.5, y: cy - 3.5, width: 7, height: 7)
+                let setR  = CGRect(x: cx + radius - 3.5, y: cy - 3.5, width: 7, height: 7)
+                ctx.fill(Circle().path(in: riseR), with: .color(Color(red: 1.0, green: 0.6, blue: 0.2).opacity(0.80)))
+                ctx.fill(Circle().path(in: setR),  with: .color(Color(red: 1.0, green: 0.4, blue: 0.1).opacity(0.65)))
+
+                // Sun dot at current position along the arc
+                let sunAngle = Double.pi * (1.0 - t)
+                let sunX = cx + radius * cos(sunAngle)
+                let sunY = cy - radius * sin(sunAngle)
+
+                if isAboveHorizon {
+                    let g1 = CGRect(x: sunX - 14, y: sunY - 14, width: 28, height: 28)
+                    let g2 = CGRect(x: sunX - 7,  y: sunY - 7,  width: 14, height: 14)
+                    let g3 = CGRect(x: sunX - 4,  y: sunY - 4,  width: 8,  height: 8)
+                    ctx.fill(Circle().path(in: g1), with: .color(.yellow.opacity(0.15)))
+                    ctx.fill(Circle().path(in: g2), with: .color(.yellow.opacity(0.38)))
+                    ctx.fill(Circle().path(in: g3), with: .color(.yellow))
+                }
+            }
+            .frame(height: 78)
+
+            // Sunrise / daylight / sunset labels
+            HStack {
+                HStack(spacing: 4) {
+                    Image(systemName: "sunrise.fill")
+                        .foregroundStyle(.orange)
+                    Text(timeStr(analysis.sunriseSunset.sunrise))
+                        .monospacedDigit()
+                        .foregroundStyle(.orange)
+                }
+                .font(.caption2)
+
+                Spacer()
+
+                VStack(spacing: 1) {
+                    Text(daylightLabel)
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.72))
+                    Text(String(localized: "astro.daylight", defaultValue: "daylight"))
+                        .font(.system(size: 8, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.36))
+                }
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    Image(systemName: "sunset.fill")
+                        .foregroundStyle(Color(red: 1.0, green: 0.58, blue: 0.25))
+                    Text(timeStr(analysis.sunriseSunset.sunset))
+                        .monospacedDigit()
+                        .foregroundStyle(Color(red: 1.0, green: 0.58, blue: 0.25))
+                }
+                .font(.caption2)
+            }
+        }
     }
 }
 #endif
