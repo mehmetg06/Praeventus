@@ -331,9 +331,6 @@ struct AtmosphereBackgroundView: View {
                     .rotationEffect(.degrees(-30))
                     .offset(x: -75, y: 24)
             }
-            // Render the sun disc once, then breathe via a GPU scale transform
-            // instead of resizing the blurred frames (which re-blurs each frame).
-            .drawingGroup()
             .scaleEffect(breathe ? 1.045 : 1.0)
             .blendMode(.screen)
             .position(x: geometry.size.width * 0.84, y: geometry.size.height * 0.16)
@@ -380,6 +377,7 @@ struct AtmosphereBackgroundView: View {
                 }
             }
         }
+        .padding(-60)
         .blur(radius: mood == .fog ? 38 : (hotSunny ? 20 : 26))
         .ignoresSafeArea()
     }
