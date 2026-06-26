@@ -7,7 +7,7 @@ enum ActivityAnalysisEngine {
         var score = 100.0
 
         if weather.temperature < activity.minTemperature {
-            warnings.append(String(localized: "warning.tooCol", defaultValue: "Too cold for this activity"))
+            warnings.append(String(localized: "warning.tooCold", defaultValue: "Too cold for this activity"))
             score -= 15
         } else if weather.temperature > activity.maxTemperature {
             warnings.append(String(localized: "warning.tooWarm", defaultValue: "Too warm for this activity"))
