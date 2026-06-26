@@ -11,7 +11,6 @@ struct ThinGlassShape: View {
     var body: some View {
         shape
             .fill(Material.ultraThinMaterial)
-            .environment(\.colorScheme, .dark)
             .overlay {
                 shape.strokeBorder(
                     LinearGradient(
