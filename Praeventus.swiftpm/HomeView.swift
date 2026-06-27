@@ -11,7 +11,6 @@ struct HomeView: View {
     private var paletteTint: Color { atmosphere.condition.palette[1] }
 
     @State private var currentMetricIndex = 0
-    @State private var progress: CGFloat = 0.0
 
     private var severity: WeatherSeverity {
         StorySentiment.severity(
@@ -455,22 +454,11 @@ struct HomeView: View {
         let metric = metrics[safeIndex]
 
         return VStack(alignment: .leading, spacing: 0) {
-            // Instagram-style story progress indicators
-            HStack(spacing: 4) {
-                ForEach(0..<metrics.count, id: \.self) { index in
-                    Capsule()
-                        .fill(Color.white.opacity(0.3))
-                        .frame(height: 3)
-                        .overlay(alignment: .leading) {
-                            GeometryReader { geometry in
-                                Capsule()
-                                    .fill(Color.white)
-                                    .frame(width: storyBarWidth(for: index, totalWidth: geometry.size.width, metricsCount: metrics.count))
-                            }
-                        }
+            MetricProgressBar(metricsCount: metrics.count, currentIndex: currentMetricIndex) {
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    currentMetricIndex = (currentMetricIndex + 1) % metrics.count
                 }
             }
-            .padding(.bottom, 22)
 
             VStack(alignment: .center, spacing: 10) {
                 Image(systemName: metric.icon)
@@ -518,28 +506,6 @@ struct HomeView: View {
                         }
                     }
             }
-        }
-        .task(id: currentMetricIndex) {
-            progress = 0
-            withAnimation(.linear(duration: 6.0)) {
-                progress = 1.0
-            }
-            try? await Task.sleep(nanoseconds: 6_000_000_000)
-            guard !Task.isCancelled else { return }
-            withAnimation(.easeInOut(duration: 0.4)) {
-                currentMetricIndex = (currentMetricIndex + 1) % metrics.count
-            }
-        }
-    }
-
-    private func storyBarWidth(for index: Int, totalWidth: CGFloat, metricsCount: Int) -> CGFloat {
-        let safeIndex = currentMetricIndex % max(1, metricsCount)
-        if index < safeIndex {
-            return totalWidth
-        } else if index > safeIndex {
-            return 0
-        } else {
-            return totalWidth * progress
         }
     }
 
@@ -693,6 +659,47 @@ private struct HourlyStripPoint: Identifiable {
                 symbol: atmosphere.symbolName
             )
         }
+    }
+}
+
+// Isolated progress bar so its 6-second @State animation never invalidates HomeView's body.
+private struct MetricProgressBar: View {
+    let metricsCount: Int
+    let currentIndex: Int
+    let onAdvance: () -> Void
+
+    @State private var progress: CGFloat = 0
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<metricsCount, id: \.self) { index in
+                Capsule()
+                    .fill(Color.white.opacity(0.3))
+                    .frame(height: 3)
+                    .overlay(alignment: .leading) {
+                        GeometryReader { geo in
+                            Capsule()
+                                .fill(Color.white)
+                                .frame(width: barWidth(for: index, totalWidth: geo.size.width))
+                        }
+                    }
+            }
+        }
+        .padding(.bottom, 22)
+        .task(id: currentIndex) {
+            progress = 0
+            withAnimation(.linear(duration: 6.0)) { progress = 1.0 }
+            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            guard !Task.isCancelled else { return }
+            onAdvance()
+        }
+    }
+
+    private func barWidth(for index: Int, totalWidth: CGFloat) -> CGFloat {
+        let safe = currentIndex % max(1, metricsCount)
+        if index < safe { return totalWidth }
+        if index > safe { return 0 }
+        return totalWidth * progress
     }
 }
 

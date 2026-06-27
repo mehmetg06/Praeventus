@@ -371,14 +371,31 @@ struct AtmosphereBackgroundView: View {
                         .truncatingRemainder(dividingBy: size.width + width) - width
                     let y = size.height * (0.10 + CGFloat(index) * 0.13)
                     let opacity = hotSunny ? 0.016 : 0.016 + atmosphere.cloudCover * 0.055
-                    context.fill(Path(ellipseIn: CGRect(x: x, y: y, width: width, height: height)),
-                                 with: .color(.white.opacity(opacity)))
+                    let cx = x + width / 2
+                    let cy = y + height / 2
+                    context.fill(
+                        Path(ellipseIn: CGRect(x: x, y: y, width: width, height: height)),
+                        with: .radialGradient(
+                            Gradient(colors: [.white.opacity(opacity * 2.8), .white.opacity(0)]),
+                            center: CGPoint(x: cx, y: cy),
+                            startRadius: 0,
+                            endRadius: max(width, height) / 2
+                        )
+                    )
 
                     if !hotSunny && atmosphere.cloudCover > 0.3 {
+                        let shadowOpacity = 0.022 + atmosphere.cloudCover * 0.022
                         let shadowRect = CGRect(x: x + width * 0.08, y: y + height * 0.70,
                                                width: width * 0.84, height: height * 0.50)
-                        context.fill(Path(ellipseIn: shadowRect),
-                                     with: .color(.black.opacity(0.022 + atmosphere.cloudCover * 0.022)))
+                        context.fill(
+                            Path(ellipseIn: shadowRect),
+                            with: .radialGradient(
+                                Gradient(colors: [.black.opacity(shadowOpacity * 2.0), .black.opacity(0)]),
+                                center: CGPoint(x: shadowRect.midX, y: shadowRect.midY),
+                                startRadius: 0,
+                                endRadius: max(shadowRect.width, shadowRect.height) / 2
+                            )
+                        )
                     }
                 }
 
@@ -386,14 +403,24 @@ struct AtmosphereBackgroundView: View {
                     for index in 0..<3 {
                         let y = size.height * (0.60 + CGFloat(index) * 0.10)
                         let rect = CGRect(x: -size.width * 0.12, y: y, width: size.width * 1.24, height: 78)
-                        context.fill(Path(roundedRect: rect, cornerRadius: 55),
-                                     with: .color(Color(red: 1.0, green: 0.78, blue: 0.40).opacity(0.028 - Double(index) * 0.005)))
+                        let bandOpacity = 0.028 - Double(index) * 0.005
+                        context.fill(
+                            Path(roundedRect: rect, cornerRadius: 55),
+                            with: .linearGradient(
+                                Gradient(colors: [
+                                    Color(red: 1.0, green: 0.78, blue: 0.40).opacity(0),
+                                    Color(red: 1.0, green: 0.78, blue: 0.40).opacity(bandOpacity * 2.0),
+                                    Color(red: 1.0, green: 0.78, blue: 0.40).opacity(0)
+                                ]),
+                                startPoint: CGPoint(x: rect.minX, y: rect.midY),
+                                endPoint: CGPoint(x: rect.maxX, y: rect.midY)
+                            )
+                        )
                     }
                 }
             }
         }
         .padding(-60)
-        .blur(radius: mood == .fog ? 38 : (hotSunny ? 20 : 26))
         .ignoresSafeArea()
     }
 
