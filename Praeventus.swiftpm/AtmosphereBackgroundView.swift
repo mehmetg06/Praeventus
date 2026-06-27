@@ -298,7 +298,6 @@ struct AtmosphereBackgroundView: View {
                 )
             }
         }
-        .drawingGroup()
         .blur(radius: 0.5)
         .ignoresSafeArea()
     }
@@ -308,28 +307,34 @@ struct AtmosphereBackgroundView: View {
     private var sunDiskLayer: some View {
         GeometryReader { geometry in
             ZStack {
+                // Outer solar glow — RadialGradient fades to .clear naturally; no blur needed.
                 Circle()
                     .fill(
                         RadialGradient(
                             colors: [
-                                .white.opacity(0.96),
-                                Color(red: 1.0, green: 0.92, blue: 0.56).opacity(0.82),
-                                Color(red: 1.0, green: 0.70, blue: 0.22).opacity(0.34),
+                                .white.opacity(0.88),
+                                Color(red: 1.0, green: 0.92, blue: 0.56).opacity(0.68),
+                                Color(red: 1.0, green: 0.70, blue: 0.22).opacity(0.22),
+                                Color(red: 1.0, green: 0.60, blue: 0.18).opacity(0.05),
                                 .clear
                             ],
                             center: .center,
                             startRadius: 0,
-                            endRadius: 148
+                            endRadius: 155
                         )
                     )
-                    .frame(width: 246, height: 246)
-                    .blur(radius: 20)
+                    .frame(width: 310, height: 310)
 
+                // Inner disc — only this layer carries the breathe animation so the
+                // large glow and streak shapes are never recomposited per-frame.
                 Circle()
                     .fill(.white.opacity(0.92))
                     .frame(width: 90, height: 90)
                     .blur(radius: 1.5)
+                    .scaleEffect(breathe ? 1.045 : 1.0)
+                    .animation(.easeInOut(duration: 16).repeatForever(autoreverses: true), value: breathe)
 
+                // Chromatic ring — 118 pt diameter, 2.2 blur is negligible without a drawingGroup.
                 Circle()
                     .stroke(
                         AngularGradient(
@@ -345,19 +350,28 @@ struct AtmosphereBackgroundView: View {
                     .frame(width: 118, height: 118)
                     .blur(radius: 2.2)
 
+                // Lens-flare streak — LinearGradient fades to .clear on both ends; no blur.
                 Ellipse()
-                    .fill(Color(red: 1.0, green: 0.76, blue: 0.28).opacity(0.18))
-                    .frame(width: 480, height: 118)
-                    .blur(radius: 30)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                .clear,
+                                Color(red: 1.0, green: 0.78, blue: 0.30).opacity(0.14),
+                                Color(red: 1.0, green: 0.82, blue: 0.40).opacity(0.18),
+                                Color(red: 1.0, green: 0.78, blue: 0.30).opacity(0.14),
+                                .clear
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: 480, height: 90)
                     .rotationEffect(.degrees(-30))
                     .offset(x: -75, y: 24)
             }
-            .scaleEffect(breathe ? 1.045 : 1.0)
-            .drawingGroup()
             .blendMode(.screen)
             .position(x: geometry.size.width * 0.84, y: geometry.size.height * 0.16)
             .opacity(0.98)
-            .animation(.easeInOut(duration: 16).repeatForever(autoreverses: true), value: breathe)
         }
         .ignoresSafeArea()
     }
