@@ -19,6 +19,7 @@ let sources = [
     "AtmosphericEngine.swift",
     "AstronomicalEngine.swift",
     "WeatherNarrativeEngine.swift",
+    "MeteorologicalExpertSystem.swift",
     "ThermalPredictionEngine.swift",
     "HealthInsights.swift",
     "WeatherStore.swift",
