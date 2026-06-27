@@ -5,6 +5,8 @@ struct SettingsView: View {
     @State private var proxyURL: String = WeatherEndpoint.proxyBaseURL ?? ""
     @State private var showActivityEditor = false
     @State private var activities = ActivityStorage.loadActivities()
+    @AppStorage(WeatherSettings.multiModelKey) private var multiModelEnabled = true
+    @AppStorage(WeatherSettings.sensorCalibrationKey) private var sensorCalibrationEnabled = false
 
     var body: some View {
         NavigationStack {
@@ -20,6 +22,15 @@ struct SettingsView: View {
                     Text("settings.proxy.title")
                 } footer: {
                     Text("settings.proxy.footer")
+                }
+
+                Section {
+                    Toggle("settings.fusion.multiModel", isOn: $multiModelEnabled)
+                    Toggle("settings.fusion.sensor", isOn: $sensorCalibrationEnabled)
+                } header: {
+                    Text("settings.fusion.title")
+                } footer: {
+                    Text("settings.fusion.footer")
                 }
 
                 Section("settings.activities.title") {

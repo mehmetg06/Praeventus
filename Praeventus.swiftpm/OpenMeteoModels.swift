@@ -7,7 +7,7 @@ import Foundation
 /// Only the fields the app requests are modelled. Open-Meteo returns parallel
 /// arrays under `hourly` / `daily` (a `time` array plus one array per variable),
 /// which `WeatherMapping` zips into point structs.
-struct ForecastResponse: Decodable, Equatable {
+struct ForecastResponse: Codable, Equatable {
     let latitude: Double
     let longitude: Double
     let timezone: String?
@@ -16,7 +16,7 @@ struct ForecastResponse: Decodable, Equatable {
     let hourly: Hourly?
     let daily: Daily?
 
-    struct Current: Decodable, Equatable {
+    struct Current: Codable, Equatable {
         let time: String?
         let temperature2m: Double?
         let apparentTemperature: Double?
@@ -50,7 +50,7 @@ struct ForecastResponse: Decodable, Equatable {
         }
     }
 
-    struct Hourly: Decodable, Equatable {
+    struct Hourly: Codable, Equatable {
         let time: [String]
         let temperature2m: [Double?]?
         let precipitationProbability: [Double?]?
@@ -78,7 +78,7 @@ struct ForecastResponse: Decodable, Equatable {
         }
     }
 
-    struct Daily: Decodable, Equatable {
+    struct Daily: Codable, Equatable {
         let time: [String]
         let temperature2mMax: [Double?]?
         let temperature2mMin: [Double?]?

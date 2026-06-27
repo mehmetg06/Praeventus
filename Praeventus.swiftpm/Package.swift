@@ -11,7 +11,10 @@ let sources = [
     "WeatherEndpoint.swift",
     "OpenMeteoModels.swift",
     "OpenMeteoClient.swift",
+    "WeatherModel.swift",
     "WeatherMapping.swift",
+    "WeatherFusion.swift",
+    "ForecastCache.swift",
     "WeatherData.swift",
     "LocalizedStringCompat.swift",
     "StorySentiment.swift",
@@ -22,6 +25,7 @@ let sources = [
     "MeteorologicalExpertSystem.swift",
     "ThermalPredictionEngine.swift",
     "HealthInsights.swift",
+    "SensorCalibration.swift",
     "WeatherStore.swift",
     // Activity system
     "Activity.swift",

@@ -36,8 +36,8 @@ struct OpenMeteoClient {
     /// Hourly steps to keep for the charts (next ~24h from "now").
     static let hourlyWindow = 24
 
-    func forecast(latitude: Double, longitude: Double) async throws -> ForecastResponse {
-        let items: [URLQueryItem] = [
+    func forecast(latitude: Double, longitude: Double, model: WeatherModel = .bestMatch) async throws -> ForecastResponse {
+        var items: [URLQueryItem] = [
             URLQueryItem(name: "latitude", value: trimmed(latitude)),
             URLQueryItem(name: "longitude", value: trimmed(longitude)),
             URLQueryItem(name: "current", value: [
@@ -62,10 +62,42 @@ struct OpenMeteoClient {
             URLQueryItem(name: "wind_speed_unit", value: "kmh")
         ]
 
+        // A single model id keeps the JSON keys un-suffixed, so the existing
+        // decoder works as-is. Omit for the server's blended default.
+        if model != .bestMatch {
+            items.append(URLQueryItem(name: "models", value: model.apiValue))
+        }
+
         guard let url = WeatherEndpoint.forecastURL(queryItems: items) else {
             throw WeatherClientError.badURL
         }
         return try await get(url, as: ForecastResponse.self)
+    }
+
+    /// Fetches several models concurrently for on-device fusion. Tolerates
+    /// partial failure: a model that errors is dropped; only throws when every
+    /// model fails (so the caller can fall back to cache or surface an error).
+    func forecast(latitude: Double, longitude: Double, models: [WeatherModel]) async throws -> [WeatherModel: ForecastResponse] {
+        guard !models.isEmpty else {
+            return [.bestMatch: try await forecast(latitude: latitude, longitude: longitude)]
+        }
+
+        let results = await withTaskGroup(of: (WeatherModel, ForecastResponse?).self) { group in
+            for model in models {
+                group.addTask {
+                    let response = try? await self.forecast(latitude: latitude, longitude: longitude, model: model)
+                    return (model, response)
+                }
+            }
+            var collected: [WeatherModel: ForecastResponse] = [:]
+            for await (model, response) in group {
+                if let response { collected[model] = response }
+            }
+            return collected
+        }
+
+        if results.isEmpty { throw WeatherClientError.noResults }
+        return results
     }
 
     func search(_ query: String, count: Int = 10) async throws -> [GeocodingResult] {

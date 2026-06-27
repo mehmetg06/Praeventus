@@ -22,6 +22,7 @@ struct WeatherLabView: View {
             }
             .listRowBackground(Color.white.opacity(0.03))
 
+            fusionSection
             timeAstronomySection
             biomeSection
             medicalSection
@@ -96,6 +97,52 @@ struct WeatherLabView: View {
                 accent: Color(red: 0.2, green: 0.4, blue: 1.0)
             )
         }
+    }
+
+    // MARK: - Data Fusion
+
+    @ViewBuilder
+    private var fusionSection: some View {
+        if let confidence = store.fusionConfidence {
+            Section {
+                VStack(spacing: 10) {
+                    AtmoBar(
+                        label: "MODEL AGREEMENT",
+                        value: confidence.agreement,
+                        accent: agreementColor(confidence.agreement)
+                    )
+                    AtmoRow(
+                        label: "TEMP SPREAD",
+                        value: String(format: "%.1f°C", confidence.temperatureSpreadC),
+                        accent: .cyan
+                    )
+                    AtmoRow(
+                        label: "MODELS",
+                        value: confidence.models.isEmpty ? "—" : confidence.models.joined(separator: " · "),
+                        accent: .cyan
+                    )
+                    if store.isStale {
+                        AtmoRow(label: "DATA", value: "CACHED / OFFLINE", accent: .orange)
+                    }
+                }
+                .padding(12)
+                .background(.white.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(.white.opacity(0.07), lineWidth: 0.5)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            } header: {
+                sectionLabel("DATA FUSION", "square.stack.3d.up.fill")
+            }
+            .listRowBackground(Color.white.opacity(0.03))
+        }
+    }
+
+    private func agreementColor(_ v: Double) -> Color {
+        if v < 0.5 { return .red }
+        if v < 0.8 { return .orange }
+        return .green
     }
 
     // MARK: - Time & Astronomy

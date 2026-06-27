@@ -42,6 +42,19 @@ struct PraeventusCLI {
             \(w.condition), humidity \(Int(w.humidity))%, wind \(Int(w.windSpeed)) km/h
             → hourly points: \(mapped.hourly.count), daily ranges: \(mapped.daily.count)
             """)
+
+            print("\nFusing \(WeatherModel.fusionSet.map(\.apiValue).joined(separator: ", "))…")
+            let keyed = try await client.forecast(
+                latitude: place.latitude, longitude: place.longitude, models: WeatherModel.fusionSet
+            )
+            let fused = WeatherFusion.fuse(keyed)
+            let fw = WeatherMapping.map(fused.response, city: place.name, country: place.country ?? "").weather
+            print("""
+            → models returned: \(keyed.count)/\(WeatherModel.fusionSet.count) \
+            (\(fused.confidence.models.joined(separator: ", ")))
+            → fused: \(Int(fw.temperature.rounded()))°C, \(fw.condition), \
+            agreement \(fused.confidence.agreementPercent)% (spread \(String(format: "%.1f", fused.confidence.temperatureSpreadC))°C)
+            """)
         } catch {
             print("Data-layer check failed: \(error)")
         }
