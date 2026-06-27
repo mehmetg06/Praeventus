@@ -43,8 +43,8 @@ enum ActivityType: String, CaseIterable, Codable {
     }
 }
 
-enum SuitabilityLevel: String, CaseIterable {
-    case unsuitable, poor, fair, good, excellent
+enum SuitabilityLevel: Int, CaseIterable {
+    case unsuitable = 0, poor = 1, fair = 2, good = 3, excellent = 4
 
     var displayName: String {
         switch self {
@@ -256,29 +256,29 @@ struct ActivitySuitability: Equatable, Identifiable {
 
 enum ActivityStorage {
     private static let userActivitiesKey = "praeventus_user_activities"
+    private static var cache: [Activity]? = nil
 
     static func saveActivities(_ activities: [Activity]) {
-        do {
-            let encoded = try JSONEncoder().encode(activities)
+        cache = activities
+        if let encoded = try? JSONEncoder().encode(activities) {
             UserDefaults.standard.set(encoded, forKey: userActivitiesKey)
-        } catch {
-            print("Error saving activities: \(error)")
         }
     }
 
     static func loadActivities() -> [Activity] {
-        guard let data = UserDefaults.standard.data(forKey: userActivitiesKey) else {
-            return Activity.defaults
+        if let cached = cache { return cached }
+        guard let data = UserDefaults.standard.data(forKey: userActivitiesKey),
+              let decoded = try? JSONDecoder().decode([Activity].self, from: data) else {
+            let defaults = Activity.defaults
+            cache = defaults
+            return defaults
         }
-        do {
-            return try JSONDecoder().decode([Activity].self, from: data)
-        } catch {
-            print("Error loading activities: \(error)")
-            return Activity.defaults
-        }
+        cache = decoded
+        return decoded
     }
 
     static func resetToDefaults() {
+        cache = nil
         UserDefaults.standard.removeObject(forKey: userActivitiesKey)
     }
 }
