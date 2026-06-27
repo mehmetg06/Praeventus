@@ -118,20 +118,12 @@ enum AtmosphericEngine {
         let rainSignal = AtmosphericRisk.from(rain)
         let stormRisk = AtmosphericRisk.from(stormScore)
         let mood = backgroundMood(for: resolvedCondition, stormScore: stormScore, rain: rain, visibilityScore: visibilityScore)
-        let story = buildStory(
-            weather: weather,
-            condition: resolvedCondition,
-            cloudCover: cloudCover,
-            instability: instability,
-            stormScore: stormScore,
-            visibility: visibility
-        )
 
         return AtmosphericState(
             condition: resolvedCondition,
             symbolName: resolvedCondition.symbolName,
             title: title(for: resolvedCondition, stormRisk: stormRisk, visibility: visibility),
-            story: story,
+            story: "",
             stormRisk: stormRisk,
             rainSignal: rainSignal,
             visibility: visibility,
@@ -182,39 +174,6 @@ enum AtmosphericEngine {
         case .fog: return String(localized: "title.fog", defaultValue: "Surface Fog Risk")
         case .snow: return String(localized: "title.snow", defaultValue: "Cold Precipitation Profile")
         }
-    }
-
-    private static func buildStory(
-        weather: WeatherData,
-        condition: WeatherCondition,
-        cloudCover: Double,
-        instability: Double,
-        stormScore: Double,
-        visibility: AtmosphericVisibility
-    ) -> String {
-        var parts: [String] = [weather.timeOfDay.storyPrefix]
-
-        if stormScore > 0.66 {
-            parts.append(String(localized: "engineStory.storm", defaultValue: "Humidity, low pressure and wind are acting together; the atmosphere is becoming unstable."))
-        } else if weather.rainProbability > 55 {
-            parts.append(String(localized: "engineStory.rain", defaultValue: "The precipitation signal is clear. Cloud cover and humidity are rising together."))
-        } else if visibility == .poor {
-            parts.append(String(localized: "engineStory.lowVisibility", defaultValue: "Surface humidity is high and mixing is weak; visibility may drop."))
-        } else if cloudCover > 0.65 {
-            parts.append(String(localized: "engineStory.cloudy", defaultValue: "Cloud cover is strong, but storm energy looks limited."))
-        } else if instability < 0.30 {
-            parts.append(String(localized: "engineStory.calm", defaultValue: "Pressure and humidity are balanced; the atmosphere is in a calmer phase."))
-        } else {
-            parts.append(String(localized: "engineStory.transition", defaultValue: "The atmosphere is in transition; small short-term changes may be felt."))
-        }
-
-        if weather.windSpeed > 55 {
-            parts.append(String(localized: "engineStory.windStrong", defaultValue: "Wind is strong, making the felt conditions and cloud motion more pronounced."))
-        } else if weather.windSpeed < 8 && weather.humidity > 80 {
-            parts.append(String(localized: "engineStory.windWeak", defaultValue: "Because wind is weak, humidity may linger near the surface."))
-        }
-
-        return parts.joined(separator: " ")
     }
 
     private static func clamp(_ value: Double) -> Double {

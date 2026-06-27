@@ -133,8 +133,7 @@ enum AstronomicalEngine {
 
     static func sunTiming(at date: Date, latitude: Double, longitude: Double) -> SunTiming {
         let sunrise = calculateSunriseTime(date: date, latitude: latitude, longitude: longitude, isRise: true)
-        let sunset = calculateSunsetTime(date: date, latitude: latitude, longitude: longitude, isRise: false)
-
+        let sunset = calculateSunriseTime(date: date, latitude: latitude, longitude: longitude, isRise: false)
         return SunTiming(sunrise: sunrise, sunset: sunset)
     }
 
@@ -194,10 +193,6 @@ enum AstronomicalEngine {
         dayComponent.timeZone = TimeZone.current
 
         return calendar.date(from: dayComponent) ?? date
-    }
-
-    private static func calculateSunsetTime(date: Date, latitude: Double, longitude: Double, isRise: Bool) -> Date {
-        calculateSunriseTime(date: date, latitude: latitude, longitude: longitude, isRise: false)
     }
 
     private static func getHourAngle(at date: Date, longitude: Double, sunLongitude: Double) -> Double {

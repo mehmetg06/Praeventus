@@ -93,7 +93,7 @@ struct OpenMeteoClient {
         request.httpMethod = "GET"
         // Generic UA; the proxy overwrites it anyway, but be polite when direct.
         request.setValue("Praeventus/1.0 (privacy-weather)", forHTTPHeaderField: "User-Agent")
-        request.cachePolicy = .reloadRevalidatingCacheData
+        request.cachePolicy = .useProtocolCachePolicy
 
         let data: Data
         let response: URLResponse

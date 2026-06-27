@@ -395,9 +395,9 @@ enum MeteorologicalExpertSystem {
     private static func windPhrase(_ w: NarrativeWind, speed: Int) -> String {
         switch w {
         case .calm: return "rüzgâr sakin, hava neredeyse kıpırtısız"
-        case .breeze: return "\(speed) km/s civarında tatlı bir esinti var"
-        case .windy: return "\(speed) km/s rüzgâr havaya belirgin bir hareket katıyor"
-        case .harsh: return "\(speed) km/s rüzgâr sert esiyor ve dengeyi bozacak kadar güçlü"
+        case .breeze: return "\(speed) km/h civarında tatlı bir esinti var"
+        case .windy: return "\(speed) km/h rüzgâr havaya belirgin bir hareket katıyor"
+        case .harsh: return "\(speed) km/h rüzgâr sert esiyor ve dengeyi bozacak kadar güçlü"
         }
     }
 

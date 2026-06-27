@@ -24,7 +24,10 @@ struct HourlyPoint: Identifiable, Equatable {
         lhs.uvIndex == rhs.uvIndex &&
         lhs.windSpeed == rhs.windSpeed &&
         lhs.windDirection == rhs.windDirection &&
-        lhs.windGustSpeed == rhs.windGustSpeed
+        lhs.windGustSpeed == rhs.windGustSpeed &&
+        lhs.humidity == rhs.humidity &&
+        lhs.dewPoint == rhs.dewPoint &&
+        lhs.visibility == rhs.visibility
     }
 }
 
@@ -49,7 +52,10 @@ struct DailyRange: Identifiable, Equatable {
 
     static func == (lhs: DailyRange, rhs: DailyRange) -> Bool {
         lhs.date == rhs.date && lhs.min == rhs.min && lhs.max == rhs.max &&
-        lhs.uvIndexMax == rhs.uvIndexMax && lhs.windSpeedMax == rhs.windSpeedMax
+        lhs.feelsLikeMin == rhs.feelsLikeMin && lhs.feelsLikeMax == rhs.feelsLikeMax &&
+        lhs.uvIndexMax == rhs.uvIndexMax && lhs.windSpeedMax == rhs.windSpeedMax &&
+        lhs.windGustMax == rhs.windGustMax && lhs.precipitationAmount == rhs.precipitationAmount &&
+        lhs.condition == rhs.condition && lhs.sunrise == rhs.sunrise && lhs.sunset == rhs.sunset
     }
 }
 
@@ -151,7 +157,7 @@ enum WeatherMapping {
 
             return HourlyPoint(
                 date: date,
-                hour: hour(fromISO: hourly.time[i]) ?? 0,
+                hour: Calendar.current.component(.hour, from: date),
                 temperature: temp,
                 precipitationProbability: prob,
                 condition: condition(forWMOCode: code),
