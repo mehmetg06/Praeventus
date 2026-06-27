@@ -237,8 +237,9 @@ struct HomeView: View {
         storyCard
         HealthInsightsCard(insights: store.healthInsights)
         rotatingMetricCard
-        if !recommendedActivities.isEmpty {
-            activitySuitabilityCard
+        let activities = recommendedActivities
+        if !activities.isEmpty {
+            activitySuitabilityCard(activities)
         }
         astronomicalCard
         hourlyPreview
@@ -251,8 +252,9 @@ struct HomeView: View {
         AstronomicalCard(analysis: store.astronomicalAnalysis(at: Date()))
     }
 
-    private var activitySuitabilityCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
+    private func activitySuitabilityCard(_ activities: [ActivitySuitability]) -> some View {
+        let top = Array(activities.prefix(3))
+        return VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 9) {
                 Image(systemName: "figure.walk")
                     .font(.system(size: 13, weight: .semibold))
@@ -264,7 +266,7 @@ struct HomeView: View {
             .foregroundStyle(.white.opacity(0.56))
 
             VStack(spacing: 0) {
-                ForEach(Array(recommendedActivities.prefix(3).enumerated()), id: \.offset) { index, suitability in
+                ForEach(Array(top.enumerated()), id: \.offset) { index, suitability in
                     VStack(spacing: 0) {
                         HStack(spacing: 14) {
                             ZStack {
@@ -300,7 +302,7 @@ struct HomeView: View {
                         }
                         .padding(.vertical, 12)
 
-                        if index < recommendedActivities.prefix(3).count - 1 {
+                        if index < top.count - 1 {
                             Rectangle()
                                 .fill(.white.opacity(0.08))
                                 .frame(height: 0.5)
@@ -463,7 +465,7 @@ struct HomeView: View {
                             GeometryReader { geometry in
                                 Capsule()
                                     .fill(Color.white)
-                                    .frame(width: storyBarWidth(for: index, totalWidth: geometry.size.width))
+                                    .frame(width: storyBarWidth(for: index, totalWidth: geometry.size.width, metricsCount: metrics.count))
                             }
                         }
                 }
@@ -530,8 +532,8 @@ struct HomeView: View {
         }
     }
 
-    private func storyBarWidth(for index: Int, totalWidth: CGFloat) -> CGFloat {
-        let safeIndex = currentMetricIndex % max(1, rotatingMetrics.count)
+    private func storyBarWidth(for index: Int, totalWidth: CGFloat, metricsCount: Int) -> CGFloat {
+        let safeIndex = currentMetricIndex % max(1, metricsCount)
         if index < safeIndex {
             return totalWidth
         } else if index > safeIndex {

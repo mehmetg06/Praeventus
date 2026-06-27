@@ -138,16 +138,16 @@ enum WeatherMapping {
 
         return (startIndex..<endIndex).compactMap { i in
             guard let date = date(fromISO: hourly.time[i]) else { return nil }
-            let temp = temps.indices.contains(i) ? (temps[i] ?? 0) : 0
-            let prob = probs.indices.contains(i) ? (probs[i] ?? 0) : 0
-            let code = codes.indices.contains(i) ? codes[i] : nil
-            let uv = uvs.indices.contains(i) ? (uvs[i] ?? 0) : 0
-            let wind = windSpeeds.indices.contains(i) ? (windSpeeds[i] ?? 0) : 0
-            let windDir = windDirs.indices.contains(i) ? (windDirs[i] ?? 0) : 0
-            let gust = windGusts.indices.contains(i) ? (windGusts[i] ?? 0) : 0
-            let humidity = humidities.indices.contains(i) ? Double(humidities[i] ?? 0) : 0
-            let dew = dewPoints.indices.contains(i) ? (dewPoints[i] ?? 0) : 0
-            let vis = visibilities.indices.contains(i) ? (visibilities[i] ?? 10) : 10
+            let temp = safe(temps, at: i, or: 0.0)
+            let prob = safe(probs, at: i, or: 0.0)
+            let code: Int? = i < codes.count ? codes[i] : nil
+            let uv = safe(uvs, at: i, or: 0.0)
+            let wind = safe(windSpeeds, at: i, or: 0.0)
+            let windDir: Int = safe(windDirs, at: i, or: 0)
+            let gust = safe(windGusts, at: i, or: 0.0)
+            let humidity = Double(safe(humidities, at: i, or: 0))
+            let dew = safe(dewPoints, at: i, or: 0.0)
+            let vis = safe(visibilities, at: i, or: 10.0)
 
             return HourlyPoint(
                 date: date,
@@ -183,18 +183,18 @@ enum WeatherMapping {
 
         return daily.time.indices.compactMap { i in
             guard let date = date(fromISO: daily.time[i]) else { return nil }
-            let lo = mins.indices.contains(i) ? (mins[i] ?? 0) : 0
-            let hi = maxes.indices.contains(i) ? (maxes[i] ?? 0) : 0
-            let feelsLoMin = feelsLikeMins.indices.contains(i) ? (feelsLikeMins[i] ?? lo) : lo
-            let feelsLoMax = feelsLikeMaxes.indices.contains(i) ? (feelsLikeMaxes[i] ?? hi) : hi
-            let uv = uvMaxes.indices.contains(i) ? (uvMaxes[i] ?? 0) : 0
-            let windMax = windMaxes.indices.contains(i) ? (windMaxes[i] ?? 0) : 0
-            let windDir = windDirs.indices.contains(i) ? (windDirs[i] ?? 0) : 0
-            let gustMax = windGustMaxes.indices.contains(i) ? (windGustMaxes[i] ?? 0) : 0
-            let precip = precips.indices.contains(i) ? (precips[i] ?? 0) : 0
-            let code = codes.indices.contains(i) ? codes[i] : nil
-            let sunriseTime = sunrises.indices.contains(i) ? Self.date(fromISO: sunrises[i] ?? "") : nil
-            let sunsetTime = sunsets.indices.contains(i) ? Self.date(fromISO: sunsets[i] ?? "") : nil
+            let lo = safe(mins, at: i, or: 0.0)
+            let hi = safe(maxes, at: i, or: 0.0)
+            let feelsLoMin = safe(feelsLikeMins, at: i, or: lo)
+            let feelsLoMax = safe(feelsLikeMaxes, at: i, or: hi)
+            let uv = safe(uvMaxes, at: i, or: 0.0)
+            let windMax = safe(windMaxes, at: i, or: 0.0)
+            let windDir: Int = safe(windDirs, at: i, or: 0)
+            let gustMax = safe(windGustMaxes, at: i, or: 0.0)
+            let precip = safe(precips, at: i, or: 0.0)
+            let code: Int? = i < codes.count ? codes[i] : nil
+            let sunriseTime = i < sunrises.count ? sunrises[i].flatMap(Self.date(fromISO:)) : nil
+            let sunsetTime = i < sunsets.count ? sunsets[i].flatMap(Self.date(fromISO:)) : nil
 
             return DailyRange(
                 date: date,
@@ -250,6 +250,13 @@ enum WeatherMapping {
         // Daily entries are date-only ("yyyy-MM-dd").
         let dayFormatter = dayFormatter
         return dayFormatter.date(from: iso)
+    }
+
+    // MARK: - Array helpers
+
+    /// Bounds-safe access for nullable arrays returned by Open-Meteo.
+    private static func safe<T>(_ array: [T?], at index: Int, or fallback: T) -> T {
+        index < array.count ? (array[index] ?? fallback) : fallback
     }
 
     private static let isoFormatter: DateFormatter = {
