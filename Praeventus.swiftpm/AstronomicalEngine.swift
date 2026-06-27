@@ -124,8 +124,9 @@ enum AstronomicalEngine {
 
         let H = getHourAngle(at: date, longitude: longitude, sunLongitude: alpha)
 
-        let altitude = asin(sin(latitude.toRadians()) * sin(delta.toRadians())
-            + cos(latitude.toRadians()) * cos(delta.toRadians()) * cos(H.toRadians())).toDegrees()
+        let sinAlt = sin(latitude.toRadians()) * sin(delta.toRadians())
+            + cos(latitude.toRadians()) * cos(delta.toRadians()) * cos(H.toRadians())
+        let altitude = asin(max(-1, min(1, sinAlt))).toDegrees()
 
         return max(-90, min(90, altitude))
     }
