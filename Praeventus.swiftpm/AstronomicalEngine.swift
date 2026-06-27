@@ -155,9 +155,12 @@ enum AstronomicalEngine {
         if L < 0 { L += 360 }
 
         var RA = atan(0.91764 * tan(L.toRadians())).toDegrees()
-        var RA_QUAD = floor(L / 90) * 90
-        RA_QUAD = floor(RA_QUAD / 90) * 90
-        RA = RA + RA_QUAD - RA
+        if RA < 0 { RA += 360 }
+        // Right ascension must land in the same quadrant as the Sun's true
+        // longitude L; nudge it by the difference of their quadrants.
+        let lQuadrant = floor(L / 90) * 90
+        let raQuadrant = floor(RA / 90) * 90
+        RA = RA + (lQuadrant - raQuadrant)
         RA = RA / 15.0
 
         let sinDec = 0.39782 * sin(L.toRadians())
@@ -205,7 +208,10 @@ enum AstronomicalEngine {
         }
 
         let localTime = Double(hour) + Double(minute) / 60.0 + Double(second) / 3600.0
-        var gha = 15 * (12 - (localTime - Double(Calendar.current.component(.hour, from: Date())) + longitude / 15.0))
+        // Convert the analyzed date's wall-clock to UTC via its zone offset, so
+        // altitude depends only on `date` — not on when the app happens to run.
+        let utcOffsetHours = Double(TimeZone.current.secondsFromGMT(for: date)) / 3600.0
+        var gha = 15 * (12 - (localTime - utcOffsetHours + longitude / 15.0))
         gha = fmod(gha, 360)
         if gha < 0 { gha += 360 }
 
