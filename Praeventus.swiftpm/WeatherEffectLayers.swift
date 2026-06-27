@@ -17,6 +17,16 @@ fileprivate func wHash(_ n: Int) -> Double {
     hashLookup[abs(n) % 1024]
 }
 
+// Gradient allocated once; `drawBead` scales opacity via GraphicsContext.opacity instead of
+// creating a new Gradient(stops:) on every bead every frame.
+private let beadBodyGradient = Gradient(stops: [
+    .init(color: .white.opacity(0.02), location: 0.0),
+    .init(color: .white.opacity(0.10), location: 0.55),
+    .init(color: .white.opacity(0.04), location: 0.74),
+    .init(color: .white.opacity(0.34), location: 0.94),
+    .init(color: .white.opacity(0.0),  location: 1.0)
+])
+
 // MARK: - Rain On Glass (lens droplets)
 
 /// Simulates water condensing on the camera lens / screen: a field of resting
@@ -86,32 +96,27 @@ struct RaindropGlassLayer: View {
 /// a bright total-internal-reflection rim, and a crisp specular highlight.
 fileprivate func drawBead(_ context: GraphicsContext, center: CGPoint, radius r: CGFloat, alpha: Double) {
     let a = min(1.0, max(0.0, alpha))
+    // Copy context and set opacity once; all draws below inherit the scale factor,
+    // avoiding per-call alpha multiplication in every color literal.
+    var ctx = context
+    ctx.opacity = a
     let rect = CGRect(x: center.x - r, y: center.y - r, width: r * 2, height: r * 2)
 
     // Refraction shadow, nudged down for a sense of a raised lens.
     let shadowRect = rect.offsetBy(dx: 0, dy: r * 0.32)
-    context.fill(Path(ellipseIn: shadowRect.insetBy(dx: r * 0.10, dy: r * 0.10)),
-                 with: .color(.black.opacity(0.10 * a)))
+    ctx.fill(Path(ellipseIn: shadowRect.insetBy(dx: r * 0.10, dy: r * 0.10)),
+             with: .color(.black.opacity(0.10)))
 
-    // Body: nearly clear center, brightening to a luminous rim.
-    let body = GraphicsContext.Shading.radialGradient(
-        Gradient(stops: [
-            .init(color: .white.opacity(0.02 * a), location: 0.0),
-            .init(color: .white.opacity(0.10 * a), location: 0.55),
-            .init(color: .white.opacity(0.04 * a), location: 0.74),
-            .init(color: .white.opacity(0.34 * a), location: 0.94),
-            .init(color: .white.opacity(0.0), location: 1.0)
-        ]),
-        center: center, startRadius: 0, endRadius: r
-    )
-    context.fill(Path(ellipseIn: rect), with: body)
+    // Body: reuses pre-allocated file-level gradient; no heap allocation per bead.
+    ctx.fill(Path(ellipseIn: rect), with: .radialGradient(
+        beadBodyGradient, center: center, startRadius: 0, endRadius: r))
 
     // Specular highlight, upper-left like a single overhead light source.
     let hr = r * 0.40
     let hRect = CGRect(x: center.x - r * 0.34 - hr / 2,
                        y: center.y - r * 0.40 - hr / 2,
                        width: hr, height: hr)
-    context.fill(Path(ellipseIn: hRect), with: .color(.white.opacity(0.55 * a)))
+    ctx.fill(Path(ellipseIn: hRect), with: .color(.white.opacity(0.55)))
 }
 
 // MARK: - Volumetric Rain (falling streaks + splashes)
@@ -263,20 +268,14 @@ struct LightningStormLayer: View {
                         let bolt = boltPath(seed: strikeSeed, size: size)
                         let boltAlpha = max(0.0, 1.0 - dt / 0.42) * (0.55 + flash)
 
-                        // Outer glow.
-                        context.drawLayer { layer in
-                            layer.addFilter(.blur(radius: 13))
-                            layer.stroke(bolt,
-                                         with: .color(Color(red: 0.66, green: 0.78, blue: 1.0).opacity(min(1, boltAlpha) * 0.65)),
-                                         style: StrokeStyle(lineWidth: 9, lineCap: .round, lineJoin: .round))
-                        }
+                        // Outer glow — thick low-opacity stroke behind bolt path, same visual as blur without GPU filter.
+                        context.stroke(bolt,
+                                       with: .color(Color(red: 0.66, green: 0.78, blue: 1.0).opacity(min(1, boltAlpha) * 0.18)),
+                                       style: StrokeStyle(lineWidth: 20, lineCap: .round, lineJoin: .round))
                         // Mid halo.
-                        context.drawLayer { layer in
-                            layer.addFilter(.blur(radius: 4))
-                            layer.stroke(bolt,
-                                         with: .color(.white.opacity(min(1, boltAlpha) * 0.9)),
-                                         style: StrokeStyle(lineWidth: 3.6, lineCap: .round, lineJoin: .round))
-                        }
+                        context.stroke(bolt,
+                                       with: .color(.white.opacity(min(1, boltAlpha) * 0.35)),
+                                       style: StrokeStyle(lineWidth: 8, lineCap: .round, lineJoin: .round))
                         // Hot core.
                         context.stroke(bolt,
                                        with: .color(.white.opacity(min(1, boltAlpha))),
@@ -476,7 +475,6 @@ struct VolumetricCloudLayer: View {
                 }
             }
         }
-        .blur(radius: performanceMode ? 0 : (scattered ? 7 : 5))
         .ignoresSafeArea()
     }
 
@@ -566,7 +564,6 @@ struct DriftingFogLayer: View {
                 context.fill(Path(baseRect), with: .color(.white.opacity(0.11)))
             }
         }
-        .blur(radius: performanceMode ? 0 : 34)
         .ignoresSafeArea()
     }
 }
