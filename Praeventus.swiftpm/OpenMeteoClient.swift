@@ -18,16 +18,19 @@ enum WeatherClientError: Error, Equatable {
 struct OpenMeteoClient {
 
     private let session: URLSession
-    private let decoder: JSONDecoder
 
-    init(session: URLSession = .shared) {
-        self.session = session
-        self.decoder = JSONDecoder()
-        self.decoder.nonConformingFloatDecodingStrategy = .convertFromString(
+    private static let sharedDecoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.nonConformingFloatDecodingStrategy = .convertFromString(
             positiveInfinity: "Infinity",
             negativeInfinity: "-Infinity",
             nan: "NaN"
         )
+        return d
+    }()
+
+    init(session: URLSession = .shared) {
+        self.session = session
     }
 
     /// Hourly steps to keep for the charts (next ~24h from "now").
@@ -105,7 +108,7 @@ struct OpenMeteoClient {
         }
 
         do {
-            return try decoder.decode(T.self, from: data)
+            return try Self.sharedDecoder.decode(T.self, from: data)
         } catch {
             throw WeatherClientError.transport("decode: \(error.localizedDescription)")
         }

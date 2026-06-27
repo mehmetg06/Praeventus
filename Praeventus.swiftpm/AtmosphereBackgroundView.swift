@@ -298,6 +298,7 @@ struct AtmosphereBackgroundView: View {
                 )
             }
         }
+        .drawingGroup()
         .blur(radius: 0.5)
         .ignoresSafeArea()
     }
@@ -352,6 +353,7 @@ struct AtmosphereBackgroundView: View {
                     .offset(x: -75, y: 24)
             }
             .scaleEffect(breathe ? 1.045 : 1.0)
+            .drawingGroup()
             .blendMode(.screen)
             .position(x: geometry.size.width * 0.84, y: geometry.size.height * 0.16)
             .opacity(0.98)
