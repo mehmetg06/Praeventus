@@ -110,7 +110,7 @@ enum WeatherMapping {
             windGustSpeed: current.windGusts10m ?? 0,
             uvIndex: Int((current.uvIndex ?? 0).rounded()),
             dewPoint: current.dewPoint2m ?? 0,
-            visibility: current.visibility ?? 10,
+            visibility: (current.visibility ?? 10000) / 1000,
             rainProbability: current.precipitationProbability ?? 0,
             hour: hour
         )
@@ -153,7 +153,7 @@ enum WeatherMapping {
             let gust = safe(windGusts, at: i, or: 0.0)
             let humidity = Double(safe(humidities, at: i, or: 0))
             let dew = safe(dewPoints, at: i, or: 0.0)
-            let vis = safe(visibilities, at: i, or: 10.0)
+            let vis = safe(visibilities, at: i, or: 10000.0) / 1000.0
 
             return HourlyPoint(
                 date: date,

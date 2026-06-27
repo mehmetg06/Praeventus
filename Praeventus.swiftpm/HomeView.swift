@@ -622,9 +622,7 @@ struct HomeView: View {
     }
 
     private var visibilityKmDisplay: String {
-        // Open-Meteo returns visibility in meters; convert to km for display.
-        let km = weather.visibility > 200 ? weather.visibility / 1000 : weather.visibility
-        return "\(Int(km.rounded()))"
+        "\(Int(weather.visibility.rounded()))"
     }
 
     // MARK: - Search actions
