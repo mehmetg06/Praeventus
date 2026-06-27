@@ -306,72 +306,51 @@ struct AtmosphereBackgroundView: View {
 
     private var sunDiskLayer: some View {
         GeometryReader { geometry in
+            let sunX = geometry.size.width * 0.84
+            let sunY = geometry.size.height * 0.16
+
             ZStack {
-                // Outer solar glow — RadialGradient fades to .clear naturally; no blur needed.
+                // Layer 1: Sky Wash — full-screen radial glow anchored at sun position.
+                // endRadius 900 guarantees the edge is never visible on any device.
+                RadialGradient(
+                    colors: [
+                        Color(red: 1.0, green: 0.85, blue: 0.4).opacity(0.15),
+                        .clear
+                    ],
+                    center: UnitPoint(x: 0.84, y: 0.16),
+                    startRadius: 0,
+                    endRadius: 900
+                )
+
+                // Layer 2: Corona — gradient stops replace blur for smooth falloff.
+                // Only this layer's opacity animates; no scaleEffect, no blendMode.
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [
-                                .white.opacity(0.88),
-                                Color(red: 1.0, green: 0.92, blue: 0.56).opacity(0.68),
-                                Color(red: 1.0, green: 0.70, blue: 0.22).opacity(0.22),
-                                Color(red: 1.0, green: 0.60, blue: 0.18).opacity(0.05),
-                                .clear
+                            stops: [
+                                .init(color: .white.opacity(0.6), location: 0.0),
+                                .init(color: Color(red: 1.0, green: 0.7, blue: 0.2).opacity(0.3), location: 0.55),
+                                .init(color: .clear, location: 1.0)
                             ],
                             center: .center,
                             startRadius: 0,
-                            endRadius: 155
+                            endRadius: 125
                         )
                     )
-                    .frame(width: 310, height: 310)
-
-                // Inner disc — only this layer carries the breathe animation so the
-                // large glow and streak shapes are never recomposited per-frame.
-                Circle()
-                    .fill(.white.opacity(0.92))
-                    .frame(width: 90, height: 90)
-                    .blur(radius: 1.5)
-                    .scaleEffect(breathe ? 1.045 : 1.0)
-                    .animation(.easeInOut(duration: 16).repeatForever(autoreverses: true), value: breathe)
-
-                // Chromatic ring — 118 pt diameter, 2.2 blur is negligible without a drawingGroup.
-                Circle()
-                    .stroke(
-                        AngularGradient(
-                            colors: [
-                                Color(red: 1.0, green: 0.58, blue: 0.18).opacity(0.20),
-                                Color(red: 0.58, green: 0.82, blue: 1.0).opacity(0.14),
-                                Color(red: 1.0, green: 0.58, blue: 0.18).opacity(0.20)
-                            ],
-                            center: .center
-                        ),
-                        lineWidth: 1.2
+                    .frame(width: 250, height: 250)
+                    .opacity(breathe ? 1.0 : 0.7)
+                    .animation(
+                        .easeInOut(duration: 8 / animSpeed).repeatForever(autoreverses: true),
+                        value: breathe
                     )
-                    .frame(width: 118, height: 118)
-                    .blur(radius: 2.2)
+                    .position(x: sunX, y: sunY)
 
-                // Lens-flare streak — LinearGradient fades to .clear on both ends; no blur.
-                Ellipse()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                .clear,
-                                Color(red: 1.0, green: 0.78, blue: 0.30).opacity(0.14),
-                                Color(red: 1.0, green: 0.82, blue: 0.40).opacity(0.18),
-                                Color(red: 1.0, green: 0.78, blue: 0.30).opacity(0.14),
-                                .clear
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: 480, height: 90)
-                    .rotationEffect(.degrees(-30))
-                    .offset(x: -75, y: 24)
+                // Layer 3: Core — sharp, pure white disc.
+                Circle()
+                    .fill(.white.opacity(0.95))
+                    .frame(width: 44, height: 44)
+                    .position(x: sunX, y: sunY)
             }
-            .blendMode(.screen)
-            .position(x: geometry.size.width * 0.84, y: geometry.size.height * 0.16)
-            .opacity(0.98)
         }
         .ignoresSafeArea()
     }
