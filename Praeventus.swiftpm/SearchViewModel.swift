@@ -44,8 +44,9 @@ final class SearchViewModel: ObservableObject {
     /// Handle to the most recent search task so it can be cancelled on new input.
     private var searchTask: Task<Void, Never>?
 
-    /// In-memory result cache: trimmed-lowercase query → results.
+    /// In-memory result cache: trimmed-lowercase query → results. Capped to avoid unbounded growth.
     private var cache: [String: [GeocodingResult]] = [:]
+    private static let cacheLimit = 100
 
     init(client: OpenMeteoClient = OpenMeteoClient()) {
         self.client = client
@@ -90,6 +91,7 @@ final class SearchViewModel: ObservableObject {
         do {
             let results = try await client.search(query)
             guard !Task.isCancelled else { return }
+            if cache.count >= Self.cacheLimit { cache.removeAll() }
             cache[query.lowercased()] = results
             suggestions = results
             isShowingSuggestions = true

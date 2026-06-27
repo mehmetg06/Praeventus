@@ -23,6 +23,7 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
 
     private let manager = CLLocationManager()
     private var continuation: CheckedContinuation<CLLocationCoordinate2D, Error>?
+    private var timeoutTask: Task<Void, Never>?
 
     override init() {
         self.authorization = manager.authorizationStatus
@@ -47,6 +48,11 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
             return try await withCheckedThrowingContinuation { cont in
                 self.continuation = cont
                 self.manager.requestLocation()
+                self.timeoutTask = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 15_000_000_000)
+                    guard !Task.isCancelled else { return }
+                    self.finish(.failure(LocationError.unavailable))
+                }
             }
         default:
             throw LocationError.denied
@@ -100,6 +106,8 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     private func finish(_ result: Result<CLLocationCoordinate2D, Error>) {
+        timeoutTask?.cancel()
+        timeoutTask = nil
         guard let cont = continuation else { return }
         continuation = nil
         cont.resume(with: result)

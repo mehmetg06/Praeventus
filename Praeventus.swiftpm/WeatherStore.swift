@@ -159,7 +159,7 @@ final class WeatherStore: ObservableObject {
         if let pressure { next.pressure = pressure }
         if let windSpeed { next.windSpeed = windSpeed }
         if let rainProbability { next.rainProbability = rainProbability }
-        next.feelsLike = next.temperature + max(0, next.humidity - 55) / 18
+        next.feelsLike = Self.feelsLike(temperature: next.temperature, humidity: next.humidity, windSpeed: next.windSpeed)
         publish(next)
     }
 
@@ -179,7 +179,7 @@ final class WeatherStore: ObservableObject {
             city: String(localized: "lab.city", defaultValue: "Mock City"),
             country: String(localized: "lab.country", defaultValue: "Weather Lab"),
             temperature: temp,
-            feelsLike: temp + max(0, humidity - 55) / 18,
+            feelsLike: Self.feelsLike(temperature: temp, humidity: humidity, windSpeed: wind),
             condition: condition,
             humidity: humidity,
             pressure: pressure,
