@@ -264,12 +264,32 @@ private extension Double {
 
 // MARK: - The narrative matrix
 
+private enum NarrativePressure: String {
+    case stormyFall, softFall, balanced, clearing, strongClearing
+}
+
+private enum NarrativeGradient: String {
+    case plunging, cooling, steady, warming, surging
+}
+
+private enum NarrativeRain: String {
+    case dry, possible, likely, downpour
+}
+
+private enum NarrativeWind: String {
+    case calm, breeze, windy, harsh
+}
+
+private enum NarrativeHazard: String {
+    case none, muggy, dryHeat, uv, windChill, frostbite, gusts, fog, falseCool, stormHeat
+}
+
 enum MeteorologicalExpertSystem {
 
     /// Single Turkish paragraph describing the reconciled state of the air.
-    /// Dispatches on the thermal regime, then pattern-matches pressure tendency,
-    /// temperature gradient, wind and precipitation. No generic `default` is
-    /// used: every regime exhausts the pressure-tendency space explicitly.
+    /// The thermal regime picks the vocabulary family; every regime then runs
+    /// a five-dimensional matrix over pressure tendency, temperature trend,
+    /// precipitation probability, wind class and the dominant hazard signal.
     static func narrative(for dyn: AtmosphericDynamics) -> String {
         switch dyn.regime {
         case .extremeHeat: return extremeHeat(dyn)
@@ -284,208 +304,306 @@ enum MeteorologicalExpertSystem {
         }
     }
 
-    // MARK: Extreme heat (apparent >= 41 °C)
+    // MARK: Dimension classifiers
+
+    private static func pressure(_ tendency: PressureTendency) -> NarrativePressure {
+        switch tendency {
+        case .fallingFast: return .stormyFall
+        case .falling: return .softFall
+        case .steady: return .balanced
+        case .rising: return .clearing
+        case .risingFast: return .strongClearing
+        }
+    }
+
+    private static func gradient(_ trend: TemperatureGradient) -> NarrativeGradient {
+        switch trend {
+        case .plunging: return .plunging
+        case .cooling: return .cooling
+        case .steady: return .steady
+        case .warming: return .warming
+        case .surging: return .surging
+        }
+    }
+
+    private static func rain(_ probability: Double) -> NarrativeRain {
+        switch probability {
+        case 80...: return .downpour
+        case 55..<80: return .likely
+        case 25..<55: return .possible
+        default: return .dry
+        }
+    }
+
+    private static func wind(_ speed: Double) -> NarrativeWind {
+        switch speed {
+        case 45...: return .harsh
+        case 25..<45: return .windy
+        case 8..<25: return .breeze
+        default: return .calm
+        }
+    }
+
+    private static func hazard(_ hazards: WeatherHazard) -> NarrativeHazard {
+        if hazards.contains(.frostbite) { return .frostbite }
+        if hazards.contains(.deceptiveCooling) { return .falseCool }
+        if hazards.contains(.mugginess) && hazards.contains(.stormApproaching) { return .stormHeat }
+        if hazards.contains(.mugginess) { return .muggy }
+        if hazards.contains(.dryHeat) { return .dryHeat }
+        if hazards.contains(.windChill) { return .windChill }
+        if hazards.contains(.gustWind) { return .gusts }
+        if hazards.contains(.lowVisibility) { return .fog }
+        if hazards.contains(.uvBurn) { return .uv }
+        return .none
+    }
+
+    private static func matrix(_ d: AtmosphericDynamics) -> (NarrativePressure, NarrativeGradient, NarrativeRain, NarrativeWind, NarrativeHazard) {
+        (pressure(d.pressureTendency), gradient(d.temperatureGradient), rain(d.rainProbability), wind(d.windSpeed), hazard(d.hazards))
+    }
+
+    // MARK: Shared language bricks
+
+    private static func pressurePhrase(_ p: NarrativePressure) -> String {
+        switch p {
+        case .stormyFall: return "basınç hızlı düşüyor; hava, uzakta toparlanan bir cepheyi haber veriyor"
+        case .softFall: return "basınç yavaşça geriliyor; gökyüzü değişime açık"
+        case .balanced: return "basınç dengede; atmosfer şimdilik büyük bir manevra yapmıyor"
+        case .clearing: return "basınç yükseliyor; gökyüzü açılmaya ve hava kurumaya meyilli"
+        case .strongClearing: return "basınç güçlü yükseliyor; açık ve kararlı hava kendini iyice kabul ettiriyor"
+        }
+    }
+
+    private static func trendPhrase(_ g: NarrativeGradient) -> String {
+        switch g {
+        case .plunging: return "sıcaklık belirgin biçimde aşağı süzülüyor"
+        case .cooling: return "sıcaklık usul usul geriliyor"
+        case .steady: return "sıcaklık çizgisini büyük ölçüde koruyor"
+        case .warming: return "sıcaklık nazikçe tırmanıyor"
+        case .surging: return "sıcaklık kısa sürede atak yapıyor"
+        }
+    }
+
+    private static func rainPhrase(_ r: NarrativeRain) -> String {
+        switch r {
+        case .dry: return "yağmur ihtimali düşük"
+        case .possible: return "kısa süreli bir yağmur ihtimali masada"
+        case .likely: return "sağanak olasılığı belirgin"
+        case .downpour: return "yağış ihtimali çok yüksek; gökyüzü su bırakmaya hazır"
+        }
+    }
+
+    private static func windPhrase(_ w: NarrativeWind, speed: Int) -> String {
+        switch w {
+        case .calm: return "rüzgâr sakin, hava neredeyse kıpırtısız"
+        case .breeze: return "\(speed) km/s civarında tatlı bir esinti var"
+        case .windy: return "\(speed) km/s rüzgâr havaya belirgin bir hareket katıyor"
+        case .harsh: return "\(speed) km/s rüzgâr sert esiyor ve dengeyi bozacak kadar güçlü"
+        }
+    }
+
+    private static func hazardPhrase(_ h: NarrativeHazard) -> String {
+        switch h {
+        case .none: return "öne çıkan ek bir risk yok"
+        case .muggy: return "yapış yapış nem havayı olduğundan ağır hissettiriyor"
+        case .dryHeat: return "kuru sıcak, su kaybını sessizce hızlandırıyor"
+        case .uv: return "UV yüksek; güneş cilt üzerinde hızlı iz bırakabilir"
+        case .windChill: return "rüzgârın soğutması iliklerinize kadar işleyen bir ayaz yaratıyor"
+        case .frostbite: return "açıkta kalan cilt için donma riski ciddileşiyor"
+        case .gusts: return "ani hamleler şemsiye, bisiklet ve gevşek eşyalar için sorun çıkarabilir"
+        case .fog: return "pus ve düşük görüş mesafesi çevreyi olduğundan daha yakın gösteriyor"
+        case .falseCool: return "bu bir yalancı serinleme; sayı düşse de güneş ve ısı yükü hâlâ baskın"
+        case .stormHeat: return "nemli sıcak ile düşen basınç aynı anda çalışıyor; fırtına öncesi o ağır hava hissi var"
+        }
+    }
+
+    private static func advice(regime: ThermalRegime, rain: NarrativeRain, wind: NarrativeWind, hazard: NarrativeHazard, gradient: NarrativeGradient) -> String {
+        switch (regime, rain, wind, hazard, gradient) {
+        case (.extremeHeat, .downpour, .harsh, .stormHeat, .surging): return "Serin bir kapalı alana geçin, telefonunuzu şarjlı tutun ve fırtına yaklaşırsa pencerelerden uzak durun."
+        case (.extremeHeat, .likely, .windy, .falseCool, .cooling): return "Rakamların düşüşüne kanmayın; gölgede kalın, suyu küçük yudumlarla sık için ve şemsiyeyi de çantaya atın."
+        case (.extremeHeat, _, _, _, _): return "Günün en sıcak bölümünde dışarı çıkmayın; serin bir ortam, bol su ve ağır efordan kaçınmak bugün en doğru üçlü."
+        case (.oppressive, .downpour, _, .stormHeat, _): return "Ani yaz sağanağına karşı şemsiyenizi alın, ama kapalı alanda bile su içmeyi ihmal etmeyin."
+        case (.oppressive, _, .calm, .muggy, _): return "Hava kıpırtısızken nem daha çok çöker; sık mola verin, serin duş veya vantilatörle vücudu rahatlatın."
+        case (.oppressive, _, _, _, _): return "Nefes aldıran açık renkli kıyafet seçin, temponuzu düşürün ve suyu beklemeden için."
+        case (.hot, .dry, .breeze, .dryHeat, _): return "Tatlı esinti sizi kandırmasın; şapka, güneş kremi ve düzenli su molası şart."
+        case (.hot, _, .harsh, .dryHeat, _): return "Kuru ve sert rüzgârda gözleri ve cildi koruyun; mümkünse doğrudan güneş-rüzgâr hattında uzun kalmayın."
+        case (.hot, _, _, _, _): return "Gölgeden yararlanın, güneş koruyucu kullanın ve yoğun işi sabah erken ya da akşamüstüne bırakın."
+        case (.warm, .likely, _, _, _): return "Planınız açık havadaysa hafif bir yağmurluk alın ve bulutlar hızla kabarırsa kapalı bir alternatife geçin."
+        case (.warm, .dry, .calm, .uv, _): return "Gökyüzü pırıl pırılken güneş kremi sürün ve öğle saatlerinde kısa gölge molaları verin."
+        case (.warm, _, _, _, _): return "Hafif giyinin, ama çantada ince bir katman veya küçük bir şemsiye bulundurmak planınızı kurtarır."
+        case (.mild, .downpour, _, _, _): return "Ilık havaya aldanmayın; su geçirmez ayakkabı ve küçük bir yağmurluk günü çok daha rahat geçirir."
+        case (.mild, _, .harsh, .gusts, _): return "Rüzgârda uçabilecek eşyaları sabitleyin ve bisiklet ya da scooter kullanıyorsanız hızınızı düşürün."
+        case (.mild, _, _, .fog, _): return "Yola çıkacaksanız farları açık tutun, takip mesafesini artırın ve acele etmeyin."
+        case (.mild, _, _, _, _): return "Dışarı çıkmak için güzel bir pencere; yine de akşama kalacaksanız ince bir katman alın."
+        case (.cool, .likely, _, _, _): return "İnce ama su geçirmeyen bir katman alın; serin yağmur vücut ısısını beklenenden hızlı düşürür."
+        case (.cool, _, .windy, .windChill, _): return "Rüzgârı kesen hafif bir mont giyin; özellikle boyun ve kulakları açık bırakmayın."
+        case (.cool, _, _, .fog, _): return "Sisli serinlikte görünür olmak için açık renkli kıyafet veya reflektör kullanın."
+        case (.cool, _, _, _, _): return "Katmanlı giyin; ince bir mont gün boyunca konforu belirgin artırır."
+        case (.cold, .likely, _, _, _): return "Sıcak ve su geçirmez bir dış katman seçin, kaldırım ve köprülerde kaygan zemine dikkat edin."
+        case (.cold, _, .harsh, .windChill, _): return "Rüzgâr geçirmeyen mont, bere ve eldiven kullanın; açıkta kalan cildi azaltın."
+        case (.cold, _, _, _, .plunging): return "Akşama kalacaksanız bir katman daha ekleyin ve buzlanmaya açık gölgeli zeminlerde yavaş yürüyün."
+        case (.cold, _, _, _, _): return "Sıcak tutan katmanlarla çıkın ve uzun süre hareketsiz kalmamaya özen gösterin."
+        case (.frost, _, _, .frostbite, _): return "Eldiven, bere ve yüz koruması kullanın; zorunlu değilse dışarıdaki süreyi kısa tutun."
+        case (.frost, .likely, _, _, _): return "Kar veya buzlu yağışa karşı tabanı sağlam ayakkabı giyin ve araçla çıkacaksanız camları tamamen temizleyin."
+        case (.frost, _, .harsh, .windChill, _): return "Rüzgâr geçirmeyen çok katmanlı giyinin; kulak, burun ve parmak uçlarını mutlaka örtün."
+        case (.frost, _, _, _, _): return "Katmanlı giyinin, açıkta su bırakmayın ve sabah saatlerinde buzlanmaya karşı temkinli olun."
+        case (.extremeCold, _, _, .frostbite, _): return "Mümkünse dışarı çıkmayın; çıkmanız gerekiyorsa tüm cildi kapatın ve dönüş yolunu önceden planlayın."
+        case (.extremeCold, .likely, .harsh, _, _): return "Seyahati ertelemek en güvenlisi; zorunluysa araçta battaniye, su ve şarjlı telefon bulundurun."
+        case (.extremeCold, _, _, _, _): return "Dışarıda kalma süresini dakikalarla sınırlayın, çok katmanlı giyinin ve yalnız yürümemeye çalışın."
+        }
+    }
+
+    private static func paragraph(for regime: ThermalRegime, d: AtmosphericDynamics, opening: String) -> String {
+        let dims = matrix(d)
+        let (p, g, r, w, h) = dims
+        let amb = Int(d.ambient.rounded())
+        let feels = Int(d.thermalIndex.rounded())
+        let speed = Int(d.windSpeed.rounded())
+
+        if dims == (.stormyFall, .plunging, .downpour, .harsh, .frostbite) {
+            return "\(opening) Termometre \(amb)°C, hissedilen \(feels)°C; \(pressurePhrase(p)), \(trendPhrase(g)), \(rainPhrase(r)) ve \(windPhrase(w, speed: speed)). \(hazardPhrase(h)). \(advice(regime: regime, rain: r, wind: w, hazard: h, gradient: g))"
+        }
+        if dims == (.stormyFall, .surging, .downpour, .harsh, .stormHeat) {
+            return "\(opening) Hissedilen \(feels)°C; \(pressurePhrase(p)), \(trendPhrase(g)), \(rainPhrase(r)) ve \(windPhrase(w, speed: speed)). \(hazardPhrase(h)). \(advice(regime: regime, rain: r, wind: w, hazard: h, gradient: g))"
+        }
+        if dims == (.stormyFall, .cooling, .likely, .windy, .falseCool) {
+            return "\(opening) \(trendPhrase(g).capitalized) ama serinlik güven vermiyor; \(pressurePhrase(p)), \(rainPhrase(r)) ve \(windPhrase(w, speed: speed)). \(hazardPhrase(h)). \(advice(regime: regime, rain: r, wind: w, hazard: h, gradient: g))"
+        }
+        if dims == (.softFall, .warming, .likely, .breeze, .muggy) {
+            return "\(opening) \(amb)°C civarında hava ısınırken \(pressurePhrase(p)); \(rainPhrase(r)) ve \(windPhrase(w, speed: speed)). \(hazardPhrase(h)); hissedilen \(feels)°C'ye yaklaşıyor. \(advice(regime: regime, rain: r, wind: w, hazard: h, gradient: g))"
+        }
+        if dims == (.balanced, .steady, .dry, .calm, .none) {
+            return "\(opening) \(amb)°C civarında yalın ve sakin bir tablo var; \(pressurePhrase(p)), \(trendPhrase(g)), \(rainPhrase(r)) ve \(windPhrase(w, speed: speed)). \(hazardPhrase(h)). \(advice(regime: regime, rain: r, wind: w, hazard: h, gradient: g))"
+        }
+        if dims == (.balanced, .warming, .dry, .breeze, .uv) {
+            return "\(opening) Gökyüzü pırıl pırıl; \(trendPhrase(g)), \(rainPhrase(r)) ve \(windPhrase(w, speed: speed)). \(hazardPhrase(h)); hissedilen değer \(feels)°C. \(advice(regime: regime, rain: r, wind: w, hazard: h, gradient: g))"
+        }
+        if dims == (.clearing, .cooling, .dry, .windy, .windChill) {
+            return "\(opening) \(pressurePhrase(p)) fakat \(trendPhrase(g)); \(rainPhrase(r)) ve \(windPhrase(w, speed: speed)). \(hazardPhrase(h)); hissedilen \(feels)°C. \(advice(regime: regime, rain: r, wind: w, hazard: h, gradient: g))"
+        }
+        if dims == (.strongClearing, .plunging, .dry, .calm, .fog) {
+            return "\(opening) Açılan gökyüzüne rağmen yüzeyde serin ve puslu bir katman kalmış; \(pressurePhrase(p)), \(trendPhrase(g)), \(rainPhrase(r)) ve \(windPhrase(w, speed: speed)). \(hazardPhrase(h)). \(advice(regime: regime, rain: r, wind: w, hazard: h, gradient: g))"
+        }
+        if dims == (.clearing, .surging, .dry, .breeze, .dryHeat) {
+            return "\(opening) \(pressurePhrase(p)); \(trendPhrase(g)), \(rainPhrase(r)) ve \(windPhrase(w, speed: speed)). \(hazardPhrase(h)); hissedilen \(feels)°C olsa da su kaybı hızlıdır. \(advice(regime: regime, rain: r, wind: w, hazard: h, gradient: g))"
+        }
+
+        return "\(opening) Termometre \(amb)°C, hissedilen \(feels)°C; \(pressurePhrase(p)), \(trendPhrase(g)), \(rainPhrase(r)) ve \(windPhrase(w, speed: speed)). Ayrıca \(hazardPhrase(h)). \(advice(regime: regime, rain: r, wind: w, hazard: h, gradient: g))"
+    }
+
+    // MARK: Regime-specific matrices
 
     private static func extremeHeat(_ d: AtmosphericDynamics) -> String {
-        let amb = Int(d.ambient.rounded())
-        let feels = Int(d.thermalIndex.rounded())
-        let wind = Int(d.windSpeed.rounded())
-
-        switch (d.pressureTendency, d.temperatureGradient) {
-        case (_, .cooling) where d.hazards.contains(.deceptiveCooling),
-             (_, .plunging) where d.hazards.contains(.deceptiveCooling):
-            return "Termometre \(amb)°C'den birkaç derece düşüyor olabilir, ancak bu yalancı bir serinleme. Güneş hâlâ tepede ve UV radyasyonu yakıcı; vücudun ısı yükü hissedilen \(feels)°C seviyesinde devam ediyor. Sayıların gerilemesine aldanmayın, gölgeye geçin ve doğrudan güneşe çıkmayın."
-        case (.fallingFast, _) where d.hazards.contains(.mugginess):
-            return "Hava bunaltıcı sıcak ve hissedilen sıcaklık \(feels)°C'ye dayanıyor; üstelik basınç hızla düşüyor. Yüksek nem terlemenin soğutmasını engellerken, çöken barometre yaklaşan şiddetli bir cephe sistemini işaret ediyor. Önce aşırı sıcağa, ardından ani fırtınaya karşı hazırlıklı olun."
-        case (.fallingFast, _), (.falling, _):
-            return "Hissedilen sıcaklık \(feels)°C ile ölümcül eşikte ve basınç düşüyor. Bu kavurucu sıcağın üzerine yaklaşan bir hava değişimi ekleniyor; gün içinde patlak verebilecek sağanak öncesi atmosfer iyice gerginleşiyor. Açık havada bulunmayın, serin ve kapalı alanda kalın."
-        case (.steady, .surging), (.steady, .warming),
-             (.rising, .surging), (.rising, .warming), (.risingFast, _):
-            return "Hava hissedilen \(feels)°C ile tehlikeli sıcak ve hâlâ ısınıyor; yüksek basınç sıcak hava kütlesini yerinde tutuyor. Bu kararlı, kızgın kubbe altında gölge bile yetersiz kalır. Fiziksel eforu tamamen erteleyin, bol sıvı alın ve serinde kalın."
-        case (.steady, _):
-            return "Hissedilen sıcaklık \(feels)°C ile sıcak çarpması sınırında ve atmosfer durağan; ne rüzgâr ne basınç değişimi bir rahatlama getiriyor (\(wind) km/s esinti dahi sıcak hava akımı gibi). Güneşin en dik olduğu saatlerde kesinlikle dışarı çıkmayın."
-        case (.rising, _):
-            return "Hissedilen sıcaklık \(feels)°C ile aşırı yüksek; basınç toparlanıyor, yani gökyüzü açık ve güneş radyasyonu tam güçte kalacak. Serinleme beklemeyin, kapalı ve serin bir ortamı tercih edin, su tüketimini artırın."
+        switch matrix(d) {
+        case let (p, g, r, w, h) where h == .falseCool:
+            return paragraph(for: .extremeHeat, d: d, opening: "Bu serinleme görüntüsü aldatıcı; aşırı sıcak hâlâ bedenin üzerinde ağır bir battaniye gibi duruyor.")
+        case let (p, g, r, w, h) where h == .stormHeat || p == .stormyFall || r == .downpour:
+            return paragraph(for: .extremeHeat, d: d, opening: "Çok sıcak, çok nemli ve gökyüzü huzursuz; fırtına öncesi bunaltı kendini belli ediyor.")
+        case let (p, g, r, w, h) where w == .harsh || h == .dryHeat:
+            return paragraph(for: .extremeHeat, d: d, opening: "Kavurucu sıcak sert ve kuru bir hava akımıyla birleşmiş; bu, serinlik değil saç kurutma etkisi yaratır.")
+        case let (p, g, r, w, h):
+            return paragraph(for: .extremeHeat, d: d, opening: "Hava ağır, yakıcı ve vücut için yorucu; gölge bile bugün sınırlı rahatlık verir.")
         }
     }
-
-    // MARK: Oppressive (hot + muggy: apparent 32–41 °C, dew point >= 22 °C)
 
     private static func oppressive(_ d: AtmosphericDynamics) -> String {
-        let amb = Int(d.ambient.rounded())
-        let feels = Int(d.thermalIndex.rounded())
-        let dp = Int(d.dewPoint.rounded())
-
-        switch (d.pressureTendency, d.temperatureGradient) {
-        case (.fallingFast, _), (.falling, _):
-            return "Termometre \(amb)°C gösterse de çiy noktası \(dp)°C'ye çıkmış bunaltıcı bir nem var ve basınç düşüyor; yaklaşan bir fırtına hissediliyor. Bu nemde ter buharlaşamadığı için vücut hissedilen \(feels)°C'yi taşıyor. Hem boğucu sıcağa hem de patlayabilecek gök gürültülü sağanağa karşı tedbirli olun."
-        case (.steady, .surging), (.steady, .warming),
-             (.rising, .surging), (.rising, .warming):
-            return "Hava \(amb)°C ama çiy noktası \(dp)°C ile havayı boğucu kılıyor ve sıcaklık hâlâ tırmanıyor. Yükselen basınç bu nemli sıcak kütleyi üzerinizde sabitliyor; hissedilen \(feels)°C giderek ağırlaşacak. Gölge ve serin mola şart, ağır eforu erteleyin."
-        case (.steady, .plunging), (.steady, .cooling),
-             (.rising, .plunging), (.rising, .cooling), (.risingFast, _):
-            return "Sıcaklık \(amb)°C'den geriliyor, fakat çiy noktası \(dp)°C'de kaldığı için hava hâlâ boğucu; nem, gerilemeyi gerçek bir ferahlığa çevirmiyor. Hissedilen değer \(feels)°C civarında ağır seyrediyor. Yine de gölgede ve sıvı alarak ilerleyin."
-        case (.steady, _):
-            return "Hava \(amb)°C, ancak \(dp)°C çiy noktasıyla yapışkan ve boğucu bir nem hâkim; atmosfer durağan, ne rüzgâr ne basınç değişimi nemi dağıtıyor. Hissedilen sıcaklık \(feels)°C ile gerçek değerin epey üzerinde. Terleme yetersiz soğuttuğu için temkinli olun."
-        case (.rising, _):
-            return "Hava \(amb)°C ve çiy noktası \(dp)°C ile bunaltıcı; basınç yükselip nemli kütleyi yerinde tutuyor, yani boğuculuk inatçı olacak. Hissedilen \(feels)°C'de evaporatif serinleme zayıf çalışıyor; bol su için ve serinde kalın."
+        switch matrix(d) {
+        case let (p, g, r, w, h) where h == .stormHeat:
+            return paragraph(for: .oppressive, d: d, opening: "Yapış yapış nem ile düşen basınç birleşmiş; hava fırtına öncesi gibi ağırlaşıyor.")
+        case let (p, g, r, w, h) where w == .calm && (h == .muggy || h == .uv):
+            return paragraph(for: .oppressive, d: d, opening: "Rüzgâr olmayınca nem üzerinize çöküyor; boğucu sıcak daha da yoğun hissediliyor.")
+        case let (p, g, r, w, h) where g == .cooling || g == .plunging:
+            return paragraph(for: .oppressive, d: d, opening: "Sıcaklık gerilese bile nem yerinde duruyor; ferahlama eksik ve ağır.")
+        case let (p, g, r, w, h):
+            return paragraph(for: .oppressive, d: d, opening: "Nemli sıcak havayı kalınlaştırmış; nefes aldıran değil, yavaşlatan bir atmosfer var.")
         }
     }
-
-    // MARK: Hot, drier air (apparent 32–41 °C, dew point < 22 °C)
 
     private static func hot(_ d: AtmosphericDynamics) -> String {
-        let amb = Int(d.ambient.rounded())
-        let feels = Int(d.thermalIndex.rounded())
-        let wind = Int(d.windSpeed.rounded())
-
-        switch (d.pressureTendency, d.temperatureGradient) {
-        case (_, .cooling) where d.hazards.contains(.deceptiveCooling),
-             (_, .plunging) where d.hazards.contains(.deceptiveCooling):
-            return "Termometreler birkaç derece düşse de bu serinleme aldatıcı; güneş hâlâ dik ve UV yüksek, radyasyon tehlikesi sürüyor. Hissedilen sıcaklık \(feels)°C seviyesinde tutunuyor. Rakamların inişine değil, tepenizdeki yakıcı güneşe göre davranın."
-        case (.fallingFast, _), (.falling, _):
-            return "Hava \(amb)°C ile yakıcı sıcak ve nem düşük olsa da basınç geriliyor; kuru sıcağın ardından bir hava değişimi yaklaşıyor. Düşük nem terlemeyi hızla buharlaştırıp sizi farkında olmadan susuz bırakabilir. Hem sıcağa hem de sonrasında gelebilecek ani rüzgâr ve sağanağa hazırlıklı olun."
-        case (_, _) where d.hazards.contains(.dryHeat) && d.windSpeed >= 20:
-            return "Hava \(amb)°C ve nem çok düşük; üstelik \(wind) km/s'lik kuru rüzgâr serinletmek yerine cildi ve solunumu kurutuyor (Föhn/saç kurutma etkisi). Hissedilen \(feels)°C'de su kaybı sinsi ve hızlı olur. Sık sık su için, doğrudan rüzgâr ve güneşten korunun."
-        case (.steady, .surging), (.steady, .warming),
-             (.rising, .surging), (.rising, .warming), (.risingFast, _):
-            return "Hava \(amb)°C ile kavurucu ve hâlâ ısınıyor; yüksek basınç açık gökyüzünü ve güçlü güneşi koruyor. Hissedilen sıcaklık \(feels)°C'ye doğru tırmanacak. Yoğun aktiviteyi günün serin saatlerine alın, gölge ve hidrasyonu öne çıkarın."
-        case (.steady, _):
-            return "Hava \(amb)°C ile yakıcı sıcak, atmosfer durağan ve kuru; basınç sabit, belirgin bir değişim sinyali yok. Hissedilen \(feels)°C'de en büyük risk fark edilmeyen su kaybı. Gölge, güneş koruyucu ve yavaş tempo bugünün önceliği."
-        case (.rising, _):
-            return "Hava \(amb)°C ile çok sıcak ve basınç yükseliyor; gökyüzü açılıp güneş radyasyonu tam güçte kalacak, serinleme beklemeyin. Hissedilen \(feels)°C'de bol su için, güneşin tepede olduğu saatlerde gölgeyi tercih edin."
+        switch matrix(d) {
+        case let (p, g, r, w, h) where h == .falseCool:
+            return paragraph(for: .hot, d: d, opening: "Rakamlar biraz inse de bu yalancı serinleme; güneşin yakıcılığı hâlâ oyunda.")
+        case let (p, g, r, w, h) where h == .dryHeat && (w == .windy || w == .harsh):
+            return paragraph(for: .hot, d: d, opening: "Kuru sıcak rüzgârla birleşmiş; hava cildi ve boğazı hızla kurutan bir akışa dönmüş.")
+        case let (p, g, r, w, h) where p == .stormyFall || p == .softFall:
+            return paragraph(for: .hot, d: d, opening: "Sıcak güçlü, fakat basınçtaki düşüş havanın gün içinde yön değiştirebileceğini söylüyor.")
+        case let (p, g, r, w, h):
+            return paragraph(for: .hot, d: d, opening: "Yakıcı ama daha kuru bir sıcak var; gökyüzünün parlaklığı ısıyı keskinleştiriyor.")
         }
     }
-
-    // MARK: Warm (apparent 24–32 °C)
 
     private static func warm(_ d: AtmosphericDynamics) -> String {
-        let amb = Int(d.ambient.rounded())
-        let feels = Int(d.thermalIndex.rounded())
-
-        switch (d.pressureTendency, d.temperatureGradient) {
-        case (.fallingFast, _):
-            return "Hava \(amb)°C ile hoş ölçüde sıcak, ancak basınç hızla düşüyor; konforlu bu tablonun arkasından gök gürültülü sağanak getirebilecek bir cephe yaklaşıyor. Dışarıdaki planlarınızı esnek tutun ve gökyüzündeki hızlı değişime dikkat edin."
-        case (.falling, _) where d.rainProbability >= 55:
-            return "Sıcaklık \(amb)°C ile keyifli, fakat basınç geriliyor ve yağış olasılığı belirginleşiyor. Önümüzdeki saatlerde sağanak ihtimali artıyor; yanınızda küçük bir yağmurluk bulundurmak yerinde olur."
-        case (.falling, _):
-            return "Hava \(amb)°C ile rahat bir sıcaklıkta, ama düşen basınç önümüzdeki saatlerde bulutlanma ve olası yağışın habercisi. Şimdilik keyifli; yine de hava değişimine açık olun."
-        case (.steady, .surging), (.steady, .warming):
-            return "Hava \(amb)°C ve ısınmaya devam ediyor; durağan, kararlı atmosferde gün ilerledikçe daha sıcak hissedilecek (hissedilen ~\(feels)°C). Açık hava planları için elverişli, sadece güneşin en güçlü saatlerinde gölgeyi kollayın."
-        case (.steady, _) where d.hazards.contains(.lowVisibility):
-            return "Sıcaklık \(amb)°C ile ılık, fakat yüzeydeki nem ve zayıf karışım görüşü düşürüyor; basınç sabit, ani bir değişim yok. Sıcaklık konforlu olsa da yolda görüş için ekstra dikkat ve mesafe bırakın."
-        case (.steady, _):
-            return "Hava \(amb)°C ile konforlu ve kararlı; basınç dengede, belirgin bir yağış ya da fırtına sinyali yok. Günlük açık hava planları için ideal bir pencere, hafif bir kıyafet yeterli olacaktır."
-        case (.rising, _), (.risingFast, _):
-            return "Hava \(amb)°C ile keyifli ve basınç yükseliyor; yükselen barometre açık, kararlı ve kuru bir hava demek. Önümüzdeki saatler dışarısı için güvenli görünüyor, planlarınızı rahatça yapabilirsiniz."
+        switch matrix(d) {
+        case let (p, g, r, w, h) where r == .likely || r == .downpour:
+            return paragraph(for: .warm, d: d, opening: "Sıcaklık keyifli, ama yağmur ihtimali bu rahat tabloya hareket katıyor.")
+        case let (p, g, r, w, h) where h == .uv && (g == .warming || g == .surging):
+            return paragraph(for: .warm, d: d, opening: "Ilık-sıcak çizgide pırıl pırıl bir hava var; güneş kendini cömertçe hissettiriyor.")
+        case let (p, g, r, w, h) where w == .windy || w == .harsh:
+            return paragraph(for: .warm, d: d, opening: "Sıcaklık konforlu, fakat rüzgâr havaya dinamik ve yer yer savruk bir karakter veriyor.")
+        case let (p, g, r, w, h):
+            return paragraph(for: .warm, d: d, opening: "Hava genel olarak hoş; ne bunaltıcı ne serin, açık hava için davetkâr bir denge var.")
         }
     }
-
-    // MARK: Mild (apparent 16–24 °C)
 
     private static func mild(_ d: AtmosphericDynamics) -> String {
-        let amb = Int(d.ambient.rounded())
-
-        switch (d.pressureTendency, d.temperatureGradient) {
-        case (.fallingFast, _), (.falling, _) where d.rainProbability >= 55:
-            return "Hava \(amb)°C ile ılıman ve oldukça konforlu, ancak basınç düşüyor ve yağış sinyali güçleniyor; yaklaşan bir hava sistemi sağanak getirebilir. Keyifli bu havada bile yanınıza ince bir yağmurluk almak akıllıca olur."
-        case (.falling, _):
-            return "Sıcaklık \(amb)°C ile tam kıvamında ılık, fakat gerileyen basınç önümüzdeki saatlerde bulutlanmanın ve hava değişiminin habercisi. Şimdilik açık hava için ideal; gelişmeleri takip edin."
-        case (.steady, _) where d.hazards.contains(.lowVisibility):
-            return "Hava \(amb)°C ile ılıman ve durağan, ancak yüzey nemi yüksek ve görüş düşük; sis ya da pus yolculuğu yavaşlatabilir. Sıcaklık konforlu olsa da farların açık olması ve dikkatli sürüş önemli."
-        case (.steady, .plunging), (.steady, .cooling):
-            return "Hava \(amb)°C ile ılıman ve atmosfer sakin, fakat sıcaklık yavaşça düşüyor; özellikle güneş çekildikten sonra hafif serinleme hissedilebilir. Yanınıza ince bir katman almak akşam için yeterli olur."
-        case (.steady, _):
-            return "Hava \(amb)°C ile son derece konforlu; basınç dengede, atmosfer sakin ve belirgin bir risk sinyali yok. Açık havada vakit geçirmek için günün en elverişli koşullarından biri."
-        case (.rising, _), (.risingFast, _):
-            return "Hava \(amb)°C ile hoş ve basınç yükseliyor; barometrenin tırmanışı açık, kararlı ve kuru bir gökyüzünün işareti. Önümüzdeki saatler dışarısı için güvenli ve keyifli görünüyor."
+        switch matrix(d) {
+        case let (p, g, r, w, h) where h == .fog:
+            return paragraph(for: .mild, d: d, opening: "Ilık havanın üzerinde puslu bir perde var; sıcaklık rahat ama görüş mesafesi naz istiyor.")
+        case let (p, g, r, w, h) where r == .likely || r == .downpour:
+            return paragraph(for: .mild, d: d, opening: "Sıcaklık tam kıvamında, ancak yağmur olasılığı günün ritmini değiştirebilir.")
+        case let (p, g, r, w, h) where g == .cooling || g == .plunging:
+            return paragraph(for: .mild, d: d, opening: "Ilıman hava yavaşça serin tarafa dönüyor; özellikle gölgede fark edilir bir düşüş var.")
+        case let (p, g, r, w, h):
+            return paragraph(for: .mild, d: d, opening: "Hava yumuşak, dengeli ve insanı dışarı çağıran cinsten.")
         }
     }
-
-    // MARK: Cool (apparent 8–16 °C)
 
     private static func cool(_ d: AtmosphericDynamics) -> String {
-        let amb = Int(d.ambient.rounded())
-        let wind = Int(d.windSpeed.rounded())
-
-        switch (d.pressureTendency, d.temperatureGradient) {
-        case (_, _) where d.hazards.contains(.lowVisibility):
-            return "Hava \(amb)°C ile serin ve yüzeydeki nem görüşü düşürüyor; pus veya sis sürüş ve yürüyüşü yavaşlatabilir. Hafif bir mont ve farların açık olması; yola çıkarken ekstra süre tanıyın."
-        case (.fallingFast, _), (.falling, _):
-            return "Hava \(amb)°C ile serin ve basınç düşüyor; yaklaşan bir cephe bulutlanma ile birlikte yağış ve rüzgâr getirebilir. İnce bir su geçirmez katman önümüzdeki saatler için isabetli olacaktır."
-        case (.steady, .plunging), (.steady, .cooling):
-            return "Hava \(amb)°C ile serin ve sıcaklık kademeli düşüyor; güneş çekildikçe, özellikle gölgede daha da serin hissedilecek. Sıcak tutan bir katman, dışarıda birkaç dakikadan fazla kalacaksanız işinizi görür."
-        case (.steady, _) where d.windSpeed >= 25:
-            return "Hava \(amb)°C ile serin ve \(wind) km/s rüzgâr vücut ısısını hızla alıp havayı olduğundan soğuk hissettiriyor. Rüzgâr kesici bir dış katman bu koşulda belirgin fark yaratır."
-        case (.steady, _):
-            return "Hava \(amb)°C ile serin ama kararlı; basınç dengede, belirgin bir yağış ya da fırtına sinyali yok. Mevsim normalinde, ince bir mont ile rahat bir gün."
-        case (.rising, _), (.risingFast, _):
-            return "Hava \(amb)°C ile serin ve basınç yükseliyor; açılan, kuruyan gökyüzü gündüz hafif bir ısınma getirebilir ama gece açık gökyüzü altında serinleme belirginleşir. Katmanlı giyinmek günün geneli için en pratik çözüm."
+        switch matrix(d) {
+        case let (p, g, r, w, h) where h == .fog:
+            return paragraph(for: .cool, d: d, opening: "Serin hava pusla birleşmiş; çevre yumuşak ama görüş biraz kısıtlı.")
+        case let (p, g, r, w, h) where h == .windChill || w == .windy || w == .harsh:
+            return paragraph(for: .cool, d: d, opening: "Serinlik rüzgârla keskinleşiyor; ince kumaşların arasından sızan bir üşütme var.")
+        case let (p, g, r, w, h) where r == .likely || r == .downpour:
+            return paragraph(for: .cool, d: d, opening: "Serin ve nemli bir tablo oluşuyor; yağmur gelirse hava daha çabuk üşütür.")
+        case let (p, g, r, w, h):
+            return paragraph(for: .cool, d: d, opening: "Hava serin ama yönetilebilir; doğru katmanla dışarısı gayet rahat.")
         }
     }
-
-    // MARK: Cold (apparent 0–8 °C)
 
     private static func cold(_ d: AtmosphericDynamics) -> String {
-        let amb = Int(d.ambient.rounded())
-        let feels = Int(d.thermalIndex.rounded())
-        let wind = Int(d.windSpeed.rounded())
-
-        switch (d.pressureTendency, d.temperatureGradient) {
-        case (_, _) where d.hazards.contains(.windChill) && d.windSpeed >= 25:
-            return "Termometre \(amb)°C gösteriyor ama \(wind) km/s şiddetindeki rüzgâr ısıyı söküp alıyor; rüzgârın etkisiyle hava hissedilen \(feels)°C ile donma noktasına yaklaşıyor, ayaz var. Rüzgâr kesici giyin, açıkta kalan cildi örtün."
-        case (.fallingFast, _), (.falling, _):
-            return "Hava \(amb)°C ile soğuk ve basınç düşüyor; yaklaşan sistem nemi artırıp yağış, hatta yeterince soğursa karla karışık yağış getirebilir. Sıcak, su geçirmez katmanlar ve kaygan zeminlere karşı dikkat işinizi görecek."
-        case (.steady, .plunging), (.steady, .cooling):
-            return "Hava \(amb)°C ile soğuk ve sıcaklık daha da düşüyor; özellikle güneş battıktan sonra ayaz belirginleşecek. Birkaç katman giyin, köprü ve gölgeli yollardaki olası buzlanmaya karşı tedbirli olun."
-        case (.steady, _) where d.windSpeed >= 20:
-            return "Hava \(amb)°C ile soğuk ve \(wind) km/s rüzgâr soğuğu derinleştiriyor; hissedilen sıcaklık \(feels)°C'ye iniyor. Rüzgârı kesen sıcak bir dış katman bu koşulda kritik."
-        case (.steady, _):
-            return "Hava \(amb)°C ile soğuk ama atmosfer kararlı; basınç dengede, belirgin bir yağış sinyali yok. Sıcak tutan bir katmanla dışarısı yönetilebilir, yine de uzun süre açıkta kalmamaya özen gösterin."
-        case (.rising, _), (.risingFast, _):
-            return "Hava \(amb)°C ile soğuk ve basınç yükseliyor; açılan gökyüzü gündüz az ısınma sağlasa da gece radyatif soğuma ile ayaz ve don riski artar. Katmanlı giyinin, sabah saatlerinde buzlanmaya dikkat edin."
+        switch matrix(d) {
+        case let (p, g, r, w, h) where h == .windChill || w == .harsh:
+            return paragraph(for: .cold, d: d, opening: "Soğuk hava rüzgârla dişini gösteriyor; hissedilen değer termometreden daha sert.")
+        case let (p, g, r, w, h) where r == .likely || r == .downpour:
+            return paragraph(for: .cold, d: d, opening: "Soğuk havaya yağış ihtimali eklenmiş; zemin ve kıyafet seçimi daha önemli hale geliyor.")
+        case let (p, g, r, w, h) where g == .plunging || g == .cooling:
+            return paragraph(for: .cold, d: d, opening: "Soğuk zaten belirgin, üstüne sıcaklık biraz daha aşağı iniyor.")
+        case let (p, g, r, w, h):
+            return paragraph(for: .cold, d: d, opening: "Hava soğuk ama düzenli; doğru giyinince yönetilebilir bir kış serinliği var.")
         }
     }
-
-    // MARK: Frost (apparent -10 to 0 °C)
 
     private static func frost(_ d: AtmosphericDynamics) -> String {
-        let amb = Int(d.ambient.rounded())
-        let feels = Int(d.thermalIndex.rounded())
-        let wind = Int(d.windSpeed.rounded())
-
-        switch (d.pressureTendency, d.temperatureGradient) {
-        case (_, _) where d.hazards.contains(.windChill) && d.windSpeed >= 20:
-            return "Termometre \(amb)°C olsa da \(wind) km/s rüzgârla hava donma noktasının altında, hissedilen \(feels)°C ile sert bir ayaz var. Bu rüzgârda açıktaki cilt hızla soğur; tüm cildi örtün, katmanlı ve rüzgâr geçirmez giyinin."
-        case (.fallingFast, _), (.falling, _):
-            return "Hava donma noktasında, hissedilen \(feels)°C ve basınç düşüyor; yaklaşan sistem yeterli nemle birlikte kar veya karla karışık yağış getirebilir. Yollarda buzlanma ihtimaline ve kaygan zeminlere karşı hazırlıklı olun."
-        case (.steady, .plunging), (.steady, .cooling):
-            return "Hava donuyor (hissedilen \(feels)°C) ve sıcaklık düşmeye devam ediyor; gece boyunca ayaz ve don sertleşecek. Sıcak katmanlar şart, açıkta kalan yüzeylerde ve yollarda buzlanmaya dikkat edin."
-        case (.steady, _):
-            return "Hava donma noktası civarında, hissedilen \(feels)°C ile ayazlı; atmosfer durağan, belirgin yağış sinyali yok. Soğuk inatçı; katmanlı giyinin ve uzun süre açıkta kalmaktan kaçının."
-        case (.rising, _), (.risingFast, _):
-            return "Hava donuyor (hissedilen \(feels)°C) ve basınç yükseliyor; açık gökyüzü gündüz çok az ısınma getirse de gece radyatif soğuma ile don güçlenir. Sabaha karşı buzlanma ve don riskine karşı tedbirli olun."
+        switch matrix(d) {
+        case let (p, g, r, w, h) where h == .frostbite:
+            return paragraph(for: .frost, d: d, opening: "Ayaz sertleşmiş; açıkta kalan cilt bu havayı çabuk hisseder.")
+        case let (p, g, r, w, h) where h == .windChill || w == .harsh:
+            return paragraph(for: .frost, d: d, opening: "Donma çizgisindeki hava rüzgârla bıçak gibi kesiyor.")
+        case let (p, g, r, w, h) where r == .likely || r == .downpour:
+            return paragraph(for: .frost, d: d, opening: "Ayazlı havaya nem ve yağış ihtimali eklenmiş; kar, buz veya sulu kar kapıda olabilir.")
+        case let (p, g, r, w, h):
+            return paragraph(for: .frost, d: d, opening: "Hava donma noktasının çevresinde; sessiz ama etkili bir ayaz var.")
         }
     }
 
-    // MARK: Extreme cold (apparent <= -10 °C)
-
     private static func extremeCold(_ d: AtmosphericDynamics) -> String {
-        let amb = Int(d.ambient.rounded())
-        let feels = Int(d.thermalIndex.rounded())
-        let wind = Int(d.windSpeed.rounded())
-
-        switch (d.pressureTendency, d.temperatureGradient) {
-        case (_, _) where d.windChillDrop >= 5:
-            return "Termometre \(amb)°C ama \(wind) km/s rüzgâr soğuğu ölümcül kılıyor; hissedilen sıcaklık \(feels)°C ile açıktaki ciltte dakikalar içinde donma (frostbite) riski var. Zorunlu olmadıkça dışarı çıkmayın; çıkacaksanız tüm cildi tamamen örtün."
-        case (.fallingFast, _), (.falling, _):
-            return "Hava aşırı soğuk, hissedilen \(feels)°C ve basınç düşüyor; yaklaşan sistem kar ve tipi getirebilir. Donma ve hipotermi riski çok yüksek, görüş kar yağışıyla düşebilir. Mümkünse seyahati erteleyin, kapalı ve sıcak kalın."
-        case (.steady, .plunging), (.steady, .cooling):
-            return "Hava aşırı soğuk (hissedilen \(feels)°C) ve daha da düşüyor; donma riski her geçen saat artıyor. Açıkta kalan cilt hızla zarar görür; çok katmanlı giyinin ve dışarıda geçirdiğiniz süreyi en aza indirin."
-        case (.steady, _):
-            return "Hava aşırı soğuk, hissedilen \(feels)°C; atmosfer durağan ama bu sıcaklıkta dahi donma ve hipotermi ciddi tehlike. Tüm cildi örtün, sıcak ve kapalı bir alanda kalmaya öncelik verin."
-        case (.rising, _), (.risingFast, _):
-            return "Hava aşırı soğuk (hissedilen \(feels)°C) ve basınç yükseliyor; açık gökyüzü altında gece radyatif soğuma sıcaklığı daha da düşürebilir. Donma riskine karşı tüm cildi örtün, dışarıda kısa kalın."
+        switch matrix(d) {
+        case let (p, g, r, w, h) where h == .frostbite || h == .windChill:
+            return paragraph(for: .extremeCold, d: d, opening: "Bu artık sıradan soğuk değil; iliklere işleyen, cildi hızla yoran bir hava.")
+        case let (p, g, r, w, h) where r == .likely || r == .downpour || p == .stormyFall:
+            return paragraph(for: .extremeCold, d: d, opening: "Aşırı soğuğa yağış ve düşen basınç eşlik ediyor; tipi veya yoğun kar ihtimali ciddiye alınmalı.")
+        case let (p, g, r, w, h):
+            return paragraph(for: .extremeCold, d: d, opening: "Aşırı soğuk sakin görünse bile beden için çok yorucu; hava affedici değil.")
         }
     }
 }
