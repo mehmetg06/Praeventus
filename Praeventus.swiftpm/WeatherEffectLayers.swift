@@ -3,12 +3,18 @@ import SwiftUI
 
 // MARK: - Deterministic Hash
 
+/// 1024-entry pre-computed table: fractional part of sin(n*12.9898+78.233)*43758.5453.
+/// Eliminates per-frame sin() calls — wHash becomes an O(1) array lookup.
+private let hashLookup: [Double] = (0..<1024).map { n in
+    let x = sin(Double(n) * 12.9898 + 78.233) * 43758.5453
+    return x - x.rounded(.down)
+}
+
 /// Stable pseudo-random value in 0..<1 for a given seed. Lets Canvas redraws
 /// keep particle identity frame-to-frame without storing per-particle state.
 @inline(__always)
 fileprivate func wHash(_ n: Int) -> Double {
-    let x = sin(Double(n) * 12.9898 + 78.233) * 43758.5453
-    return x - x.rounded(.down)
+    hashLookup[abs(n) % 1024]
 }
 
 // MARK: - Rain On Glass (lens droplets)
@@ -150,6 +156,9 @@ struct VolumetricRainLayer: View {
 
                 // Near layer — longer, brighter, gradient streaks.
                 let fgCount = Int(8 + intensity * 16)
+                let streakGradient = Gradient(colors: [.white.opacity(0.0),
+                                                       .white.opacity(0.06 + intensity * 0.07),
+                                                       .white.opacity(0.0)])
                 for i in 0..<fgCount {
                     let seed = Double(i * 53 + 71)
                     let x = CGFloat(seed.truncatingRemainder(dividingBy: 773)) / 773 * size.width
@@ -160,9 +169,7 @@ struct VolumetricRainLayer: View {
                     path.move(to: CGPoint(x: x, y: y))
                     path.addLine(to: CGPoint(x: x - tilt, y: y + length))
                     let streak = GraphicsContext.Shading.linearGradient(
-                        Gradient(colors: [.white.opacity(0.0),
-                                          .white.opacity(0.06 + intensity * 0.07),
-                                          .white.opacity(0.0)]),
+                        streakGradient,
                         startPoint: CGPoint(x: x, y: y),
                         endPoint: CGPoint(x: x - tilt, y: y + length)
                     )
@@ -397,6 +404,7 @@ struct RealisticSnowLayer: View {
     private func flakeBand(_ context: GraphicsContext, size: CGSize, time: Double, wind: Double,
                            count: Int, seedBase: Int, sizeRange: ClosedRange<Double>,
                            speed: Double, opacity: Double, sway: Double, blurBig: Bool) {
+        let bigFlakeGradient = Gradient(colors: [.white.opacity(opacity), .white.opacity(0)])
         for i in 0..<count {
             let seed = seedBase + i * 61 + 19
             let baseX = CGFloat(wHash(seed)) * size.width
@@ -412,7 +420,7 @@ struct RealisticSnowLayer: View {
                 // Soft, defocused foreground flake.
                 context.fill(Path(ellipseIn: rect.insetBy(dx: -sz * 0.6, dy: -sz * 0.6)),
                              with: .radialGradient(
-                                Gradient(colors: [.white.opacity(opacity), .white.opacity(0)]),
+                                bigFlakeGradient,
                                 center: CGPoint(x: x, y: y), startRadius: 0, endRadius: sz * 1.4))
             } else {
                 context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(opacity)))
@@ -486,6 +494,7 @@ struct VolumetricCloudLayer: View {
         context.fill(Path(ellipseIn: shadowRect), with: .color(.black.opacity(cover * 0.05 + 0.02)))
 
         // Overlapping puffs, tallest in the middle to read as a cumulus crown.
+        let puffGradient = Gradient(colors: [crown.opacity(topAlpha), crown.opacity(topAlpha * 0.55), crown.opacity(0)])
         for p in 0..<puffCount {
             let f = Double(p) / Double(puffCount - 1)          // 0...1 left -> right
             let lift = sin(f * .pi)                            // peak in the middle
@@ -495,7 +504,7 @@ struct VolumetricCloudLayer: View {
             let r = CGFloat(baseW * (0.30 + lift * 0.30 + wHash(seed + p * 3) * 0.12))
             let rect = CGRect(x: px - r, y: py - r, width: r * 2, height: r * 2)
             let shade = GraphicsContext.Shading.radialGradient(
-                Gradient(colors: [crown.opacity(topAlpha), crown.opacity(topAlpha * 0.55), crown.opacity(0)]),
+                puffGradient,
                 center: CGPoint(x: px, y: py - r * 0.30), startRadius: 0, endRadius: r)
             context.fill(Path(ellipseIn: rect), with: shade)
         }
