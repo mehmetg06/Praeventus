@@ -28,6 +28,10 @@ final class WeatherStore: ObservableObject {
     @Published private(set) var location: SavedLocation?
     /// True while showing the manually-driven Lab snapshot instead of live data.
     @Published private(set) var isSimulating = false
+    /// How well the blended models agreed on the current snapshot, if fused.
+    @Published private(set) var fusionConfidence: FusionConfidence?
+    /// True when the on-screen forecast came from cache and could not be refreshed.
+    @Published private(set) var isStale = false
 
     // MARK: - Developer sandbox overrides
 
@@ -43,6 +47,7 @@ final class WeatherStore: ObservableObject {
     @Published private(set) var forcedHealthInsights: HealthInsights?
 
     private let client: OpenMeteoClient
+    private let calibration = SensorCalibration()
     private static let locationKey = "praeventus.savedLocation"
 
     /// Seed snapshot used purely so the UI/background have something to render
@@ -80,19 +85,68 @@ final class WeatherStore: ObservableObject {
     func load(_ place: SavedLocation) async {
         isSimulating = false
         forcedHealthInsights = nil
-        phase = .loading
         location = place
         Self.persist(place)
-        do {
-            let response = try await client.forecast(latitude: place.latitude, longitude: place.longitude)
-            let mapped = WeatherMapping.map(response, city: place.name, country: place.country)
-            hourly = mapped.hourly
-            daily = mapped.daily
-            publish(mapped.weather)
+
+        if WeatherSettings.sensorCalibrationEnabled { calibration.start() }
+
+        // Paint cached data instantly (offline-friendly) before the network call.
+        if let cached = ForecastCache.load(latitude: place.latitude, longitude: place.longitude) {
+            applyForecast(cached.response, city: cached.city, country: cached.country)
+            fusionConfidence = cached.confidence
+            isStale = !ForecastCache.isFresh(cached)
             phase = .loaded
-        } catch {
-            phase = .failed(Self.message(for: error))
+        } else {
+            phase = .loading
         }
+
+        do {
+            let (response, confidence) = try await fetchForecast(place)
+            applyForecast(response, city: place.name, country: place.country)
+            fusionConfidence = confidence
+            isStale = false
+            phase = .loaded
+            ForecastCache.save(
+                CachedForecast(
+                    response: response, confidence: confidence,
+                    city: place.name, country: place.country, timestamp: Date()
+                ),
+                latitude: place.latitude, longitude: place.longitude
+            )
+        } catch {
+            // Keep cached data on-screen if we have it; only fail when there's nothing.
+            if case .loaded = phase {
+                isStale = true
+            } else {
+                phase = .failed(Self.message(for: error))
+            }
+        }
+    }
+
+    /// Fetches the live forecast, blending the model set when fusion is enabled.
+    private func fetchForecast(_ place: SavedLocation) async throws -> (ForecastResponse, FusionConfidence) {
+        if WeatherSettings.multiModelEnabled {
+            let keyed = try await client.forecast(
+                latitude: place.latitude, longitude: place.longitude, models: WeatherModel.fusionSet
+            )
+            let fused = WeatherFusion.fuse(keyed)
+            return (fused.response, fused.confidence)
+        } else {
+            let response = try await client.forecast(latitude: place.latitude, longitude: place.longitude)
+            return (response, FusionConfidence(agreement: 1, temperatureSpreadC: 0, models: [WeatherModel.bestMatch.displayName]))
+        }
+    }
+
+    /// Maps a response into the app model, applies opt-in sensor calibration, and publishes.
+    private func applyForecast(_ response: ForecastResponse, city: String, country: String) {
+        let mapped = WeatherMapping.map(response, city: city, country: country)
+        hourly = mapped.hourly
+        daily = mapped.daily
+        var snapshot = mapped.weather
+        if WeatherSettings.sensorCalibrationEnabled {
+            snapshot = calibration.calibrate(snapshot)
+        }
+        publish(snapshot)
     }
 
     func load(latitude: Double, longitude: Double, name: String, country: String) async {

@@ -129,6 +129,14 @@
 "settings.privacy.noKey" = "No account, no API key, no tracking";
 "settings.privacy.onDevice" = "Summaries analyzed on-device";
 "settings.privacy.title" = "Privacy";
+"settings.fusion.title" = "Forecast Accuracy";
+"settings.fusion.multiModel" = "Multi-model fusion";
+"settings.fusion.sensor" = "On-device sensor calibration";
+"settings.fusion.footer" = "Blend ECMWF, GFS and ICON on-device and weight them by agreement. Sensor calibration nudges pressure using the device barometer. Everything stays on your device.";
+"model.bestMatch" = "Best Match";
+"model.ecmwf" = "ECMWF";
+"model.gfs" = "GFS";
+"model.icon" = "ICON";
 "settings.proxy.footer" = "Optional. Route all requests through your Cloudflare Worker so the weather servers never see your IP. Leave empty to call Open-Meteo directly.";
 "settings.proxy.placeholder" = "https://…workers.dev";
 "settings.proxy.save" = "Save";
