@@ -304,6 +304,10 @@ Disk-based cache stored in the platform's caches directory. Key is `forecast_<la
 #### `WeatherMapping.swift`
 Translates raw `ForecastResponse` JSON into the app's typed domain model. Also defines `HourlyPoint`, `DailyRange`, and `MappedForecast`.
 
+**`HourlyPoint`** (Identifiable, Equatable): `date`, `hour` (0–23), `temperature`, `precipitationProbability`, `condition`, `uvIndex`, `windSpeed`, `windDirection`, `windGustSpeed`, `humidity`, `dewPoint`, `visibility`.
+
+**`DailyRange`** (Identifiable, Equatable): `date`, `min`, `max`, `feelsLikeMin`, `feelsLikeMax`, `uvIndexMax`, `windSpeedMax`, `windDirection`, `windGustMax`, `precipitationAmount`, `condition`, `sunrise: Date?`, `sunset: Date?`. Computed `mean` property. Used by the 7-day forecast card and heatwave detector.
+
 **WMO Code Mapping** (`condition(forWMOCode:)`):
 
 | WMO codes | Condition |
@@ -708,18 +712,28 @@ The root `@State var store: WeatherStore` holder. Switches between `HomeView` an
 ---
 
 #### `HomeView.swift`
-Primary display screen. Layers (in order, top to bottom):
+Primary display screen. Non-scrolling `topBar` contains `AtmosphereOrb` + city/time header + `CitySearchBar`. The scrollable content area (`loadedContent`) layers (in order, top to bottom):
 
-1. `AtmosphereBackgroundView` — full-bleed animated background.
-2. Temperature hero — large thin numeral, condition label, feels-like.
-3. **Story card** — `atmosphere.story` from `MeteorologicalExpertSystem` (deterministic Turkish/English narrative, always present).
+1. `AtmosphereBackgroundView` — full-bleed animated background (behind the scroll view).
+2. **Temperature hero** — large thin numeral (110 pt), condition label, feels-like. Also shows: model fusion badge (ECMWF · GFS · ICON chips with agreement %) when `store.fusionConfidence` is set; a stale-data pill (`home.stale`) when `store.isStale` is true.
+3. **Story card** — `atmosphere.story` from `MeteorologicalExpertSystem` (deterministic Turkish/English narrative, always present). Severity icon from `StorySentiment` drives the heading icon.
 4. **AI narrative card** — 3-sentence meteorological commentary from the Worker's `/narrative` endpoint. Shows a loading spinner (`fetchingNarrativeCard`) while the network call is in flight, then the text (`narrativeCard`). Hidden when empty, on error, or if the response contains markdown (`**`), the word "Analyze", or exceeds 600 characters. Cleared and re-fetched on every `store.forecastID` change.
-5. `HealthInsightsCard` — thermal/UV health panel.
-6. Rotating metric card — Instagram-story-style single-metric display cycling through 9 parameters (humidity, pressure, wind, UV, dew point, wind gust, direction, visibility, rain probability). Tap left/right to navigate; auto-advances every 6 s.
-7. Activity suitability card — top 3 recommended activities with suitability level badges.
-8. Astronomical card — sun arc canvas, moon phase panel, sun altitude panel.
-9. Hourly strip — 6-slot compact row showing time, condition symbol, temperature, rain probability.
-10. `WeatherChartsView` — Swift Charts (hourly temperature, daily range, precipitation).
+5. **Atmospheric Signals card** (`atmosphericSignalsCard`) — "ATMOSPHERE" heading. Three color-coded chips (storm risk, rain signal, visibility level) sourced directly from `AtmosphericState`; two animated progress bars for instability and cloud cover. Surfaces `AtmosphericEngine` outputs that were previously only visible in the Lab.
+6. `HealthInsightsCard` — thermal/UV health panel.
+7. **Rotating metric card** — Instagram-story-style single-metric display with a `MetricProgressBar` above cycling through 9 parameters (humidity, pressure, wind, UV, dew point, wind gust, direction, visibility, rain probability). Tap left/right to navigate; auto-advances every 6 s. `MetricProgressBar` is an isolated private struct so its `@State` timer animation never invalidates `HomeView`'s body.
+8. **Activity suitability card** — top 3 recommended activities with suitability level badges.
+9. **Astronomical card** (`AstronomicalCard` private struct) — `SunArcView` Canvas arc + moon panel (illumination bar + percentage) + altitude panel (color-coded label and value).
+10. **Hourly strip** — 6-slot compact row showing time, condition symbol, temperature, rain probability. Falls back to a synthetic diurnal approximation when `store.hourly` is empty.
+11. **7-Day Forecast card** (`dailyForecastCard`) — shown when `!store.daily.isEmpty`. Each row: abbreviated day name, condition icon, precipitation amount (shown when > 0.5 mm), a temperature range bar with a cold→warm `LinearGradient`, and min/max values.
+12. `WeatherChartsView` — Swift Charts (only when `canImport(Charts)`).
+
+**Private subcomponents defined in this file**:
+- `AtmosphereOrb` — circular glass orb (`.ultraThinMaterial`, radial gradient, shadow) containing the current weather SF Symbol. Placed in the non-scrolling header.
+- `AstronomicalCard` — private struct wrapping `SunArcView`, moon illumination panel, and sun altitude panel into a single glass card.
+- `SunArcView` — `Canvas`-based arc rendering. Draws a dashed background semicircle, an orange→yellow progress arc proportional to elapsed daylight, a dashed horizon line, sunrise/sunset endpoint dots, and a glowing sun disc at the current arc position.
+- `MetricProgressBar` — isolated private struct with a `task(id: currentIndex)` that drives a 6-second linear fill animation and calls `onAdvance()` when done. Kept separate from `HomeView` so its `@State progress` changes never trigger the parent body.
+- `HourlyStripPoint` — lightweight private struct with a `synthetic(from:atmosphere:)` factory for the fallback hourly display.
+- `MetricItem` — private data bag (icon, title, value, description, accent color) for rotating metric cards.
 
 **Narrative fetch lifecycle**: `startNarrativeFetch()` is triggered by `.onChange(of: store.forecastID)` (covers all forecast arrivals including GPS launches) and by `.onAppear` (covers re-navigation to tab). The `.onChange(of: store.phase)` watcher clears the narrative when a new `.loading` phase begins, so stale text from a previous location is never shown briefly during a location switch.
 
@@ -1165,6 +1179,65 @@ Derives a representative WMO integer from the `condition` enum. No stored field 
 
 ---
 
+### 2026-06-29 — Clear Weather Rendering Performance
+
+**Branch**: `claude/weather-app-performance-08woth`
+
+**`WeatherEffectLayers.swift`** — four targeted fixes to reduce GPU overhead on clear/sunny weather:
+- `SunCameraBloom`, `OrbitalLensHalo`: animate `.opacity` only (not frame dimensions); SwiftUI was recalculating layout on every frame at 60 fps.
+- `RadialSunStarburst`: replace 24 per-ray `.blur()` passes with a single `.blur(radius: 2.5)` at the enclosing `ZStack` (1 GPU compositing pass instead of 24); also remove pulse-driven length expansion so frame size is constant.
+- `airMassLayer` `TimelineView`: drop update rate from 14 fps → 8 fps (cloud drift is imperceptibly smooth at either rate).
+- `HotSunnyLayer`: drop shimmer `TimelineView` from 12 fps → 8 fps; reduce shimmer line count from 6 → 4.
+
+**`AtmosphereBackgroundView.swift`** — `lightField` breathe animation: replace `.scaleEffect` with `.opacity`. Scaling a `ZStack` of large blurred circles forces the compositor to recomposite on every frame; opacity is a free alpha-multiply on cached textures.
+
+#### Files with zero changes
+All Swift source files other than `WeatherEffectLayers.swift` and `AtmosphereBackgroundView.swift`. No Worker changes.
+
+---
+
+### 2026-06-29 — Home Screen Feature Surfacing + Premium Glass UI
+
+**Branch**: `claude/home-screen-feature-visibility-w0dool`
+
+#### What changed
+
+**`HomeView.swift`**:
+
+- **Temperature hero expanded**: now shows a model fusion badge row (ECMWF · GFS · ICON Capsule chips + `agreement%` consensus label) sourced from `store.fusionConfidence`; and a stale-data `Label` pill when `store.isStale` is true.
+- **New `atmosphericSignalsCard`**: "ATMOSPHERE" card placed between the AI narrative and `HealthInsightsCard`. Shows three chips (storm risk, rain signal, visibility) color-coded by `AtmosphericRisk` / `AtmosphericVisibility` level; two progress bars (instability %, cloud cover %). The color helpers (`riskLevelColor`, `visibilityLevelColor`, `instabilityAccentColor`) are private to this file.
+- **New `dailyForecastCard`**: "7-DAY FORECAST" card placed between the hourly strip and `WeatherChartsView`. Each of the 7 `DailyRange` rows shows: day abbreviation (or "Today"), condition SF Symbol, precipitation amount label (hidden if ≤ 0.5 mm), temperature range bar (cold-to-warm `LinearGradient`, offset within global min–max), and min/max numerals.
+- **`AtmosphereOrb`** private struct: glass-morphism circle with the current weather SF Symbol, placed in the non-scrolling top bar header.
+- **`AstronomicalCard`**, **`SunArcView`**, **`MetricProgressBar`**, **`HourlyStripPoint`**, **`MetricItem`**: refactored into named private structs to isolate animation state and avoid unnecessary body re-renders.
+
+**Localizable.strings** (both `en.lproj` and `tr.lproj`) — 9 new keys added:
+- `"home.atmosphere.heading"`, `"home.stormRisk"`, `"home.rainSignal"`, `"home.instability"`, `"home.cloudCover"`, `"home.daily.heading"`, `"home.today"`, `"home.fusion.agreement"`, `"home.stale"`
+
+#### Files with zero changes
+`WeatherStore.swift`, `AtmosphericEngine.swift`, all data/domain layer files, `WeatherLabView.swift`, `SettingsView.swift`, Worker.
+
+---
+
+### 2026-06-29 — NASA IMERG / NASA POWER Precipitation: Added and Removed
+
+**Branches**: `claude/imerg-precipitation-route-uv0luw` → `claude/nasa-power-precipitation-t1icpv` → `claude/satellite-precip-visibility-usydym` → `claude/satellite-precip-ui-debug-ihhbec` → `claude/remove-imerg-nasa-power-8hqeej`
+
+**PRs #68–73 net effect: zero Swift files added or removed; zero worker routes remain.**
+
+#### What was added (PRs #68–72)
+
+- **Worker `/precipitation` route**: fetched 30-minute precipitation data from NASA GPM IMERG via OpenSearch→GeoJSON pipeline (PR #68), then switched to NASA POWER MERRA2 `PRECTOT` parameter (PR #69). Cached results for 25 minutes. Found nearest feature centroid within a bounding box.
+- **`IMERGPrecipitation` struct** in `CloudflareWeatherProvider.swift`: decodable response model.
+- **`satellitePrecipitation(latitude:longitude:)` async method** on `CloudflareWeatherProvider`: trimmed coordinates to 1 decimal place (city-level) before sending.
+- **`satellitePrecip: IMERGPrecipitation?`** `@Published` property on `WeatherStore`; populated by a background `Task` fired after each network forecast refresh.
+- **SATELLITE OBSERVATIONS card** in `WeatherLabView`: showed `mm/sa` label and "NASA GPM IMERG" sub-label when `satellitePrecip` was non-nil.
+
+#### Why removed (PR #73)
+
+NASA POWER MERRA2 returned `"no_satellite_coverage"` for the vast majority of global locations, making the feature unreliable as a general-purpose precipitation overlay. All code was cleanly reverted: Worker route, Swift struct, method, published property, background Task, and Lab card — leaving the codebase in the same file count as before.
+
+---
+
 ## Contact & Attribution
 
 - **Weather data + models** (via Cloudflare Worker → Open-Meteo + aviationweather.gov): ECMWF IFS data CC-BY-4.0; GFS and METAR data Public Domain (NOAA); ICON data Open Data (DWD). All free for commercial use; no account required.
@@ -1175,4 +1248,4 @@ Derives a representative WMO integer from the `condition` enum. No stored field 
 
 ---
 
-**Last updated**: 2026-06-29 | Workers AI narrative endpoint + CLAUDE.md audit
+**Last updated**: 2026-06-29 | Home screen premium UI surfacing + performance + satellite precipitation (added and removed)
