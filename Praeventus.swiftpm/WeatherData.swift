@@ -21,6 +21,21 @@ struct WeatherData: Equatable {
     var rainProbability: Double
     var hour: Double
 
+    /// Representative WMO weather code for this condition.
+    /// Derived from `condition` so the narrative endpoint can receive a code
+    /// without requiring a stored field in WeatherMapping.
+    var weatherCode: Int {
+        switch condition {
+        case .clear:        return 0
+        case .partlyCloudy: return 2
+        case .cloudy:       return 3
+        case .fog:          return 45
+        case .rain:         return 61
+        case .snow:         return 71
+        case .storm:        return 95
+        }
+    }
+
     var timeOfDay: TimeOfDay {
         TimeOfDay(hour: Int(hour.rounded()))
     }
