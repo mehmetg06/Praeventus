@@ -122,7 +122,7 @@ final class WeatherStore: ObservableObject {
             )
             let lat = place.latitude
             let lon = place.longitude
-            Task {
+            Task { @MainActor in
                 let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
                 satellitePrecip = await cf.satellitePrecipitation(latitude: lat, longitude: lon)
             }
