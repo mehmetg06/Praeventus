@@ -258,7 +258,10 @@ struct HomeView: View {
     private var loadedContent: some View {
         temperatureHero
         storyCard
-        if !weatherNarrative.isEmpty {
+        if !weatherNarrative.isEmpty
+            && !weatherNarrative.contains("**")
+            && !weatherNarrative.contains("Analyze")
+            && weatherNarrative.count < 300 {
             narrativeCard
         }
         HealthInsightsCard(insights: store.healthInsights)
