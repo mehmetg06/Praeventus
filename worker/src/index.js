@@ -562,7 +562,8 @@ async function handleSearch(url, env) {
       };
     });
     const response = { results };
-    await cachePut(env, cacheKey, response, 300);
+    // 30-day TTL: geocoding results are stable and OSM policy requires aggressive caching
+    await cachePut(env, cacheKey, response, 2592000);
     return jsonResponse(response);
   } catch (e) {
     return jsonResponse({ error: "geocoding başarısız" }, 503);
