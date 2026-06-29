@@ -7,7 +7,7 @@ const NOMINATIM_GEO   = "https://nominatim.openstreetmap.org/search";
 const METAR_BASE      = "https://aviationweather.gov/api/data/metar";
 const AIRPORT_BASE    = "https://aviationweather.gov/api/data/airport";
 
-const USER_AGENT = "Praeventus/1.0 (Contact: info@praeventus.app)";
+const USER_AGENT = "Praeventus/1.0 (Contact: mehmetgezoglu@icloud.com)";
 
 function metarWMO(wxString, skyCover) {
   if (!wxString && !skyCover) return 0;
