@@ -423,7 +423,7 @@ struct HomeView: View {
                 .font(.title2.weight(.medium))
                 .foregroundStyle(.white.opacity(0.92))
 
-            Text(String(localized: "home.feelsLike", defaultValue: "Feels like \(Int(weather.feelsLike.rounded()))°"))
+            Text(String(format: String(localized: "home.feelsLike", defaultValue: "Feels like %lld°"), Int(weather.feelsLike.rounded())))
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.58))
         }
