@@ -12,6 +12,7 @@ struct HomeView: View {
 
     @State private var currentMetricIndex = 0
     @State private var weatherNarrative: String = ""
+    @State private var isFetchingNarrative = false
 
     private var severity: WeatherSeverity {
         StorySentiment.severity(
@@ -30,52 +31,22 @@ struct HomeView: View {
             searchVM.onQueryChanged(newValue)
         }
         .onChange(of: store.phase) { _, newPhase in
-            if case .loading = newPhase { weatherNarrative = ""; return }
-            guard case .loaded = newPhase else { return }
-            let w = weather
-            let firstDaily = store.daily.first
-            let provider = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
-            let lang = Locale.current.language.languageCode?.identifier ?? "en"
-            Task {
-                let text = await provider.narrative(
-                    temp: w.temperature,
-                    feelsLike: w.feelsLike,
-                    humidity: w.humidity,
-                    windSpeed: w.windSpeed,
-                    windDir: Double(w.windDirection),
-                    weatherCode: w.weatherCode,
-                    tempMax: firstDaily?.max ?? 0,
-                    tempMin: firstDaily?.min ?? 0,
-                    precipProb: w.rainProbability,
-                    lang: lang
-                )
-                await MainActor.run { weatherNarrative = text }
+            // Clear narrative UI state when a new location load begins.
+            if case .loading = newPhase {
+                weatherNarrative = ""
+                isFetchingNarrative = false
             }
         }
-        .onChange(of: store.weather.city) { _, _ in
-            weatherNarrative = ""
+        // Trigger narrative fetch whenever real forecast data arrives — fires on every
+        // applyForecast call (cache hit, network refresh, or location switch) regardless
+        // of whether phase stays .loaded or city is empty (GPS location).
+        .onChange(of: store.forecastID) { _, _ in
+            startNarrativeFetch()
         }
         .onAppear {
-            if case .loaded = store.phase, weatherNarrative.isEmpty {
-                let w = weather
-                let firstDaily = store.daily.first
-                let provider = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
-                let lang = Locale.current.language.languageCode?.identifier ?? "en"
-                Task {
-                    let text = await provider.narrative(
-                        temp: w.temperature,
-                        feelsLike: w.feelsLike,
-                        humidity: w.humidity,
-                        windSpeed: w.windSpeed,
-                        windDir: Double(w.windDirection),
-                        weatherCode: w.weatherCode,
-                        tempMax: firstDaily?.max ?? 0,
-                        tempMin: firstDaily?.min ?? 0,
-                        precipProb: w.rainProbability,
-                        lang: lang
-                    )
-                    await MainActor.run { weatherNarrative = text }
-                }
+            // Catch re-appears (tab switch back) when data is ready but narrative is absent.
+            if case .loaded = store.phase, weatherNarrative.isEmpty, !isFetchingNarrative {
+                startNarrativeFetch()
             }
         }
     }
@@ -284,7 +255,9 @@ struct HomeView: View {
     private var loadedContent: some View {
         temperatureHero
         storyCard
-        if !weatherNarrative.isEmpty
+        if isFetchingNarrative {
+            fetchingNarrativeCard
+        } else if !weatherNarrative.isEmpty
             && !weatherNarrative.contains("**")
             && !weatherNarrative.contains("Analyze")
             && weatherNarrative.count < 300 {
@@ -303,6 +276,18 @@ struct HomeView: View {
         #endif
     }
 
+    private var fetchingNarrativeCard: some View {
+        HStack(spacing: 10) {
+            ProgressView().tint(.white.opacity(0.6))
+            Text(String(localized: "narrative.fetching", defaultValue: "Fetching weather insight…"))
+                .font(.system(size: 14, weight: .regular, design: .rounded))
+                .foregroundStyle(.white.opacity(0.55))
+        }
+        .padding(22)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(ThinGlassShape(cornerRadius: 28))
+    }
+
     private var narrativeCard: some View {
         Text(weatherNarrative)
             .font(.system(size: 16, weight: .regular, design: .rounded))
@@ -311,6 +296,33 @@ struct HomeView: View {
             .padding(22)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(ThinGlassShape(cornerRadius: 28))
+    }
+
+    private func startNarrativeFetch() {
+        weatherNarrative = ""
+        isFetchingNarrative = true
+        let w = weather
+        let firstDaily = store.daily.first
+        let provider = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
+        let lang = Locale.current.language.languageCode?.identifier ?? "en"
+        Task {
+            let text = await provider.narrative(
+                temp: w.temperature,
+                feelsLike: w.feelsLike,
+                humidity: w.humidity,
+                windSpeed: w.windSpeed,
+                windDir: Double(w.windDirection),
+                weatherCode: w.weatherCode,
+                tempMax: firstDaily?.max ?? 0,
+                tempMin: firstDaily?.min ?? 0,
+                precipProb: w.rainProbability,
+                lang: lang
+            )
+            await MainActor.run {
+                weatherNarrative = text
+                isFetchingNarrative = false
+            }
+        }
     }
 
     private var astronomicalCard: some View {

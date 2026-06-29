@@ -32,6 +32,10 @@ final class WeatherStore: ObservableObject {
     @Published private(set) var fusionConfidence: FusionConfidence?
     /// True when the on-screen forecast came from cache and could not be refreshed.
     @Published private(set) var isStale = false
+    /// Changes on every applyForecast call (cache or network). Observe this in
+    /// HomeView to trigger narrative fetches: phase may stay .loaded and city
+    /// may be empty for GPS, so neither is a reliable trigger.
+    @Published private(set) var forecastID: UUID = UUID()
 
     // MARK: - Developer sandbox overrides
 
@@ -137,6 +141,7 @@ final class WeatherStore: ObservableObject {
         if WeatherSettings.sensorCalibrationEnabled {
             snapshot = calibration.calibrate(snapshot)
         }
+        forecastID = UUID()
         publish(snapshot)
     }
 
