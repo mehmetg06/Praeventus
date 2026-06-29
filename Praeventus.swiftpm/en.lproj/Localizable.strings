@@ -137,9 +137,7 @@
 "model.ecmwf" = "ECMWF";
 "model.gfs" = "GFS";
 "model.icon" = "ICON";
-"source.cloudflare" = "Cloudflare Worker";
-"source.openMeteo" = "Open-Meteo";
-"settings.proxy.footer" = "Optional. Route all requests through your Cloudflare Worker so the weather servers never see your IP. Leave empty to call Open-Meteo directly.";
+"settings.proxy.footer" = "Optional. Route all requests through your Cloudflare Worker so the weather servers never see your IP.";
 "settings.proxy.placeholder" = "https://…workers.dev";
 "settings.proxy.save" = "Save";
 "settings.proxy.title" = "Data Source / Privacy Proxy";

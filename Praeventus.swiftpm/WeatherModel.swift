@@ -1,10 +1,7 @@
 import Foundation
 
-/// Open-Meteo numerical weather models the app can request and blend.
-///
-/// Open-Meteo serves every model from the same `/v1/forecast` endpoint via the
-/// `models=` query parameter. We request one model per call (un-suffixed JSON
-/// keys, so the existing decoder works unchanged) and fuse the results on-device.
+/// NWP models the Cloudflare Worker fetches and returns in its JSON envelope.
+/// The `apiValue` strings match the keys in the Worker's `models` dictionary.
 enum WeatherModel: String, CaseIterable, Equatable, Codable {
     case bestMatch
     case ecmwf
@@ -12,6 +9,7 @@ enum WeatherModel: String, CaseIterable, Equatable, Codable {
     case icon
 
     /// Value sent to Open-Meteo's `models=` parameter.
+    /// Key used in the Worker envelope's `models` dictionary.
     var apiValue: String {
         switch self {
         case .bestMatch: return "best_match"
@@ -52,27 +50,8 @@ enum WeatherSettings {
         UserDefaults.standard.object(forKey: sensorCalibrationKey) as? Bool ?? false
     }
 
-    /// Selects whether forecast and search requests are routed through the
-    /// Cloudflare Worker or directly to Open-Meteo. Defaults to `.cloudflare`.
-    enum DataSource: String {
-        case cloudflare = "cloudflare"
-        case openMeteo  = "openMeteo"
-    }
-
-    static var dataSource: DataSource {
-        get {
-            let raw = UserDefaults.standard
-                .string(forKey: "praeventus.dataSource") ?? "cloudflare"
-            return DataSource(rawValue: raw) ?? .cloudflare
-        }
-        set {
-            UserDefaults.standard.set(
-                newValue.rawValue,
-                forKey: "praeventus.dataSource"
-            )
-        }
-    }
-
+    /// Compiled-in base URL of the Cloudflare Worker. All forecast and search
+    /// requests are routed here; no direct upstream API calls are made.
     static let cloudflareWorkerURL =
         "https://praeventus-weather.mehmetgezoglu.workers.dev"
 }
