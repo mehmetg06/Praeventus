@@ -321,6 +321,7 @@ struct WeatherLabView: View {
 
     // MARK: - Quick Scenarios
 
+    @ViewBuilder
     private var scenarioSection: some View {
         Section {
             LazyVGrid(
@@ -342,6 +343,33 @@ struct WeatherLabView: View {
             }
         } header: {
             sectionLabel("QUICK SCENARIOS", "wand.and.stars")
+        }
+        .listRowBackground(Color.white.opacity(0.03))
+
+        Section {
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible())],
+                spacing: 8
+            ) {
+                PresetButton(label: "STORM WATCH", icon: "barometer", accent: .orange) {
+                    store.triggerStormAlertPreview(.watch)
+                }
+                PresetButton(label: "STORM WARNING", icon: "cloud.bolt.fill", accent: Color(red: 1.0, green: 0.28, blue: 0.06)) {
+                    store.triggerStormAlertPreview(.warning)
+                }
+                PresetButton(label: "STORM EXTREME", icon: "exclamationmark.triangle.fill", accent: .red) {
+                    store.triggerStormAlertPreview(.extreme)
+                }
+                PresetButton(label: "CLEAR ALERT", icon: "xmark.circle", accent: .white.opacity(0.6)) {
+                    store.clearStormAlert()
+                }
+            }
+        } header: {
+            sectionLabel("STORM BANNER TEST", "waveform.path.ecg")
+        } footer: {
+            Text("Gerçek barometre sensörü (CoreMotion) Simulator'da çalışmadığından, afişi görsel olarak doğrulamak için sahte bir StormAlert enjekte eder. Home sekmesine geçip kontrol edin.")
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.45))
         }
         .listRowBackground(Color.white.opacity(0.03))
     }
