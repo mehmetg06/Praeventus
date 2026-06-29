@@ -204,6 +204,82 @@ async function handleForecast(url, env) {
   return jsonResponse(result);
 }
 
+// WMO code → localized condition string used in narrative summaries
+const WMO_TR = {
+  0: "Açık", 1: "Az bulutlu", 2: "Az bulutlu", 3: "Bulutlu",
+  45: "Sisli", 48: "Sisli",
+  51: "Çisenti", 53: "Çisenti", 55: "Çisenti",
+  61: "Yağmurlu", 63: "Yağmurlu", 65: "Yağmurlu",
+  71: "Karlı",   73: "Karlı",   75: "Karlı",
+  80: "Sağanak", 81: "Sağanak", 82: "Sağanak",
+  95: "Fırtınalı"
+};
+const WMO_EN = {
+  0: "Clear", 1: "Partly cloudy", 2: "Partly cloudy", 3: "Overcast",
+  45: "Foggy", 48: "Foggy",
+  51: "Drizzle", 53: "Drizzle", 55: "Drizzle",
+  61: "Rainy", 63: "Rainy", 65: "Rainy",
+  71: "Snowy",  73: "Snowy",  75: "Snowy",
+  80: "Showers", 81: "Showers", 82: "Showers",
+  95: "Thunderstorm"
+};
+
+function wmoCondition(code, lang) {
+  return (lang === "tr" ? WMO_TR[code] : WMO_EN[code])
+      ?? (lang === "tr" ? "Değişken" : "Variable");
+}
+
+function buildWeatherSummary(params, lang) {
+  const temp    = parseFloat(params.get("temp")        || "20");
+  const feels   = parseFloat(params.get("feels")       || String(temp));
+  const humidity= parseFloat(params.get("humidity")    || "60");
+  const wind    = parseFloat(params.get("wind")        || "0");
+  const code    = parseInt(  params.get("weather_code")|| "0", 10);
+  const precip  = parseFloat(params.get("precip_prob") || "0");
+  const cond    = wmoCondition(code, lang);
+
+  return lang === "tr"
+    ? `Sıcaklık ${temp}°C, hissedilen ${feels}°C. Nem %${humidity}. Rüzgar ${wind} km/s. Yağış ihtimali %${precip}. ${cond}.`
+    : `Temperature ${temp}°C, feels like ${feels}°C. Humidity ${humidity}%. Wind ${wind} km/h. Precipitation probability ${precip}%. ${cond}.`;
+}
+
+async function handleNarrative(url, env) {
+  const lang    = url.searchParams.get("lang") || "tr";
+  const code    = parseInt(url.searchParams.get("weather_code") || "0", 10);
+  const temp    = parseFloat(url.searchParams.get("temp") || "20");
+  const tempBucket = Math.round(temp / 5) * 5;
+  const cacheKey = `narrative_${lang}_${code}_${tempBucket}`;
+
+  const cached = await cacheGet(env, cacheKey);
+  if (cached) return jsonResponse({ ...cached, cached: true });
+
+  const systemPrompt = lang === "tr"
+    ? "Kısa bir hava durumu yorumu yaz. Maksimum 2 cümle. Samimi ve bilgilendirici ol. Sadece hava koşullarından bahset. Emoji kullanma."
+    : "Write a brief weather commentary. Maximum 2 sentences. Be friendly and informative. Only describe weather conditions. No emojis.";
+
+  const weatherSummary = buildWeatherSummary(url.searchParams, lang);
+
+  const fallback = lang === "tr" ? "Hava durumu yükleniyor..." : "Loading weather summary...";
+  let narrative = fallback;
+
+  try {
+    const aiResp = await env.AI.run("@cf/zhipu-ai/glm-4.7-flash", {
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user",   content: weatherSummary }
+      ],
+      max_tokens: 80
+    });
+    const text = aiResp?.response?.trim();
+    if (text) narrative = text;
+  } catch { /* silent fallback */ }
+
+  const result = { narrative, cached: false, lang };
+  if (narrative !== fallback)
+    await cachePut(env, cacheKey, { narrative, lang }, 1800);
+  return jsonResponse(result);
+}
+
 async function handleSearch(url) {
   const q    = url.searchParams.get("q") || "";
   const count = url.searchParams.get("count") || "5";
@@ -225,11 +301,12 @@ export default {
     const url = new URL(request.url);
     if (request.method === "OPTIONS")
       return new Response(null, { headers: corsHeaders() });
-    if (url.pathname === "/forecast") return handleForecast(url, env);
-    if (url.pathname === "/search")   return handleSearch(url);
+    if (url.pathname === "/forecast")  return handleForecast(url, env);
+    if (url.pathname === "/search")    return handleSearch(url);
+    if (url.pathname === "/narrative") return handleNarrative(url, env);
     return jsonResponse({
       status: "Praeventus Weather Worker v1",
-      routes: ["/forecast?lat=&lon=", "/search?q=&lang="]
+      routes: ["/forecast?lat=&lon=", "/search?q=&lang=", "/narrative?lang=&temp=&weather_code="]
     });
   }
 };

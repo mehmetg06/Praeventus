@@ -6,7 +6,10 @@ name = "praeventus"
 main = "src/index.js"
 compatibility_date = "2024-11-01"
 
-# No KV / D1 / secrets needed — this is a stateless pass-through proxy.
+# KV namespace for forecast + narrative caching.
 # After `wrangler deploy`, set the printed URL (e.g.
 # https://praeventus.<your-subdomain>.workers.dev) as `proxyBaseURL` in the app
 # (Settings tab, or WeatherEndpoint.defaultProxyBaseURL).
+
+[ai]
+binding = "AI"

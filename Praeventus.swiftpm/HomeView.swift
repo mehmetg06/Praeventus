@@ -11,6 +11,7 @@ struct HomeView: View {
     private var paletteTint: Color { atmosphere.condition.palette[1] }
 
     @State private var currentMetricIndex = 0
+    @State private var weatherNarrative: String = ""
 
     private var severity: WeatherSeverity {
         StorySentiment.severity(
@@ -27,6 +28,29 @@ struct HomeView: View {
         }
         .onChange(of: searchVM.query) { _, newValue in
             searchVM.onQueryChanged(newValue)
+        }
+        .onChange(of: store.phase) { _, newPhase in
+            if case .loading = newPhase { weatherNarrative = ""; return }
+            guard case .loaded = newPhase else { return }
+            let w = weather
+            let firstDaily = store.daily.first
+            let provider = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
+            let lang = Locale.current.language.languageCode?.identifier ?? "en"
+            Task {
+                let text = await provider.narrative(
+                    temp: w.temperature,
+                    feelsLike: w.feelsLike,
+                    humidity: w.humidity,
+                    windSpeed: w.windSpeed,
+                    windDir: Double(w.windDirection),
+                    weatherCode: w.weatherCode,
+                    tempMax: firstDaily?.max ?? 0,
+                    tempMin: firstDaily?.min ?? 0,
+                    precipProb: w.rainProbability,
+                    lang: lang
+                )
+                await MainActor.run { weatherNarrative = text }
+            }
         }
     }
 
@@ -234,6 +258,9 @@ struct HomeView: View {
     private var loadedContent: some View {
         temperatureHero
         storyCard
+        if !weatherNarrative.isEmpty {
+            narrativeCard
+        }
         HealthInsightsCard(insights: store.healthInsights)
         rotatingMetricCard
         let activities = recommendedActivities
@@ -245,6 +272,16 @@ struct HomeView: View {
         #if canImport(Charts)
         WeatherChartsView(hourly: store.hourly, daily: store.daily, tint: paletteTint)
         #endif
+    }
+
+    private var narrativeCard: some View {
+        Text(weatherNarrative)
+            .font(.system(size: 16, weight: .regular, design: .rounded))
+            .foregroundStyle(.white.opacity(0.85))
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(22)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(ThinGlassShape(cornerRadius: 28))
     }
 
     private var astronomicalCard: some View {

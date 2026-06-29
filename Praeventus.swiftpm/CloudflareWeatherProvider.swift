@@ -61,6 +61,40 @@ struct CloudflareWeatherProvider {
         return result
     }
 
+    // MARK: - Narrative
+
+    /// Fetches a short AI-generated weather commentary from the Worker's `/narrative`
+    /// endpoint. No coordinates are ever sent — only anonymous weather values.
+    /// Returns an empty string on any error so the UI can hide the card gracefully.
+    func narrative(
+        temp: Double,
+        feelsLike: Double,
+        humidity: Double,
+        windSpeed: Double,
+        windDir: Double,
+        weatherCode: Int,
+        tempMax: Double,
+        tempMin: Double,
+        precipProb: Double,
+        lang: String
+    ) async -> String {
+        let queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "lang",         value: lang),
+            URLQueryItem(name: "temp",         value: String(format: "%.0f", temp)),
+            URLQueryItem(name: "feels",        value: String(format: "%.0f", feelsLike)),
+            URLQueryItem(name: "humidity",     value: String(format: "%.0f", humidity)),
+            URLQueryItem(name: "wind",         value: String(format: "%.0f", windSpeed)),
+            URLQueryItem(name: "wind_dir",     value: String(format: "%.0f", windDir)),
+            URLQueryItem(name: "weather_code", value: String(weatherCode)),
+            URLQueryItem(name: "temp_max",     value: String(format: "%.0f", tempMax)),
+            URLQueryItem(name: "temp_min",     value: String(format: "%.0f", tempMin)),
+            URLQueryItem(name: "precip_prob",  value: String(format: "%.0f", precipProb))
+        ]
+        guard let url = try? buildURL(path: "/narrative", queryItems: queryItems) else { return "" }
+        guard let result = try? await get(url, as: NarrativeResponse.self) else { return "" }
+        return result.narrative
+    }
+
     // MARK: - Search
 
     /// Forwards a geocoding query to the Worker's `/search` endpoint.
@@ -126,7 +160,11 @@ struct CloudflareWeatherProvider {
     }
 }
 
-// MARK: - Worker response envelope
+// MARK: - Worker response types
+
+private struct NarrativeResponse: Decodable {
+    let narrative: String
+}
 
 private struct WorkerEnvelope: Decodable {
     let models: [String: ForecastResponse]
