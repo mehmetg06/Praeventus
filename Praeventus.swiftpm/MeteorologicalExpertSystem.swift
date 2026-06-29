@@ -494,115 +494,115 @@ enum MeteorologicalExpertSystem {
 
     private static func extremeHeat(_ d: AtmosphericDynamics) -> String {
         switch matrix(d) {
-        case let (p, g, r, w, h) where h == .falseCool:
+        case let (_, _, _, _, h) where h == .falseCool:
             return paragraph(for: .extremeHeat, d: d, opening: "Bu serinleme görüntüsü aldatıcı; aşırı sıcak hâlâ bedenin üzerinde ağır bir battaniye gibi duruyor.")
-        case let (p, g, r, w, h) where h == .stormHeat || p == .stormyFall || r == .downpour:
+        case let (p, _, r, _, h) where h == .stormHeat || p == .stormyFall || r == .downpour:
             return paragraph(for: .extremeHeat, d: d, opening: "Çok sıcak, çok nemli ve gökyüzü huzursuz; fırtına öncesi bunaltı kendini belli ediyor.")
-        case let (p, g, r, w, h) where w == .harsh || h == .dryHeat:
+        case let (_, _, _, w, h) where w == .harsh || h == .dryHeat:
             return paragraph(for: .extremeHeat, d: d, opening: "Kavurucu sıcak sert ve kuru bir hava akımıyla birleşmiş; bu, serinlik değil saç kurutma etkisi yaratır.")
-        case let (p, g, r, w, h):
+        default:
             return paragraph(for: .extremeHeat, d: d, opening: "Hava ağır, yakıcı ve vücut için yorucu; gölge bile bugün sınırlı rahatlık verir.")
         }
     }
 
     private static func oppressive(_ d: AtmosphericDynamics) -> String {
         switch matrix(d) {
-        case let (p, g, r, w, h) where h == .stormHeat:
+        case let (_, _, _, _, h) where h == .stormHeat:
             return paragraph(for: .oppressive, d: d, opening: "Yapış yapış nem ile düşen basınç birleşmiş; hava fırtına öncesi gibi ağırlaşıyor.")
-        case let (p, g, r, w, h) where w == .calm && (h == .muggy || h == .uv):
+        case let (_, _, _, w, h) where w == .calm && (h == .muggy || h == .uv):
             return paragraph(for: .oppressive, d: d, opening: "Rüzgâr olmayınca nem üzerinize çöküyor; boğucu sıcak daha da yoğun hissediliyor.")
-        case let (p, g, r, w, h) where g == .cooling || g == .plunging:
+        case let (_, g, _, _, _) where g == .cooling || g == .plunging:
             return paragraph(for: .oppressive, d: d, opening: "Sıcaklık gerilese bile nem yerinde duruyor; ferahlama eksik ve ağır.")
-        case let (p, g, r, w, h):
+        default:
             return paragraph(for: .oppressive, d: d, opening: "Nemli sıcak havayı kalınlaştırmış; nefes aldıran değil, yavaşlatan bir atmosfer var.")
         }
     }
 
     private static func hot(_ d: AtmosphericDynamics) -> String {
         switch matrix(d) {
-        case let (p, g, r, w, h) where h == .falseCool:
+        case let (_, _, _, _, h) where h == .falseCool:
             return paragraph(for: .hot, d: d, opening: "Rakamlar biraz inse de bu yalancı serinleme; güneşin yakıcılığı hâlâ oyunda.")
-        case let (p, g, r, w, h) where h == .dryHeat && (w == .windy || w == .harsh):
+        case let (_, _, _, w, h) where h == .dryHeat && (w == .windy || w == .harsh):
             return paragraph(for: .hot, d: d, opening: "Kuru sıcak rüzgârla birleşmiş; hava cildi ve boğazı hızla kurutan bir akışa dönmüş.")
-        case let (p, g, r, w, h) where p == .stormyFall || p == .softFall:
+        case let (p, _, _, _, _) where p == .stormyFall || p == .softFall:
             return paragraph(for: .hot, d: d, opening: "Sıcak güçlü, fakat basınçtaki düşüş havanın gün içinde yön değiştirebileceğini söylüyor.")
-        case let (p, g, r, w, h):
+        default:
             return paragraph(for: .hot, d: d, opening: "Yakıcı ama daha kuru bir sıcak var; gökyüzünün parlaklığı ısıyı keskinleştiriyor.")
         }
     }
 
     private static func warm(_ d: AtmosphericDynamics) -> String {
         switch matrix(d) {
-        case let (p, g, r, w, h) where r == .likely || r == .downpour:
+        case let (_, _, r, _, _) where r == .likely || r == .downpour:
             return paragraph(for: .warm, d: d, opening: "Sıcaklık keyifli, ama yağmur ihtimali bu rahat tabloya hareket katıyor.")
-        case let (p, g, r, w, h) where h == .uv && (g == .warming || g == .surging):
+        case let (_, g, _, _, h) where h == .uv && (g == .warming || g == .surging):
             return paragraph(for: .warm, d: d, opening: "Ilık-sıcak çizgide pırıl pırıl bir hava var; güneş kendini cömertçe hissettiriyor.")
-        case let (p, g, r, w, h) where w == .windy || w == .harsh:
+        case let (_, _, _, w, _) where w == .windy || w == .harsh:
             return paragraph(for: .warm, d: d, opening: "Sıcaklık konforlu, fakat rüzgâr havaya dinamik ve yer yer savruk bir karakter veriyor.")
-        case let (p, g, r, w, h):
+        default:
             return paragraph(for: .warm, d: d, opening: "Hava genel olarak hoş; ne bunaltıcı ne serin, açık hava için davetkâr bir denge var.")
         }
     }
 
     private static func mild(_ d: AtmosphericDynamics) -> String {
         switch matrix(d) {
-        case let (p, g, r, w, h) where h == .fog:
+        case let (_, _, _, _, h) where h == .fog:
             return paragraph(for: .mild, d: d, opening: "Ilık havanın üzerinde puslu bir perde var; sıcaklık rahat ama görüş mesafesi naz istiyor.")
-        case let (p, g, r, w, h) where r == .likely || r == .downpour:
+        case let (_, _, r, _, _) where r == .likely || r == .downpour:
             return paragraph(for: .mild, d: d, opening: "Sıcaklık tam kıvamında, ancak yağmur olasılığı günün ritmini değiştirebilir.")
-        case let (p, g, r, w, h) where g == .cooling || g == .plunging:
+        case let (_, g, _, _, _) where g == .cooling || g == .plunging:
             return paragraph(for: .mild, d: d, opening: "Ilıman hava yavaşça serin tarafa dönüyor; özellikle gölgede fark edilir bir düşüş var.")
-        case let (p, g, r, w, h):
+        default:
             return paragraph(for: .mild, d: d, opening: "Hava yumuşak, dengeli ve insanı dışarı çağıran cinsten.")
         }
     }
 
     private static func cool(_ d: AtmosphericDynamics) -> String {
         switch matrix(d) {
-        case let (p, g, r, w, h) where h == .fog:
+        case let (_, _, _, _, h) where h == .fog:
             return paragraph(for: .cool, d: d, opening: "Serin hava pusla birleşmiş; çevre yumuşak ama görüş biraz kısıtlı.")
-        case let (p, g, r, w, h) where h == .windChill || w == .windy || w == .harsh:
+        case let (_, _, _, w, h) where h == .windChill || w == .windy || w == .harsh:
             return paragraph(for: .cool, d: d, opening: "Serinlik rüzgârla keskinleşiyor; ince kumaşların arasından sızan bir üşütme var.")
-        case let (p, g, r, w, h) where r == .likely || r == .downpour:
+        case let (_, _, r, _, _) where r == .likely || r == .downpour:
             return paragraph(for: .cool, d: d, opening: "Serin ve nemli bir tablo oluşuyor; yağmur gelirse hava daha çabuk üşütür.")
-        case let (p, g, r, w, h):
+        default:
             return paragraph(for: .cool, d: d, opening: "Hava serin ama yönetilebilir; doğru katmanla dışarısı gayet rahat.")
         }
     }
 
     private static func cold(_ d: AtmosphericDynamics) -> String {
         switch matrix(d) {
-        case let (p, g, r, w, h) where h == .windChill || w == .harsh:
+        case let (_, _, _, w, h) where h == .windChill || w == .harsh:
             return paragraph(for: .cold, d: d, opening: "Soğuk hava rüzgârla dişini gösteriyor; hissedilen değer termometreden daha sert.")
-        case let (p, g, r, w, h) where r == .likely || r == .downpour:
+        case let (_, _, r, _, _) where r == .likely || r == .downpour:
             return paragraph(for: .cold, d: d, opening: "Soğuk havaya yağış ihtimali eklenmiş; zemin ve kıyafet seçimi daha önemli hale geliyor.")
-        case let (p, g, r, w, h) where g == .plunging || g == .cooling:
+        case let (_, g, _, _, _) where g == .plunging || g == .cooling:
             return paragraph(for: .cold, d: d, opening: "Soğuk zaten belirgin, üstüne sıcaklık biraz daha aşağı iniyor.")
-        case let (p, g, r, w, h):
+        default:
             return paragraph(for: .cold, d: d, opening: "Hava soğuk ama düzenli; doğru giyinince yönetilebilir bir kış serinliği var.")
         }
     }
 
     private static func frost(_ d: AtmosphericDynamics) -> String {
         switch matrix(d) {
-        case let (p, g, r, w, h) where h == .frostbite:
+        case let (_, _, _, _, h) where h == .frostbite:
             return paragraph(for: .frost, d: d, opening: "Ayaz sertleşmiş; açıkta kalan cilt bu havayı çabuk hisseder.")
-        case let (p, g, r, w, h) where h == .windChill || w == .harsh:
+        case let (_, _, _, w, h) where h == .windChill || w == .harsh:
             return paragraph(for: .frost, d: d, opening: "Donma çizgisindeki hava rüzgârla bıçak gibi kesiyor.")
-        case let (p, g, r, w, h) where r == .likely || r == .downpour:
+        case let (_, _, r, _, _) where r == .likely || r == .downpour:
             return paragraph(for: .frost, d: d, opening: "Ayazlı havaya nem ve yağış ihtimali eklenmiş; kar, buz veya sulu kar kapıda olabilir.")
-        case let (p, g, r, w, h):
+        default:
             return paragraph(for: .frost, d: d, opening: "Hava donma noktasının çevresinde; sessiz ama etkili bir ayaz var.")
         }
     }
 
     private static func extremeCold(_ d: AtmosphericDynamics) -> String {
         switch matrix(d) {
-        case let (p, g, r, w, h) where h == .frostbite || h == .windChill:
+        case let (_, _, _, _, h) where h == .frostbite || h == .windChill:
             return paragraph(for: .extremeCold, d: d, opening: "Bu artık sıradan soğuk değil; iliklere işleyen, cildi hızla yoran bir hava.")
-        case let (p, g, r, w, h) where r == .likely || r == .downpour || p == .stormyFall:
+        case let (p, _, r, _, _) where r == .likely || r == .downpour || p == .stormyFall:
             return paragraph(for: .extremeCold, d: d, opening: "Aşırı soğuğa yağış ve düşen basınç eşlik ediyor; tipi veya yoğun kar ihtimali ciddiye alınmalı.")
-        case let (p, g, r, w, h):
+        default:
             return paragraph(for: .extremeCold, d: d, opening: "Aşırı soğuk sakin görünse bile beden için çok yorucu; hava affedici değil.")
         }
     }
