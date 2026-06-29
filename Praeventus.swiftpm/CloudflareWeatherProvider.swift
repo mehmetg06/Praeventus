@@ -133,3 +133,12 @@ private struct WorkerEnvelope: Decodable {
     let metar_station: String?
     let generated_at: String?
 }
+
+// MARK: - Client errors
+
+enum WeatherClientError: Error {
+    case badURL
+    case badResponse(Int)
+    case noResults
+    case transport(String)
+}
