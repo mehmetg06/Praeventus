@@ -263,6 +263,7 @@ struct HomeView: View {
             && weatherNarrative.count < 600 {
             narrativeCard
         }
+        atmosphericSignalsCard
         HealthInsightsCard(insights: store.healthInsights)
         rotatingMetricCard
         let activities = recommendedActivities
@@ -271,6 +272,9 @@ struct HomeView: View {
         }
         astronomicalCard
         hourlyPreview
+        if !store.daily.isEmpty {
+            dailyForecastCard
+        }
         #if canImport(Charts)
         WeatherChartsView(hourly: store.hourly, daily: store.daily, tint: paletteTint)
         #endif
@@ -426,6 +430,42 @@ struct HomeView: View {
             Text(String(format: String(localized: "home.feelsLike", defaultValue: "Feels like %lld°"), Int(weather.feelsLike.rounded())))
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.58))
+
+            if store.isStale {
+                Label(
+                    String(localized: "home.stale", defaultValue: "Cached data"),
+                    systemImage: "clock.badge.exclamationmark"
+                )
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(.orange.opacity(0.9))
+                .padding(.vertical, 4)
+                .padding(.horizontal, 10)
+                .background(.orange.opacity(0.14))
+                .clipShape(Capsule())
+                .padding(.top, 2)
+            }
+
+            if let confidence = store.fusionConfidence, !confidence.models.isEmpty {
+                HStack(spacing: 5) {
+                    ForEach(confidence.models, id: \.self) { model in
+                        Text(model)
+                            .font(.system(size: 9, weight: .semibold, design: .rounded))
+                            .tracking(0.5)
+                            .foregroundStyle(.white.opacity(0.65))
+                            .padding(.vertical, 3)
+                            .padding(.horizontal, 7)
+                            .background(.white.opacity(0.10))
+                            .clipShape(Capsule())
+                    }
+                    Text("·")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.30))
+                    Text("\(confidence.agreementPercent)% " + String(localized: "home.fusion.agreement", defaultValue: "consensus"))
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.50))
+                }
+                .padding(.top, 4)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.top, 24)
@@ -587,6 +627,246 @@ struct HomeView: View {
                         }
                     }
             }
+        }
+    }
+
+    // MARK: - Atmospheric Signals Card
+
+    private var atmosphericSignalsCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 9) {
+                Image(systemName: "waveform")
+                    .font(.system(size: 13, weight: .semibold))
+                Text(String(localized: "home.atmosphere.heading", defaultValue: "ATMOSPHERE"))
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .tracking(1.4)
+                Spacer()
+            }
+            .foregroundStyle(.white.opacity(0.56))
+
+            HStack(spacing: 8) {
+                atmosphereChip(
+                    icon: "bolt.fill",
+                    label: String(localized: "home.stormRisk", defaultValue: "Storm Risk"),
+                    value: atmosphere.stormRisk.displayName,
+                    color: riskLevelColor(atmosphere.stormRisk)
+                )
+                atmosphereChip(
+                    icon: "cloud.rain.fill",
+                    label: String(localized: "home.rainSignal", defaultValue: "Rain Signal"),
+                    value: atmosphere.rainSignal.displayName,
+                    color: riskLevelColor(atmosphere.rainSignal)
+                )
+                atmosphereChip(
+                    icon: "eye.fill",
+                    label: String(localized: "metric.visibility", defaultValue: "Visibility"),
+                    value: atmosphere.visibility.displayName,
+                    color: visibilityLevelColor(atmosphere.visibility)
+                )
+            }
+
+            VStack(spacing: 10) {
+                atmosphereProgressRow(
+                    label: String(localized: "home.instability", defaultValue: "Instability"),
+                    value: atmosphere.instability,
+                    accent: instabilityAccentColor(atmosphere.instability)
+                )
+                atmosphereProgressRow(
+                    label: String(localized: "home.cloudCover", defaultValue: "Cloud Cover"),
+                    value: atmosphere.cloudCover,
+                    accent: .white.opacity(0.75)
+                )
+            }
+        }
+        .padding(20)
+        .background(ThinGlassShape(cornerRadius: 28))
+    }
+
+    private func atmosphereChip(icon: String, label: String, value: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(color)
+                Text(label)
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .tracking(0.6)
+                    .foregroundStyle(.white.opacity(0.50))
+            }
+            Text(value)
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundStyle(color)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .background(color.opacity(0.10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(color.opacity(0.25), lineWidth: 0.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func atmosphereProgressRow(label: String, value: Double, accent: Color) -> some View {
+        VStack(spacing: 5) {
+            HStack {
+                Text(label)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.56))
+                Spacer()
+                Text("\(Int((value * 100).rounded()))%")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(accent)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(.white.opacity(0.08))
+                        .frame(height: 4)
+                    Capsule()
+                        .fill(accent.opacity(0.80))
+                        .frame(width: max(4, geo.size.width * CGFloat(value)), height: 4)
+                }
+            }
+            .frame(height: 4)
+        }
+    }
+
+    private func riskLevelColor(_ risk: AtmosphericRisk) -> Color {
+        switch risk {
+        case .low: return .green
+        case .moderate: return .orange
+        case .high: return .red
+        }
+    }
+
+    private func visibilityLevelColor(_ vis: AtmosphericVisibility) -> Color {
+        switch vis {
+        case .clear: return .green
+        case .reduced: return .yellow
+        case .poor: return .orange
+        }
+    }
+
+    private func instabilityAccentColor(_ value: Double) -> Color {
+        switch value {
+        case 0..<0.34: return .green
+        case 0.34..<0.67: return .orange
+        default: return .red
+        }
+    }
+
+    // MARK: - 7-Day Daily Forecast Card
+
+    private var dailyForecastCard: some View {
+        let days = Array(store.daily.prefix(7))
+        let globalMin = days.map(\.min).min() ?? 0
+        let globalMax = days.map(\.max).max() ?? 0
+        let tempRange = max(1.0, globalMax - globalMin)
+
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 9) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 13, weight: .semibold))
+                Text(String(localized: "home.daily.heading", defaultValue: "7-DAY FORECAST"))
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .tracking(1.4)
+                Spacer()
+            }
+            .foregroundStyle(.white.opacity(0.56))
+
+            VStack(spacing: 0) {
+                ForEach(Array(days.enumerated()), id: \.offset) { index, day in
+                    VStack(spacing: 0) {
+                        HStack(spacing: 0) {
+                            Text(index == 0
+                                ? String(localized: "home.today", defaultValue: "Today")
+                                : dayAbbreviation(day.date))
+                                .font(.system(size: 14,
+                                              weight: index == 0 ? .semibold : .regular,
+                                              design: .rounded))
+                                .foregroundStyle(.white.opacity(index == 0 ? 0.95 : 0.75))
+                                .frame(width: 52, alignment: .leading)
+
+                            Image(systemName: day.condition.symbolName)
+                                .font(.system(size: 16, weight: .light))
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(.white.opacity(0.85))
+                                .frame(width: 30)
+
+                            if day.precipitationAmount > 0.5 {
+                                Text(String(format: "%.0fmm", day.precipitationAmount))
+                                    .font(.system(size: 11, design: .rounded).monospacedDigit())
+                                    .foregroundStyle(Color(red: 0.4, green: 0.65, blue: 1.0))
+                                    .frame(width: 38, alignment: .leading)
+                            } else {
+                                Color.clear.frame(width: 38)
+                            }
+
+                            Spacer(minLength: 8)
+
+                            Text("\(Int(day.min.rounded()))°")
+                                .font(.system(size: 14, design: .rounded).monospacedDigit())
+                                .foregroundStyle(.white.opacity(0.45))
+                                .frame(width: 32, alignment: .trailing)
+
+                            GeometryReader { geo in
+                                let w = geo.size.width
+                                let lo = CGFloat((day.min - globalMin) / tempRange)
+                                let hi = CGFloat((day.max - globalMin) / tempRange)
+                                ZStack(alignment: .leading) {
+                                    Capsule()
+                                        .fill(.white.opacity(0.10))
+                                        .frame(height: 4)
+                                    Capsule()
+                                        .fill(LinearGradient(
+                                            colors: [dayTempColor(day.min), dayTempColor(day.max)],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        ))
+                                        .frame(width: max(6, w * (hi - lo)), height: 4)
+                                        .offset(x: w * lo)
+                                }
+                            }
+                            .frame(height: 4)
+                            .padding(.horizontal, 8)
+                            .frame(width: 70)
+
+                            Text("\(Int(day.max.rounded()))°")
+                                .font(.system(size: 14, weight: .semibold, design: .rounded).monospacedDigit())
+                                .foregroundStyle(.white.opacity(0.92))
+                                .frame(width: 32, alignment: .leading)
+                        }
+                        .padding(.vertical, 11)
+
+                        if index < days.count - 1 {
+                            Rectangle()
+                                .fill(.white.opacity(0.07))
+                                .frame(height: 0.5)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(18)
+        .background(ThinGlassShape(cornerRadius: 28))
+    }
+
+    private func dayAbbreviation(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "EEE"
+        return f.string(from: date).uppercased()
+    }
+
+    private func dayTempColor(_ temp: Double) -> Color {
+        switch temp {
+        case ..<0:    return Color(red: 0.5, green: 0.72, blue: 1.0)
+        case 0..<10:  return Color(red: 0.55, green: 0.82, blue: 1.0)
+        case 10..<20: return Color(red: 0.3, green: 0.85, blue: 0.72)
+        case 20..<30: return Color(red: 1.0, green: 0.82, blue: 0.3)
+        case 30..<38: return Color(red: 1.0, green: 0.52, blue: 0.22)
+        default:      return Color(red: 1.0, green: 0.22, blue: 0.22)
         }
     }
 
