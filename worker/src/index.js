@@ -117,7 +117,9 @@ async function fetchMETNorway(lat, lon) {
   const now = new Date();
   let dailyMap = {};
 
-  if (!data.properties || !data.properties.timeseries) return null;
+  if (!data.properties || !data.properties.timeseries || data.properties.timeseries.length === 0) {
+    return null;
+  }
 
   for (const w of data.properties.timeseries) {
     const time = w.time;
@@ -208,6 +210,8 @@ async function fetchMETNorway(lat, lon) {
     daily.sunrise.push(day + "T06:00:00Z");
     daily.sunset.push(day + "T18:00:00Z");
   }
+
+  if (!current) return null;
 
   return { latitude: lat, longitude: lon, current, hourly, daily };
 }

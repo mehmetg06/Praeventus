@@ -92,12 +92,6 @@ enum WeatherFusion {
                 fusedDouble(gather(t, hourlies, indexMaps, get))
             }
         }
-        func intRoundedCol(_ get: (ForecastResponse.Hourly) -> [Int?]?) -> [Int?] {
-            times.map { t in
-                let vals = gather(t, hourlies, indexMaps) { get($0)?.map { $0.map(Double.init) } }
-                return fusedDouble(vals).map { Int($0.rounded()) }
-            }
-        }
 
         return ForecastResponse.Hourly(
             time: times,
@@ -108,7 +102,7 @@ enum WeatherFusion {
             windSpeed10m: doubleCol(\.windSpeed10m),
             windDirection10m: times.map { t in fusedDirection(gather(t, hourlies, indexMaps) { $0.windDirection10m }) },
             windGusts10m: doubleCol(\.windGusts10m),
-            relativeHumidity2m: intRoundedCol(\.relativeHumidity2m),
+            relativeHumidity2m: doubleCol(\.relativeHumidity2m),
             dewPoint2m: doubleCol(\.dewPoint2m),
             visibility: doubleCol(\.visibility)
         )
