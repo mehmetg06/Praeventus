@@ -61,6 +61,19 @@ struct CloudflareWeatherProvider {
         return result
     }
 
+    // MARK: - Nowcast
+
+    /// Fetches radar-based minute-precipitation data from the Worker's `/nowcast`
+    /// endpoint. Returns `nil` when the device coordinate is outside MET Norway's
+    /// radar coverage area (e.g. outside Scandinavia and surrounding regions).
+    func nowcast(latitude: Double, longitude: Double) async -> NowcastResponse? {
+        guard let url = try? buildURL(path: "/nowcast", queryItems: [
+            URLQueryItem(name: "lat", value: trimmed(latitude)),
+            URLQueryItem(name: "lon", value: trimmed(longitude))
+        ]) else { return nil }
+        return try? await get(url, as: NowcastResponse.self)
+    }
+
     // MARK: - Narrative
 
     /// Fetches a short AI-generated weather commentary from the Worker's `/narrative`

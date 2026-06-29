@@ -1,7 +1,8 @@
 // Praeventus Weather Worker v3
-// Routes: /forecast (ECMWF + GFS + ICON + METAR), /search, /narrative
+// Routes: /forecast (ECMWF + GFS + ICON + METAR), /search, /narrative, /nowcast
 
 const METNORWAY_BASE  = "https://api.met.no/weatherapi/locationforecast/2.0/complete";
+const NOWCAST_BASE    = "https://api.met.no/weatherapi/nowcast/2.0/complete";
 const BRIGHTSKY_BASE  = "https://api.brightsky.dev/weather";
 // CRITICAL — Nominatim Usage Policy: max 1 request/second per IP.
 // All traffic from this Worker shares a single outbound IP, so every
@@ -532,6 +533,78 @@ async function handleNarrative(url, env) {
   return jsonResponse(result);
 }
 
+// ---------------------------------------------------------------------------
+// FAZ 1 — Nowcast (radar-based minute precipitation, MET Norway)
+// Coverage: Norway + surrounding areas. Returns HTTP 200 with
+// radarCoverage:false when the coordinate is outside the radar network.
+// ---------------------------------------------------------------------------
+
+async function handleNowcast(url, env) {
+  const lat = parseFloat(url.searchParams.get("lat") || "");
+  const lon = parseFloat(url.searchParams.get("lon") || "");
+  if (isNaN(lat) || isNaN(lon))
+    return jsonResponse({ error: "lat ve lon gerekli" }, 400);
+
+  // 4-decimal precision matches the privacy-truncation done on the Swift side.
+  const latR = Math.round(lat * 10000) / 10000;
+  const lonR = Math.round(lon * 10000) / 10000;
+
+  // Nowcast updates every ~5 min → short TTL of 300 s.
+  const cacheKey = `nowcast_${latR}_${lonR}`;
+  const cached = await cacheGet(env, cacheKey);
+  if (cached) return jsonResponse({ ...cached, _cached: true });
+
+  try {
+    const res = await fetch(
+      `${NOWCAST_BASE}?lat=${latR}&lon=${lonR}`,
+      {
+        signal: AbortSignal.timeout(10000),
+        headers: { "User-Agent": USER_AGENT }
+      }
+    );
+
+    // MET Norway returns 422 when the coordinate is outside radar coverage.
+    if (res.status === 422) {
+      return jsonResponse({ radarCoverage: false, minutecast: [] }, 200);
+    }
+    if (!res.ok) throw new Error(`MET Nowcast ${res.status}`);
+
+    const data = await res.json();
+    if (!data.properties?.timeseries?.length) {
+      return jsonResponse({ radarCoverage: false, minutecast: [] }, 200);
+    }
+
+    const minutecast = data.properties.timeseries.map(entry => {
+      const d    = entry.data?.instant?.details            || {};
+      const next = entry.data?.next_1_hours?.details       || {};
+      return {
+        time:                entry.time,
+        precipitationRate:   d.precipitation_rate          ?? 0,   // mm/h, radar-derived
+        precipitationAmount: next.precipitation_amount     ?? 0,   // mm expected in next hour
+        temperature:         d.air_temperature             ?? null,
+        humidity:            d.relative_humidity           ?? null,
+        windSpeed:           (d.wind_speed                 ?? 0) * 3.6, // m/s → km/h
+        windDirection:       d.wind_from_direction         ?? 0,
+        windGust:            (d.wind_speed_of_gust ?? d.wind_speed ?? 0) * 3.6,
+        symbolCode:          entry.data?.next_1_hours?.summary?.symbol_code ?? ""
+      };
+    });
+
+    const result = {
+      minutecast,
+      radarCoverage: true,
+      geometry:      data.geometry ?? null,
+      generated_at:  new Date().toISOString()
+    };
+
+    await cachePut(env, cacheKey, result, 300);
+    return jsonResponse(result);
+
+  } catch (err) {
+    return jsonResponse({ error: String(err), radarCoverage: false, minutecast: [] }, 503);
+  }
+}
+
 async function handleSearch(url, env) {
   const q    = url.searchParams.get("q") || "";
   const count = url.searchParams.get("count") || "5";
@@ -578,12 +651,14 @@ export default {
     if (url.pathname === "/forecast")  return handleForecast(url, env);
     if (url.pathname === "/search")    return handleSearch(url, env);
     if (url.pathname === "/narrative") return handleNarrative(url, env);
+    if (url.pathname === "/nowcast")   return handleNowcast(url, env);
     return jsonResponse({
       status: "Praeventus Weather Worker v3",
       routes: [
         "/forecast?lat=&lon=",
         "/search?q=&lang=",
-        "/narrative?lang=&temp=&weather_code="
+        "/narrative?lang=&temp=&weather_code=",
+        "/nowcast?lat=&lon="
       ]
     });
   }
