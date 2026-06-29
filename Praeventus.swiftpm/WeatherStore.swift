@@ -39,6 +39,11 @@ final class WeatherStore: ObservableObject {
     /// Set when the device barometer detects a rapid pressure drop.
     /// Cleared to nil after 30 minutes so the UI doesn't show a stale alarm.
     @Published private(set) var stormAlert: StormAlert?
+    /// True when the currently-displayed forecast was loaded via the device GPS
+    /// (Current Location), not from a manually-searched remote city.
+    /// StormSensorEngine data is only meaningful for the user's physical location,
+    /// so the storm banner must be hidden whenever this is false.
+    @Published private(set) var isGPSLocation: Bool = false
 
     // MARK: - Developer sandbox overrides
 
@@ -151,7 +156,19 @@ final class WeatherStore: ObservableObject {
         publish(snapshot)
     }
 
+    /// Loads forecast for a searched / saved remote city.
+    /// Sets `isGPSLocation = false` so the storm banner is suppressed — the device
+    /// barometer cannot reflect conditions at a distant location.
     func load(latitude: Double, longitude: Double, name: String, country: String) async {
+        isGPSLocation = false
+        await load(SavedLocation(name: name, country: country, latitude: latitude, longitude: longitude))
+    }
+
+    /// Loads forecast for the user's **current physical location** (GPS).
+    /// Sets `isGPSLocation = true` so the storm banner is permitted — the device
+    /// barometer is physically co-located with the displayed forecast.
+    func loadCurrentLocation(latitude: Double, longitude: Double, name: String, country: String) async {
+        isGPSLocation = true
         await load(SavedLocation(name: name, country: country, latitude: latitude, longitude: longitude))
     }
 

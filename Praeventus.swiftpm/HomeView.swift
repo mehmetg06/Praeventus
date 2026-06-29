@@ -13,6 +13,7 @@ struct HomeView: View {
     @State private var currentMetricIndex = 0
     @State private var weatherNarrative: String = ""
     @State private var isFetchingNarrative = false
+    @State private var minutecastPoints: [MinutePoint] = []
 
     private var severity: WeatherSeverity {
         StorySentiment.severity(
@@ -25,8 +26,21 @@ struct HomeView: View {
     var body: some View {
         VStack(spacing: 0) {
             topBar
+            // Show only when the barometer and the displayed forecast are co-located:
+            // the sensor reads the user's physical surroundings, not a remote city.
+            if store.isGPSLocation, let alert = store.stormAlert {
+                StormWarningBanner(alert: alert)
+                    .padding(.horizontal, 22)
+                    .padding(.top, 4)
+                    .padding(.bottom, 4)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal:   .move(edge: .top).combined(with: .opacity)
+                    ))
+            }
             contentArea
         }
+        .animation(.spring(response: 0.48, dampingFraction: 0.74), value: store.stormAlert != nil)
         .onChange(of: searchVM.query) { _, newValue in
             searchVM.onQueryChanged(newValue)
         }
@@ -37,10 +51,12 @@ struct HomeView: View {
                 isFetchingNarrative = false
             }
         }
-        // Trigger narrative fetch whenever real forecast data arrives — fires on every
-        // applyForecast call (cache hit, network refresh, or location switch) regardless
-        // of whether phase stays .loaded or city is empty (GPS location).
+        // Trigger narrative fetch and minutecast recompute whenever real forecast
+        // data arrives — fires on every applyForecast call (cache hit, network
+        // refresh, or location switch) regardless of whether phase stays .loaded
+        // or city is empty (GPS location).
         .onChange(of: store.forecastID) { _, _ in
+            minutecastPoints = computeMinutecastPoints()
             startNarrativeFetch()
         }
         .onAppear {
@@ -48,6 +64,7 @@ struct HomeView: View {
             if case .loaded = store.phase, weatherNarrative.isEmpty, !isFetchingNarrative {
                 startNarrativeFetch()
             }
+            minutecastPoints = computeMinutecastPoints()
         }
     }
 
@@ -263,6 +280,9 @@ struct HomeView: View {
             && weatherNarrative.count < 600 {
             narrativeCard
         }
+        if !minutecastPoints.isEmpty {
+            MinutecastGraphCard(minutePoints: minutecastPoints, paletteTint: paletteTint)
+        }
         atmosphericSignalsCard
         HealthInsightsCard(insights: store.healthInsights)
         rotatingMetricCard
@@ -300,6 +320,22 @@ struct HomeView: View {
             .padding(22)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(ThinGlassShape(cornerRadius: 28))
+    }
+
+    private func computeMinutecastPoints() -> [MinutePoint] {
+        guard store.hourly.count >= 2 else { return [] }
+        let anchors = Array(store.hourly.prefix(4))
+        let all = MinutecastEngine.interpolate(
+            temperatures:      anchors.map(\.temperature),
+            humidities:        anchors.map(\.humidity),
+            windSpeeds:        anchors.map(\.windSpeed),
+            anchorDate:        anchors[0].date,
+            latitude:          store.location?.latitude  ?? 0,
+            longitude:         store.location?.longitude ?? 0,
+            dailyMaxUV:        Double(store.daily.first?.uvIndexMax ?? weather.uvIndex),
+            cloudCoverPercent: atmosphere.cloudCover * 100
+        )
+        return Array(all.prefix(61))
     }
 
     private func startNarrativeFetch() {
@@ -973,7 +1009,9 @@ struct HomeView: View {
         searchFocused = false
         searchVM.dismissSuggestions()
         guard let loc = await searchVM.requestCurrentLocation() else { return }
-        await store.load(
+        // Use loadCurrentLocation so WeatherStore knows the barometer and the
+        // forecast are physically co-located — enabling the storm warning banner.
+        await store.loadCurrentLocation(
             latitude: loc.latitude,
             longitude: loc.longitude,
             name: loc.name,
@@ -1226,6 +1264,240 @@ private struct AstronomicalCard: View {
         case -6..<0:  return Color(red: 1.0, green: 0.52, blue: 0.25)
         default:      return .white.opacity(0.32)
         }
+    }
+}
+
+// MARK: - Storm Warning Banner
+
+private struct StormWarningBanner: View {
+    let alert: StormAlert
+    @State private var pulseOpacity: Double = 0.65
+
+    private var accentColor: Color {
+        switch alert.severity {
+        case .watch:   return .orange
+        case .warning: return Color(red: 1.0, green: 0.28, blue: 0.06)
+        case .extreme: return .red
+        }
+    }
+
+    private var icon: String {
+        switch alert.severity {
+        case .watch:   return "cloud.bolt"
+        case .warning: return "cloud.bolt.fill"
+        case .extreme: return "exclamationmark.triangle.fill"
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .stroke(accentColor.opacity(pulseOpacity), lineWidth: 1.5)
+                    .frame(width: 50, height: 50)
+                Circle()
+                    .fill(accentColor.opacity(0.18))
+                    .frame(width: 40, height: 40)
+                Image(systemName: icon)
+                    .font(.system(size: 19, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(accentColor)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(alert.severity.localizedTitle)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(accentColor)
+                Text(alert.severity.localizedDescription)
+                    .font(.system(size: 12, weight: .regular, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.80))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 4)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(String(format: "−%.1f", alert.pressureDropHPa))
+                    .font(.system(size: 13, weight: .bold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(accentColor)
+                Text("hPa/\(alert.windowMinutes)dk")
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.52))
+            }
+        }
+        .padding(.vertical, 13)
+        .padding(.horizontal, 16)
+        .background {
+            ZStack {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Material.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(accentColor.opacity(0.10))
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            stops: [
+                                .init(color: accentColor.opacity(0.60), location: 0),
+                                .init(color: accentColor.opacity(0.18), location: 1)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            }
+            .shadow(color: accentColor.opacity(0.32), radius: 16, y: 6)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+                pulseOpacity = 0.08
+            }
+        }
+    }
+}
+
+// MARK: - Minutecast Graph Card
+
+private struct MinutecastGraphCard: View {
+    let minutePoints: [MinutePoint]
+    let paletteTint: Color
+
+    private var temperatures: [Double] { minutePoints.map(\.temperature) }
+    private var tempMin: Double { (temperatures.min() ?? 0) - 0.5 }
+    private var tempMax: Double { (temperatures.max() ?? 0) + 0.5 }
+    private var tempRange: Double { max(0.1, tempMax - tempMin) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 9) {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .font(.system(size: 13, weight: .semibold))
+                Text(String(localized: "home.minutecast.heading",
+                            defaultValue: "DAKİKALIK TAHMİN"))
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .tracking(1.4)
+                Spacer()
+                Text(String(localized: "home.minutecast.label", defaultValue: "60 dk"))
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.42))
+            }
+            .foregroundStyle(.white.opacity(0.56))
+
+            GeometryReader { _ in
+                Canvas { ctx, size in
+                    drawGraph(ctx: ctx, size: size)
+                }
+            }
+            .frame(height: 90)
+
+            HStack(spacing: 0) {
+                ForEach(
+                    [String(localized: "minutecast.now", defaultValue: "Şimdi"),
+                     "+15m", "+30m", "+45m",
+                     String(localized: "minutecast.60m", defaultValue: "+60m")],
+                    id: \.self
+                ) { label in
+                    Text(label)
+                        .font(.system(size: 9, design: .rounded).monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.42))
+                        .frame(maxWidth: .infinity,
+                               alignment: label.hasSuffix("Şimdi") || label == "Şimdi"
+                                   ? .leading
+                                   : label.hasSuffix("60m") || label == "+60m"
+                                       ? .trailing
+                                       : .center)
+                }
+            }
+
+            if let first = minutePoints.first, let last = minutePoints.last {
+                let delta = last.temperature - first.temperature
+                let isRising = delta >= 0.05
+                let isFalling = delta <= -0.05
+                HStack(spacing: 6) {
+                    Text(String(format: "%.1f°C", first.temperature))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.88))
+                    Image(systemName: isRising ? "arrow.up.right" : isFalling ? "arrow.down.right" : "arrow.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(isRising ? .orange : isFalling ? .cyan : .white.opacity(0.45))
+                    Text(isRising
+                         ? String(format: "+%.1f°", delta)
+                         : String(format: "%.1f°", delta))
+                        .font(.system(size: 12, weight: .medium, design: .rounded).monospacedDigit())
+                        .foregroundStyle(isRising ? .orange.opacity(0.85) : isFalling ? .cyan.opacity(0.85) : .white.opacity(0.45))
+                    Spacer()
+                    Text(String(localized: "minutecast.temp.label",
+                                defaultValue: "Sıcaklık Eğrisi"))
+                        .font(.system(size: 9, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.34))
+                }
+            }
+        }
+        .padding(20)
+        .background(ThinGlassShape(cornerRadius: 28))
+    }
+
+    private func drawGraph(ctx: GraphicsContext, size: CGSize) {
+        guard minutePoints.count > 1 else { return }
+        let w = size.width
+        let h = size.height
+        let n = minutePoints.count
+
+        func px(_ i: Int) -> CGFloat { w * CGFloat(i) / CGFloat(n - 1) }
+        func py(_ temp: Double) -> CGFloat {
+            let norm = (temp - tempMin) / tempRange
+            return h - CGFloat(norm) * (h - 12) - 6
+        }
+
+        // Dashed vertical grid at 15-minute marks
+        for tick in stride(from: 15, through: 45, by: 15) where tick < n {
+            var grid = Path()
+            let gx = px(tick)
+            grid.move(to:    CGPoint(x: gx, y: 0))
+            grid.addLine(to: CGPoint(x: gx, y: h))
+            ctx.stroke(grid, with: .color(.white.opacity(0.08)),
+                       style: StrokeStyle(lineWidth: 0.75, dash: [3, 4]))
+        }
+
+        // Build the smooth polyline from interpolated 1-min points
+        var curve = Path()
+        curve.move(to: CGPoint(x: px(0), y: py(minutePoints[0].temperature)))
+        for i in 1 ..< n {
+            curve.addLine(to: CGPoint(x: px(i), y: py(minutePoints[i].temperature)))
+        }
+
+        // Gradient fill below the curve
+        var fill = curve
+        fill.addLine(to: CGPoint(x: px(n - 1), y: h))
+        fill.addLine(to: CGPoint(x: px(0),     y: h))
+        fill.closeSubpath()
+        ctx.fill(fill, with: .linearGradient(
+            Gradient(stops: [
+                .init(color: paletteTint.opacity(0.42), location: 0),
+                .init(color: paletteTint.opacity(0.04), location: 1)
+            ]),
+            startPoint: CGPoint(x: w / 2, y: 0),
+            endPoint:   CGPoint(x: w / 2, y: h)
+        ))
+
+        // Stroke the temperature line
+        ctx.stroke(curve, with: .linearGradient(
+            Gradient(stops: [
+                .init(color: Color.white.opacity(0.88), location: 0),
+                .init(color: paletteTint.opacity(0.72), location: 1)
+            ]),
+            startPoint: CGPoint(x: 0,   y: h / 2),
+            endPoint:   CGPoint(x: w,   y: h / 2)
+        ), lineWidth: 2)
+
+        // "Now" indicator — halo + solid dot
+        let nx = px(0)
+        let ny = py(minutePoints[0].temperature)
+        ctx.fill(Circle().path(in: CGRect(x: nx - 8,   y: ny - 8,   width: 16, height: 16)),
+                 with: .color(.white.opacity(0.15)))
+        ctx.fill(Circle().path(in: CGRect(x: nx - 3.5, y: ny - 3.5, width: 7,  height: 7)),
+                 with: .color(.white))
     }
 }
 
