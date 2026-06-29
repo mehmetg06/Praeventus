@@ -38,6 +38,17 @@ struct AstronomicalAnalysis: Equatable {
     let daylightHours: Double
     let sunAltitude: Double
     let sunriseSunset: SunTiming
+    /// Approximate timezone of the observed location, derived from longitude.
+    let locationTimezone: TimeZone
+
+    static func == (lhs: AstronomicalAnalysis, rhs: AstronomicalAnalysis) -> Bool {
+        lhs.moonPhase == rhs.moonPhase &&
+        lhs.moonBrightness == rhs.moonBrightness &&
+        lhs.daylightHours == rhs.daylightHours &&
+        lhs.sunAltitude == rhs.sunAltitude &&
+        lhs.sunriseSunset == rhs.sunriseSunset &&
+        lhs.locationTimezone == rhs.locationTimezone
+    }
 }
 
 struct SunTiming: Equatable {
@@ -57,13 +68,16 @@ enum AstronomicalEngine {
         let altitude = sunAltitude(at: date, latitude: latitude, longitude: longitude)
         let timing = sunTiming(at: date, latitude: latitude, longitude: longitude)
         let daylight = timing.duration / 3600
+        let tzOffset = Int(round(longitude / 15.0)) * 3600
+        let locationTimezone = TimeZone(secondsFromGMT: tzOffset) ?? .current
 
         return AstronomicalAnalysis(
             moonPhase: phase,
             moonBrightness: brightness,
             daylightHours: daylight,
             sunAltitude: altitude,
-            sunriseSunset: timing
+            sunriseSunset: timing,
+            locationTimezone: locationTimezone
         )
     }
 
@@ -138,17 +152,27 @@ enum AstronomicalEngine {
     }
 
     private static func calculateSunriseTime(date: Date, latitude: Double, longitude: Double, isRise: Bool) -> Date {
-        let calendar = Calendar.current
-        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        // Extract the local calendar date at the target location (not device timezone).
+        let tzOffset = Int(round(longitude / 15.0)) * 3600
+        let locationTZ = TimeZone(secondsFromGMT: tzOffset) ?? .current
+        var locationCalendar = Calendar(identifier: .gregorian)
+        locationCalendar.timeZone = locationTZ
+        let components = locationCalendar.dateComponents([.year, .month, .day], from: date)
 
         guard let year = components.year, let month = components.month, let day = components.day else {
             return date
         }
 
         let zenith = 90.833
-        let N = Double(dayOfYear(year: year, month: month, day: day))
+        let N_int = dayOfYear(year: year, month: month, day: day)
+        let N = Double(N_int)
         let lngHour = longitude / 15.0
-        let t = isRise ? N + (6 - lngHour) / 24 : N + (18 - lngHour) / 24
+        // t is the approximate fractional Julian day of the event in UTC.
+        let t = isRise ? N + (6.0 - lngHour) / 24.0 : N + (18.0 - lngHour) / 24.0
+        // The UTC calendar day differs from the local day N by this offset
+        // (e.g. -1 for eastern-hemisphere sunrise whose UTC time falls on the previous day).
+        let utcDayOffset = Int(floor(t)) - N_int
+
         let M = 0.9856 * t - 3.289
         var L = (M + 1.916 * sin(M.toRadians()) + 0.020 * sin((2 * M).toRadians()) + 282.634)
         L = fmod(L, 360)
@@ -180,19 +204,22 @@ enum AstronomicalEngine {
         var UT = fmod(T - lngHour, 24)
         if UT < 0 { UT += 24 }
 
-        let hour = Int(floor(UT))
-        let minute = Int(floor((UT - Double(hour)) * 60))
+        // Build the result as the correct UTC Date: midnight UTC of the local date,
+        // shifted by utcDayOffset days, then UT hours added.
+        var midnightComponents = DateComponents()
+        midnightComponents.year = year
+        midnightComponents.month = month
+        midnightComponents.day = day
+        midnightComponents.hour = 0
+        midnightComponents.minute = 0
+        midnightComponents.second = 0
+        midnightComponents.timeZone = TimeZone(identifier: "UTC")
 
-        var dayComponent = DateComponents()
-        dayComponent.year = year
-        dayComponent.month = month
-        dayComponent.day = day
-        dayComponent.hour = hour
-        dayComponent.minute = minute
-        dayComponent.second = 0
-        dayComponent.timeZone = TimeZone.current
-
-        return calendar.date(from: dayComponent) ?? date
+        guard let midnightUTC = Calendar(identifier: .gregorian).date(from: midnightComponents) else {
+            return date
+        }
+        let utcSeconds = Double(utcDayOffset) * 86400.0 + UT * 3600.0
+        return midnightUTC.addingTimeInterval(utcSeconds)
     }
 
     private static func getHourAngle(at date: Date, longitude: Double, sunLongitude: Double) -> Double {
