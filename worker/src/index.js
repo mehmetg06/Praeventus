@@ -264,17 +264,20 @@ async function handleNarrative(url, env) {
 
   try {
     const aiResp = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user",   content: weatherSummary }
       ],
       max_tokens: 200
     });
-    const text = (aiResp?.choices?.[0]?.message?.content
+        const text = (aiResp?.choices?.[0]?.message?.content
+               || aiResp?.choices?.[0]?.message?.reasoning_content
                || aiResp?.response
                || "").trim();
     if (text) narrative = text;
-  } catch { /* silent fallback */ }
+  } catch (err) { narrative = String(err); }
+
 
   const result = { narrative, cached: false, lang };
   if (narrative !== fallback)
