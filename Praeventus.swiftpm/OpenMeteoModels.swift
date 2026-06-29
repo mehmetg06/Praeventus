@@ -59,7 +59,7 @@ struct ForecastResponse: Codable, Equatable {
         let windSpeed10m: [Double?]?
         let windDirection10m: [Int?]?
         let windGusts10m: [Double?]?
-        let relativeHumidity2m: [Int?]?
+        let relativeHumidity2m: [Double?]?
         let dewPoint2m: [Double?]?
         let visibility: [Double?]?
 
