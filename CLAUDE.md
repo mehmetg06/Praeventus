@@ -979,6 +979,26 @@ The `/narrative` endpoint sends only anonymous numeric weather values (temperatu
 
 ## Session Log
 
+### 2026-06-29 — Complete Overhaul to Direct Aggregator Architecture
+
+**Branch**: `claude/direct-aggregator-architecture`
+
+#### What changed
+
+**`worker/src/index.js` — Open-Meteo entirely removed and replaced with Direct Aggregator**
+
+The Cloudflare worker was fully rewritten to no longer act as a pass-through proxy for Open-Meteo, but instead to fetch data directly from institutional open data APIs and map them into the exact JSON envelope (`{ models: { ecmwf_ifs025, gfs_global, icon_global } }`) that the Swift application expects, thereby maintaining zero code changes required in the Swift application.
+
+- **Open-Meteo Removed**: All references, endpoints, and fetch logic pointing to `api.open-meteo.com` and `geocoding-api.open-meteo.com` were completely deleted.
+- **Bright Sky API (ICON/DWD)**: `fetchBrightSky()` added. Routes to `api.brightsky.dev` to fetch ICON model data. The hourly and daily arrays are derived from the raw timestamps and mapped to Open-Meteo's format. This is mapped to the `icon_global` key in the response.
+- **MET Norway API (ECMWF + GFS)**: `fetchMetNorway()` added. Routes to `api.met.no/weatherapi/locationforecast/2.0/compact`. Since MET Norway acts as an excellent source for ECMWF and regional models, its output is mapped into both `ecmwf_ifs025` and `gfs_global` to satisfy the Swift app's fusion engine which strictly expects these three models to exist. Important: MET Norway strictly requires the `User-Agent: Praeventus/1.0` header.
+- **Air Quality**: An `air_quality: null` placeholder was added to the response envelope. The previous plan to use OpenAQ was deferred because OpenAQ v3 requires an API key, violating the "Zero Cost, Zero Lock-In" principle. The Swift app will gracefully handle the missing data.
+- **Geocoding (Nominatim)**: The `/search` endpoint was rewritten to query OpenStreetMap's Nominatim (`nominatim.openstreetmap.org/search`). The response is mapped back to the shape expected by `SearchViewModel`.
+- **Resilience**: `Promise.allSettled` is used with a 10-second timeout. Any source that fails simply returns `null` for its segment, preventing the entire worker from crashing and allowing the Swift app's `WeatherFusion` to blend whatever models successfully arrived.
+
+#### Files with zero changes
+All Swift source files. The architecture ensures that `CloudflareWeatherProvider.swift`, `WeatherFusion.swift`, and all UI elements remain completely unaware that Open-Meteo was replaced.
+
 ### 2026-06-29 — Cloudflare Worker as First-Class Data Source
 
 **Branch**: `claude/cloudflare-weather-provider-pgx9p7`
