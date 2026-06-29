@@ -70,7 +70,6 @@ struct MappedForecast: Equatable {
 enum WeatherMapping {
 
     /// WMO weather interpretation code → app `WeatherCondition`.
-    /// https://open-meteo.com/en/docs (WMO Weather interpretation codes)
     static func condition(forWMOCode code: Int?) -> WeatherCondition {
         guard let code else { return .partlyCloudy }
         switch code {
@@ -139,7 +138,7 @@ enum WeatherMapping {
 
         // Start from the hour closest to "now" so the strip reads forward.
         let startIndex = nowIndex(in: hourly.time, currentTime: currentTime)
-        let endIndex = min(hourly.time.count, startIndex + OpenMeteoClient.hourlyWindow)
+        let endIndex = min(hourly.time.count, startIndex + 24)
         guard startIndex < endIndex else { return [] }
 
         return (startIndex..<endIndex).compactMap { i in

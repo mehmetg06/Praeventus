@@ -46,14 +46,12 @@ final class WeatherStore: ObservableObject {
     /// Forces the health card into a specific medical state, if set.
     @Published private(set) var forcedHealthInsights: HealthInsights?
 
-    private let client: OpenMeteoClient
     private let calibration = SensorCalibration()
     private static let locationKey = "praeventus.savedLocation"
 
     /// Seed snapshot used purely so the UI/background have something to render
     /// before the first load. Not a real location — `phase` stays `.idle`.
-    init(client: OpenMeteoClient = OpenMeteoClient()) {
-        self.client = client
+    init() {
         let seed = WeatherData(
             city: "",
             country: "",
@@ -123,25 +121,9 @@ final class WeatherStore: ObservableObject {
         }
     }
 
-    /// Fetches the live forecast, routing through the Cloudflare Worker when
-    /// that data source is selected, otherwise falling back to Open-Meteo directly.
     private func fetchForecast(_ place: SavedLocation) async throws -> (ForecastResponse, FusionConfidence) {
-        let forecasts: [WeatherModel: ForecastResponse]
-
-        if WeatherSettings.dataSource == .cloudflare {
-            let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
-            forecasts = try await cf.forecast(
-                latitude: place.latitude, longitude: place.longitude
-            )
-        } else if WeatherSettings.multiModelEnabled {
-            forecasts = try await client.forecast(
-                latitude: place.latitude, longitude: place.longitude, models: WeatherModel.fusionSet
-            )
-        } else {
-            let response = try await client.forecast(latitude: place.latitude, longitude: place.longitude)
-            return (response, FusionConfidence(agreement: 1, temperatureSpreadC: 0, models: [WeatherModel.bestMatch.displayName]))
-        }
-
+        let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
+        let forecasts = try await cf.forecast(latitude: place.latitude, longitude: place.longitude)
         let fused = WeatherFusion.fuse(forecasts)
         return (fused.response, fused.confidence)
     }

@@ -8,9 +8,9 @@
 
 ### High-Level Prediction via NWP Fusion
 
-Praeventus does not consume a proprietary "weather API" that hides its data sources behind a commercial paywall. Instead it queries Open-Meteo — a fully open-source, self-hostable weather service that exposes raw output from the world's leading NWP models — and blends three independent global models on the device before presenting any result to the user.
+All forecast and geocoding requests are routed through a Cloudflare Worker (`CloudflareWeatherProvider`), which fetches raw output from three independent global NWP models in a single round-trip and returns them in one JSON envelope. The device receives all three model responses, fuses them on-device via `WeatherFusion`, and presents a single synthetic forecast to the user. No direct calls to upstream weather APIs are made from the device.
 
-The three models in the default fusion set are:
+The three models in the fusion set are:
 
 | Model | Operator | Resolution | Strengths |
 |-------|----------|------------|-----------|
@@ -32,10 +32,10 @@ Every piece of personally sensitive information (location, usage patterns, devic
 
 ### Zero Cost, Zero Lock-In
 
-Every external dependency is either a first-party Apple framework or a free, no-key-required open API:
+Every external dependency is either a first-party Apple framework or a free, no-key-required open service:
 
-- **Open-Meteo**: AGPL-licensed, fully open source, no account required.
-- **ECMWF/GFS/ICON data**: Published under open data agreements.
+- **Cloudflare Workers**: Free tier; the Worker fetches ECMWF/GFS/ICON data from Open-Meteo and returns them fused to the device.
+- **ECMWF/GFS/ICON data** (via Open-Meteo, AGPL-licensed): Published under open data agreements; no account required.
 - **SF Symbols**: Bundled with iOS.
 - **NaturalLanguage, CoreMotion, CoreLocation, Swift Charts**: Apple platform SDKs.
 
@@ -59,9 +59,8 @@ Praeventus/
 │   ├── tr.lproj/Localizable.strings    # Turkish strings
 │   │
 │   ├── ── Data Layer (pure Foundation — compiles on Linux) ──
-│   ├── WeatherEndpoint.swift           # URL construction for Open-Meteo APIs
-│   ├── OpenMeteoModels.swift           # Decodable structs mirroring Open-Meteo JSON
-│   ├── OpenMeteoClient.swift           # Async HTTP client; concurrent multi-model fetch
+│   ├── OpenMeteoModels.swift           # Decodable structs used by CloudflareWeatherProvider
+│   ├── CloudflareWeatherProvider.swift # Single-round-trip fetch from Cloudflare Worker
 │   ├── WeatherModel.swift              # NWP model enum + UserDefaults feature flags
 │   ├── WeatherFusion.swift             # On-device inverse-spread model fusion engine
 │   ├── ForecastCache.swift             # Disk-based forecast cache (1-hour TTL)
@@ -120,11 +119,13 @@ Praeventus/
 ```
 User Input
   │
-  ├─ Search query ──→ OpenMeteoClient.search() ──→ GeocodingResult[]
-  │                                                       │
-  │                                                       ▼
-  └─ Saved/detected location ──→ OpenMeteoClient.forecast() × [ECMWF, GFS, ICON]
-                                         │ (concurrent TaskGroup)
+  ├─ Search query ──→ CloudflareWeatherProvider.search() ──→ GeocodingResult[]
+  │                                                                 │
+  │                                                                 ▼
+  └─ Saved/detected location ──→ CloudflareWeatherProvider.forecast()
+                                 (single round-trip; Worker returns
+                                  ECMWF + GFS + ICON in one envelope)
+                                         │
                                          ▼
                                    WeatherFusion.fuse()
                                    (inverse-spread weighted blend)
@@ -176,7 +177,7 @@ Offline path:
 
 | Layer | Files | Imports | Platforms |
 |-------|-------|---------|-----------|
-| **Data** | WeatherEndpoint, OpenMeteoModels, OpenMeteoClient, WeatherModel, WeatherFusion, ForecastCache, WeatherMapping, WeatherData, LocalizedStringCompat, StorySentiment | Foundation only | iOS, macOS, Linux |
+| **Data** | OpenMeteoModels, CloudflareWeatherProvider, WeatherModel, WeatherFusion, ForecastCache, WeatherMapping, WeatherData, LocalizedStringCompat, StorySentiment | Foundation only | iOS, macOS, Linux |
 | **Domain** | AtmosphericEngine, AstronomicalEngine, MeteorologicalExpertSystem, WeatherNarrativeEngine, ThermalPredictionEngine, HealthInsights | Foundation (+ SwiftUI guard for Atmospheric) | iOS, macOS |
 | **Sensor** | SensorCalibration | CoreMotion (stub for others) | iOS (no-op elsewhere) |
 | **State** | WeatherStore, Activity, ActivityAnalysisEngine | Foundation + SwiftUI | iOS |
@@ -194,63 +195,51 @@ Offline path:
 
 ---
 
-#### `WeatherEndpoint.swift`
-Constructs typed `URL` values for the two Open-Meteo endpoints:
-
-- **Forecast endpoint**: `https://api.open-meteo.com/v1/forecast` — accepts latitude, longitude, field lists for `current`, `hourly`, and `daily`, timezone auto-detect, 7-day window, kmh wind units, and an optional `models=` parameter for NWP model selection.
-- **Geocoding endpoint**: `https://geocoding-api.open-meteo.com/v1/search` — accepts a city name query, result count, format, and locale-aware language code.
-
-When a Cloudflare Worker proxy URL is configured, the same query parameters are sent to the proxy's base URL instead.
-
----
-
 #### `OpenMeteoModels.swift`
-Decodable structs that mirror the exact JSON schema Open-Meteo returns. Notable details:
+Decodable structs used by `CloudflareWeatherProvider` to decode the `ForecastResponse` and `GeocodingResult` shapes that the Cloudflare Worker returns. Notable details:
 
-- `ForecastResponse.Current` holds all instantaneous fields (temperature_2m, apparent_temperature, relative_humidity_2m, surface_pressure, pressure_msl, wind_speed_10m, wind_direction_10m, wind_gusts_10m, uv_index, dew_point_2m, visibility, precipitation_probability, weather_code). Every field is `Double?` or `Int?` — Open-Meteo can omit any field.
-- `ForecastResponse.Hourly` holds parallel arrays (one value per hour); arrays are also optional-typed to survive partial responses.
+- `ForecastResponse.Current` holds all instantaneous fields (temperature_2m, apparent_temperature, relative_humidity_2m, surface_pressure, pressure_msl, wind_speed_10m, wind_direction_10m, wind_gusts_10m, uv_index, dew_point_2m, visibility, precipitation_probability, weather_code). Every field is `Double?` or `Int?` — partial responses are tolerated.
+- `ForecastResponse.Hourly` holds parallel arrays (one value per hour); arrays are optional-typed to survive partial responses.
 - `ForecastResponse.Daily` holds daily aggregates including `sunrise`/`sunset` as ISO-8601 strings.
-- `GeocodingResponse` / `GeocodingResult` model the geocoding endpoint.
+- `GeocodingResponse` / `GeocodingResult` model the geocoding search results.
 
-The shared `JSONDecoder` is configured with `.convertFromString(positiveInfinity:negativeInfinity:nan:)` to handle the rare NaN/Infinity values Open-Meteo emits for some parameters in extreme grid cells.
+The shared `JSONDecoder` in `CloudflareWeatherProvider` is configured with `.convertFromString(positiveInfinity:negativeInfinity:nan:)` to handle the rare NaN/Infinity values emitted for some parameters in extreme grid cells.
 
 ---
 
-#### `OpenMeteoClient.swift`
-Pure-Foundation HTTP client. Two modes:
+#### `CloudflareWeatherProvider.swift`
+Pure-Foundation HTTP client that is the **sole** upstream networking layer. All forecast and geocoding requests go through the Cloudflare Worker at `WeatherSettings.cloudflareWorkerURL` — no direct calls to upstream weather APIs are made from the device.
 
-**Single-model fetch** (`forecast(latitude:longitude:model:)`):
-- Builds URLQueryItem lists explicitly (current, hourly, daily field sets, timezone, forecast_days, wind_speed_unit).
-- Appends `models=<apiValue>` only for non-`bestMatch` requests (omitting the parameter lets Open-Meteo select its blended default and avoids changing the JSON key suffixes, keeping the decoder unchanged).
-- 15-second timeout from `URLSession.shared`.
-
-**Multi-model concurrent fetch** (`forecast(latitude:longitude:models:)`):
-- Spawns one `Task` per model inside a `withTaskGroup`.
-- Uses `try?` per task — a model that returns an HTTP error or decode failure is silently dropped from the result dictionary.
-- Throws `WeatherClientError.noResults` only when every model in the set fails; otherwise returns a partial dictionary that `WeatherFusion` handles gracefully.
+**Forecast** (`forecast(latitude:longitude:)`):
+- Sends a single GET to `<workerURL>/forecast?lat=…&lon=…`.
+- Decodes the Worker's JSON envelope (`{ models: { ecmwf_ifs025, gfs_global, icon_global }, metar_station, generated_at }`).
+- Maps the `models` dictionary to `[WeatherModel: ForecastResponse]` — the exact shape `WeatherFusion.fuse()` expects.
+- Throws `WeatherClientError.noResults` if no recognised model keys are present.
 
 **Geocoding** (`search(_:count:)`):
-- Passes the locale's language code so the API returns localized city names.
+- Forwards to `<workerURL>/search?q=…&count=…&lang=…`.
+- Passes the locale's language code for localised city names.
 
-Coordinates are formatted to 4 decimal places (~11 m precision), deliberately coarser than the device's actual location resolution, as a privacy measure.
+Both paths use a 15-second timeout, a privacy User-Agent, and coordinate trimming to 4 decimal places (~11 m).
 
 ---
 
 #### `WeatherModel.swift`
-Enum of the four selectable NWP models:
+Enum of the four NWP model identifiers. The `apiValue` strings match the keys in the Worker's `models` JSON dictionary.
 
 | Case | API value | Label |
 |------|-----------|-------|
-| `.bestMatch` | *(omitted)* | Best Match |
+| `.bestMatch` | `best_match` | Best Match |
 | `.ecmwf` | `ecmwf_ifs025` | ECMWF |
 | `.gfs` | `gfs_global` | GFS |
 | `.icon` | `icon_global` | ICON |
 
-`WeatherModel.fusionSet` is `[.ecmwf, .gfs, .icon]` — the three independent global NWP models fetched concurrently when multi-model fusion is on.
+`WeatherModel.fusionSet` is `[.ecmwf, .gfs, .icon]` — the three models the Worker always returns and that `WeatherFusion` blends.
 
-`WeatherSettings` reads two UserDefaults-backed flags:
-- `praeventus.multiModelEnabled` (default `true`) — whether to fetch and fuse three models.
-- `praeventus.sensorCalibrationEnabled` (default `false`) — whether to apply the iPad barometer offset.
+`WeatherSettings` holds:
+- `multiModelEnabled` (UserDefaults, default `true`) — informational flag; fusion always runs since the Worker always delivers three models.
+- `sensorCalibrationEnabled` (UserDefaults, default `false`) — whether to apply the iPad barometer offset.
+- `cloudflareWorkerURL` — the compiled-in Worker base URL.
 
 ---
 
@@ -798,13 +787,13 @@ The sandbox is accessed via **Weather Lab** (Lab button in `HomeView`). It provi
 
 ### Location
 - `kCLLocationAccuracyReduced`: OS-level ~500–1000 m rounding before the app ever sees coordinates.
-- Coordinates truncated to 4 decimal places (~11 m) in `OpenMeteoClient.trimmed(_:)` before inclusion in any URL.
+- Coordinates truncated to 4 decimal places (~11 m) in `CloudflareWeatherProvider.trimmed(_:)` before inclusion in any URL.
 - Cache key at 2 decimal places (~1 km) — the saved location is never more precise than needed.
 - `UserDefaults` stores the last city name + coarse coordinates. No device ID, no timestamp.
 
 ### Network
-- All Open-Meteo requests are HTTPS.
-- Optional Cloudflare Worker proxy: the device's IP is exposed to the proxy, not to Open-Meteo. The worker forwards only the query string.
+- All requests go to the Cloudflare Worker over HTTPS; the device never contacts upstream weather APIs directly.
+- The Worker's IP is what upstream services see — the device IP is never exposed to them.
 - User-Agent is a generic `Praeventus/1.0 (privacy-weather)` — no device identifier, no OS version, no app version beyond the major.
 
 ### On-Device Computation
@@ -836,7 +825,7 @@ The sandbox is accessed via **Weather Lab** (Lab button in `HomeView`). It provi
 cd Praeventus.swiftpm
 swift run
 ```
-This exercises the full data + domain stack: geocoding → multi-model fetch → fusion → mapping → atmospheric engine → narrative engine → thermal engine.
+This exercises the full data + domain stack: geocoding via the Cloudflare Worker → multi-model response → fusion → mapping → atmospheric engine → narrative engine → thermal engine.
 
 ### iOS (Swift Playgrounds)
 
@@ -866,17 +855,18 @@ This exercises the full data + domain stack: geocoding → multi-model fetch →
 
 ### Adding a New Weather Metric
 1. Add the field to `OpenMeteoModels` (as `Double?` or `Int?`).
-2. Request the field name in `OpenMeteoClient.forecast` query items.
+2. Ensure the Cloudflare Worker includes the field in its upstream request to Open-Meteo.
 3. Add the field to `WeatherData`.
 4. Map it in `WeatherMapping.map()` / `hourlyPoints()` / `dailyRanges()`.
 5. Add a localized key to both strings files.
 6. Display in `WeatherLabView` and wherever relevant.
 
 ### Adding a New NWP Model
-1. Add a new case to `WeatherModel` with the correct `apiValue` (Open-Meteo `models=` parameter).
+1. Add a new case to `WeatherModel` with the correct `apiValue` matching the key the Worker uses in its `models` envelope.
 2. Add its `displayName` localization key.
 3. If it should join the fusion set, add it to `WeatherModel.fusionSet`.
-4. No changes to `WeatherFusion` or `OpenMeteoClient` are needed — both are model-agnostic.
+4. Update the Cloudflare Worker to fetch and return the new model under that key.
+5. No changes to `WeatherFusion` or `CloudflareWeatherProvider` are needed — both are model-agnostic.
 
 ### Modifying the Expert System Narrative
 1. Edit `MeteorologicalExpertSystem.swift`.
@@ -894,7 +884,7 @@ This exercises the full data + domain stack: geocoding → multi-model fetch →
 - **No test targets**: Swift Playgrounds apps cannot include `XCTest` targets. The headless macOS CLI serves as the integration test harness.
 
 ### Floating-Point Safety
-Open-Meteo occasionally returns `NaN` or `Infinity` for certain fields in extreme grid cells (e.g., UV index at polar night). The `JSONDecoder` is configured with `.convertFromString(positiveInfinity:negativeInfinity:nan:)`, and `WeatherMapping` uses `safe(_:at:or:)` with typed defaults on every array access. `WeatherFusion.fusedDouble(_:)` filters out non-finite values via `.filter { $0.isFinite }` before any arithmetic.
+The Cloudflare Worker may relay `NaN` or `Infinity` values from upstream NWP models for certain fields in extreme grid cells (e.g., UV index at polar night). `CloudflareWeatherProvider`'s `JSONDecoder` is configured with `.convertFromString(positiveInfinity:negativeInfinity:nan:)`, and `WeatherMapping` uses `safe(_:at:or:)` with typed defaults on every array access. `WeatherFusion.fusedDouble(_:)` filters out non-finite values via `.filter { $0.isFinite }` before any arithmetic.
 
 ### No Pressure History
 `MeteorologicalExpertSystem`'s barometric tendency is inferred, not measured, because the app does not store a rolling pressure buffer. The inference is based on current pressure deviation, rain probability gradient, and instability scalars — not on a historical 3-hour differential. This is a deliberate trade-off: it avoids persisting time-series state at the cost of some forecasting accuracy in rapidly changing conditions.
@@ -960,13 +950,75 @@ The `client.search(query)` call is now conditional:
 
 ---
 
+### 2026-06-29 — Remove Open-Meteo Client; Cloudflare Worker Is Sole Data Source
+
+**Branch**: `claude/remove-open-meteo-xdbtkr`
+
+#### What changed
+
+**Deleted files**
+
+- `OpenMeteoClient.swift` — removed entirely. `CloudflareWeatherProvider` is now the only HTTP client.
+- `WeatherEndpoint.swift` — removed entirely. URL construction for direct Open-Meteo endpoints is no longer needed; all requests go through the Worker.
+
+**`Package.swift`** — `"WeatherEndpoint.swift"` and `"OpenMeteoClient.swift"` removed from the sources array.
+
+**`WeatherModel.swift`**
+
+- `WeatherSettings.DataSource` enum removed (`.cloudflare` / `.openMeteo` distinction is gone).
+- `WeatherSettings.dataSource` computed property removed.
+- `WeatherSettings.cloudflareWorkerURL` retained — it is now the only routing constant.
+- Updated doccomments to reflect Cloudflare Worker as the sole backend.
+
+**`WeatherStore.swift`**
+
+- `private let client: OpenMeteoClient` property removed.
+- `init(client:)` parameter removed; `init()` is now the only initialiser.
+- `fetchForecast` collapsed to a single path: always instantiates `CloudflareWeatherProvider` and calls `cf.forecast(...)`, then fuses via `WeatherFusion`.
+
+**`SearchViewModel.swift`**
+
+- `private let client: OpenMeteoClient` property removed; `init(client:)` → `init()`.
+- `fetchSuggestions` always calls `CloudflareWeatherProvider(...).search(query)` — no branch.
+
+**`LocationSearchView.swift`**
+
+- `private let client = OpenMeteoClient()` removed.
+- `runSearch()` creates a local `CloudflareWeatherProvider` inline.
+
+**`App.swift` (macOS CLI)**
+
+- Rewritten to use `CloudflareWeatherProvider` instead of `OpenMeteoClient`.
+- Single fetch call returns all three models from the Worker; fusion and mapping follow as before.
+
+**`WeatherMapping.swift`**
+
+- `OpenMeteoClient.hourlyWindow` reference replaced with the literal `24`.
+- `https://open-meteo.com/en/docs` URL comment removed from `condition(forWMOCode:)`.
+
+**`SettingsView.swift`**
+
+- Proxy URL section (TextField + Save button) removed — `WeatherEndpoint` is gone and the proxy UI served only the old direct-to-Open-Meteo path.
+- `@State private var proxyURL` and `saveProxy()` removed.
+- "About" data source label updated to `"Cloudflare Worker (ECMWF/GFS/ICON)"`.
+
+**Localizable.strings** (both `en.lproj` and `tr.lproj`)
+
+- `"source.cloudflare"` and `"source.openMeteo"` keys removed.
+- `settings.proxy.footer` updated to remove the "call Open-Meteo directly" fallback reference.
+
+#### Files with zero changes
+`CloudflareWeatherProvider.swift`, `WeatherFusion.swift`, `OpenMeteoModels.swift`, all domain engine files, all remaining UI files (HomeView, WeatherLabView, charts, background, health card, etc.).
+
+---
+
 ## Contact & Attribution
 
-- **Weather data + models**: [Open-Meteo](https://open-meteo.com) (AGPL-3.0) — ECMWF, GFS, ICON data under respective open data agreements.
+- **Weather data + models** (via Cloudflare Worker → Open-Meteo, AGPL-3.0): ECMWF, GFS, ICON data under respective open data agreements.
 - **Icons**: SF Symbols (Apple, license: Apple SF Symbols License Agreement).
-- **Privacy proxy**: [Cloudflare Workers](https://workers.cloudflare.com/) (free tier).
+- **Data relay**: [Cloudflare Workers](https://workers.cloudflare.com/) (free tier).
 - **Maintainer**: [@mehmetg06](https://github.com/mehmetg06)
 
 ---
 
-**Last updated**: 2026-06-28 | Full technical audit by Claude Code
+**Last updated**: 2026-06-29 | Open-Meteo client removal by Claude Code

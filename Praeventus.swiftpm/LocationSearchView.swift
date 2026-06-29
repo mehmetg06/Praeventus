@@ -20,8 +20,6 @@ struct LocationSearchView: View {
     @State private var locating = false
     #endif
 
-    private let client = OpenMeteoClient()
-
     var body: some View {
         NavigationStack {
             List {
@@ -93,7 +91,8 @@ struct LocationSearchView: View {
         errorText = nil
         defer { searching = false }
         do {
-            results = try await client.search(trimmed)
+            let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
+            results = try await cf.search(trimmed)
         } catch {
             if !Task.isCancelled { errorText = String(localized: "error.searchFailed", defaultValue: "Search failed.") }
         }

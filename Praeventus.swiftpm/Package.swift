@@ -8,9 +8,7 @@ import AppleProductTypes
 let sources = [
     "App.swift",
     // Data layer (pure Foundation — also builds on Linux)
-    "WeatherEndpoint.swift",
     "OpenMeteoModels.swift",
-    "OpenMeteoClient.swift",
     "CloudflareWeatherProvider.swift",
     "WeatherModel.swift",
     "WeatherMapping.swift",

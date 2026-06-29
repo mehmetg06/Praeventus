@@ -2,7 +2,6 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @State private var proxyURL: String = WeatherEndpoint.proxyBaseURL ?? ""
     @State private var showActivityEditor = false
     @State private var activities = ActivityStorage.loadActivities()
     @AppStorage(WeatherSettings.multiModelKey) private var multiModelEnabled = true
@@ -11,19 +10,6 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    TextField("settings.proxy.placeholder", text: $proxyURL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.URL)
-                        .onSubmit(saveProxy)
-                    Button("settings.proxy.save", action: saveProxy)
-                } header: {
-                    Text("settings.proxy.title")
-                } footer: {
-                    Text("settings.proxy.footer")
-                }
-
                 Section {
                     Toggle("settings.fusion.multiModel", isOn: $multiModelEnabled)
                     Toggle("settings.fusion.sensor", isOn: $sensorCalibrationEnabled)
@@ -47,18 +33,13 @@ struct SettingsView: View {
                 }
 
                 Section("settings.about.title") {
-                    LabeledContent("settings.about.source", value: "Open-Meteo (ECMWF)")
+                    LabeledContent("settings.about.source", value: "Cloudflare Worker (ECMWF/GFS/ICON)")
                     LabeledContent("settings.about.version", value: appVersion)
                 }
             }
             .scrollContentBackground(.hidden)
             .navigationTitle("tab.settings")
         }
-    }
-
-    private func saveProxy() {
-        WeatherEndpoint.setProxyBaseURL(proxyURL)
-        proxyURL = WeatherEndpoint.proxyBaseURL ?? ""
     }
 
     private var appVersion: String {

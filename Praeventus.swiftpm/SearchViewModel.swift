@@ -35,8 +35,6 @@ final class SearchViewModel: ObservableObject {
 
     // MARK: - Private
 
-    private let client: OpenMeteoClient
-
     #if canImport(CoreLocation)
     private let locator = LocationProvider()
     #endif
@@ -48,9 +46,7 @@ final class SearchViewModel: ObservableObject {
     private var cache: [String: [GeocodingResult]] = [:]
     private static let cacheLimit = 100
 
-    init(client: OpenMeteoClient = OpenMeteoClient()) {
-        self.client = client
-    }
+    init() {}
 
     // MARK: - Query handling
 
@@ -89,13 +85,8 @@ final class SearchViewModel: ObservableObject {
         defer { isSearching = false }
 
         do {
-            let results: [GeocodingResult]
-            if WeatherSettings.dataSource == .cloudflare {
-                let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
-                results = try await cf.search(query)
-            } else {
-                results = try await client.search(query)
-            }
+            let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
+            let results = try await cf.search(query)
             guard !Task.isCancelled else { return }
             if cache.count >= Self.cacheLimit { cache.removeAll() }
             cache[query.lowercased()] = results
