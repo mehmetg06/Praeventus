@@ -36,10 +36,6 @@ final class WeatherStore: ObservableObject {
     /// HomeView to trigger narrative fetches: phase may stay .loaded and city
     /// may be empty for GPS, so neither is a reliable trigger.
     @Published private(set) var forecastID: UUID = UUID()
-    /// Most recent NASA IMERG 30-minute satellite precipitation observation for
-    /// the current location. Fetched in the background after each network
-    /// forecast refresh; nil when no real location is loaded or on error.
-    @Published private(set) var satellitePrecip: IMERGPrecipitation? = nil
 
     // MARK: - Developer sandbox overrides
 
@@ -91,7 +87,6 @@ final class WeatherStore: ObservableObject {
     func load(_ place: SavedLocation) async {
         isSimulating = false
         forcedHealthInsights = nil
-        satellitePrecip = nil
         location = place
         Self.persist(place)
 
@@ -120,12 +115,6 @@ final class WeatherStore: ObservableObject {
                 ),
                 latitude: place.latitude, longitude: place.longitude
             )
-            let lat = place.latitude
-            let lon = place.longitude
-            Task { @MainActor in
-                let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
-                satellitePrecip = await cf.satellitePrecipitation(latitude: lat, longitude: lon)
-            }
         } catch {
             // Keep cached data on-screen if we have it; only fail when there's nothing.
             if case .loaded = phase {

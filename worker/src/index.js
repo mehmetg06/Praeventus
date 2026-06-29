@@ -1,6 +1,5 @@
 // Praeventus Weather Worker v3
-// Aşama 1: METAR gözlem + Open-Meteo fallback
-// Aşama 2: NASA IMERG uydu yağış gözlemi (/precipitation)
+// Routes: /forecast (ECMWF + GFS + ICON + METAR), /search, /narrative
 
 const OPEN_METEO_BASE = "https://api.open-meteo.com/v1/forecast";
 const OPEN_METEO_GEO  = "https://geocoding-api.open-meteo.com/v1/search";
@@ -316,147 +315,6 @@ async function handleNarrative(url, env) {
   return jsonResponse(result);
 }
 
-async function handlePrecipitation(url, env) {
-  const lat = parseFloat(url.searchParams.get("lat") || "");
-  const lon = parseFloat(url.searchParams.get("lon") || "");
-  if (isNaN(lat) || isNaN(lon))
-    return jsonResponse({ error: "lat ve lon gerekli" }, 400);
-
-  const latR = Math.round(lat * 10) / 10;
-  const lonR = Math.round(lon * 10) / 10;
-  const cacheKey = `precip_${latR}_${lonR}`;
-
-  const cached = await cacheGet(env, cacheKey);
-  if (cached) return jsonResponse({ ...cached, _cached: true });
-
-  try {
-    const now = new Date();
-    const yesterday = new Date(now - 86400000);
-    const fmt = d => d.toISOString().slice(0, 10).replace(/-/g, "");
-    const startDate = fmt(yesterday);
-    const endDate = fmt(now);
-
-    // Try hourly MERRA2 endpoint first
-    const powerUrl = `https://power.larc.nasa.gov/api/temporal/hourly/point` +
-      `?parameters=PRECTOT` +
-      `&community=RE` +
-      `&longitude=${lonR}` +
-      `&latitude=${latR}` +
-      `&start=${startDate}` +
-      `&end=${endDate}` +
-      `&format=JSON` +
-      `&time-standard=UTC`;
-
-    const res = await fetch(powerUrl, {
-      signal: AbortSignal.timeout(15000),
-      headers: { "User-Agent": "Praeventus/1.0 (contact: weather@praeventus.app)" }
-    });
-    if (!res.ok) throw new Error(`NASA POWER ${res.status}`);
-
-    const data = await res.json();
-    const hourlyData = data?.properties?.parameter?.PRECTOT;
-
-    // Collect valid hourly values — -999 is NASA POWER's fill value (no data)
-    const validHourly = hourlyData
-      ? Object.entries(hourlyData)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .filter(([, v]) => v !== -999 && v >= 0)
-      : [];
-
-    if (validHourly.length > 0) {
-      // Use most recent valid hour; average the last 3 valid readings for trend
-      const latestEntry = validHourly[validHourly.length - 1];
-      const last3 = validHourly.slice(-3);
-      const avg3h = last3.reduce((a, [, v]) => a + v, 0) / last3.length;
-
-      const result = {
-        precipitation_mm_per_hr: latestEntry[1],
-        precipitation_3h_avg: avg3h,
-        latest_observation_time: latestEntry[0],
-        unit: "mm/hr",
-        data_source: "MERRA2 hourly",
-        product: "NASA POWER MERRA2",
-        source: "NASA POWER / MERRA2",
-        license: "Public Domain",
-        _cached: false
-      };
-
-      await cachePut(env, cacheKey, result, 2700);
-      return jsonResponse(result);
-    }
-
-    // All hourly values were -999 → fall back to daily MERRA2 endpoint
-    const dailyUrl = `https://power.larc.nasa.gov/api/temporal/daily/point` +
-      `?parameters=PRECTOTCORR` +
-      `&community=RE` +
-      `&longitude=${lonR}` +
-      `&latitude=${latR}` +
-      `&start=${startDate}` +
-      `&end=${endDate}` +
-      `&format=JSON`;
-
-    const dailyRes = await fetch(dailyUrl, {
-      signal: AbortSignal.timeout(15000),
-      headers: { "User-Agent": "Praeventus/1.0 (contact: weather@praeventus.app)" }
-    });
-
-    if (!dailyRes.ok) {
-      return jsonResponse({
-        error: "no_satellite_coverage",
-        precipitation_mm_per_hr: null,
-        product: "NASA POWER MERRA2",
-        source: "NASA POWER / MERRA2"
-      }, 503);
-    }
-
-    const dailyData = await dailyRes.json();
-    const dailyParam = dailyData?.properties?.parameter?.PRECTOTCORR;
-
-    const validDaily = dailyParam
-      ? Object.entries(dailyParam)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .filter(([, v]) => v !== -999 && v >= 0)
-      : [];
-
-    if (validDaily.length === 0) {
-      return jsonResponse({
-        error: "no_satellite_coverage",
-        precipitation_mm_per_hr: null,
-        product: "NASA POWER MERRA2",
-        source: "NASA POWER / MERRA2"
-      }, 503);
-    }
-
-    // Convert daily mm/day → mm/hr by dividing by 24
-    const latestDaily = validDaily[validDaily.length - 1];
-    const last3Daily = validDaily.slice(-3);
-    const avg3d = last3Daily.reduce((a, [, v]) => a + v / 24, 0) / last3Daily.length;
-
-    const result = {
-      precipitation_mm_per_hr: latestDaily[1] / 24,
-      precipitation_3h_avg: avg3d,
-      latest_observation_time: latestDaily[0],
-      unit: "mm/hr",
-      data_source: "MERRA2 daily",
-      product: "NASA POWER MERRA2",
-      source: "NASA POWER / MERRA2",
-      license: "Public Domain",
-      _cached: false
-    };
-
-    await cachePut(env, cacheKey, result, 2700);
-    return jsonResponse(result);
-
-  } catch (err) {
-    return jsonResponse({
-      error: err.message,
-      precipitation_mm_per_hr: null,
-      product: "NASA POWER MERRA2",
-      source: "NASA POWER / MERRA2"
-    }, 503);
-  }
-}
-
 async function handleSearch(url) {
   const q    = url.searchParams.get("q") || "";
   const count = url.searchParams.get("count") || "5";
@@ -478,17 +336,15 @@ export default {
     const url = new URL(request.url);
     if (request.method === "OPTIONS")
       return new Response(null, { headers: corsHeaders() });
-    if (url.pathname === "/forecast")       return handleForecast(url, env);
-    if (url.pathname === "/search")         return handleSearch(url);
-    if (url.pathname === "/narrative")      return handleNarrative(url, env);
-    if (url.pathname === "/precipitation")  return handlePrecipitation(url, env);
+    if (url.pathname === "/forecast")  return handleForecast(url, env);
+    if (url.pathname === "/search")    return handleSearch(url);
+    if (url.pathname === "/narrative") return handleNarrative(url, env);
     return jsonResponse({
       status: "Praeventus Weather Worker v3",
       routes: [
         "/forecast?lat=&lon=",
         "/search?q=&lang=",
-        "/narrative?lang=&temp=&weather_code=",
-        "/precipitation?lat=&lon="
+        "/narrative?lang=&temp=&weather_code="
       ]
     });
   }
