@@ -137,6 +137,8 @@
 "model.ecmwf" = "ECMWF";
 "model.gfs" = "GFS";
 "model.icon" = "ICON";
+"source.cloudflare" = "Cloudflare Worker";
+"source.openMeteo" = "Open-Meteo";
 "settings.proxy.footer" = "İsteğe bağlı. Tüm istekleri Cloudflare Worker'ınız üzerinden yönlendirin; böylece hava sunucuları IP'nizi asla görmez. Doğrudan Open-Meteo'ya bağlanmak için boş bırakın.";
 "settings.proxy.placeholder" = "https://…workers.dev";
 "settings.proxy.save" = "Kaydet";

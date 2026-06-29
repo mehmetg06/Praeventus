@@ -51,4 +51,28 @@ enum WeatherSettings {
     static var sensorCalibrationEnabled: Bool {
         UserDefaults.standard.object(forKey: sensorCalibrationKey) as? Bool ?? false
     }
+
+    /// Selects whether forecast and search requests are routed through the
+    /// Cloudflare Worker or directly to Open-Meteo. Defaults to `.cloudflare`.
+    enum DataSource: String {
+        case cloudflare = "cloudflare"
+        case openMeteo  = "openMeteo"
+    }
+
+    static var dataSource: DataSource {
+        get {
+            let raw = UserDefaults.standard
+                .string(forKey: "praeventus.dataSource") ?? "cloudflare"
+            return DataSource(rawValue: raw) ?? .cloudflare
+        }
+        set {
+            UserDefaults.standard.set(
+                newValue.rawValue,
+                forKey: "praeventus.dataSource"
+            )
+        }
+    }
+
+    static let cloudflareWorkerURL =
+        "https://praeventus-weather.mehmetgezoglu.workers.dev"
 }
