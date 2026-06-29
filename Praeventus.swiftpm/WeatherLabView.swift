@@ -144,20 +144,28 @@ struct WeatherLabView: View {
 
     @ViewBuilder
     private var satelliteSection: some View {
-        if let precip = store.satellitePrecip,
-           let value = precip.precipitationMmPerHr,
-           value > 0 {
+        if let precip = store.satellitePrecip {
             Section {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Uydu Yağış Gözlemi")
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white)
 
-                    Text(String(format: "%.1f mm/sa", value))
+                    let mmValue = precip.precipitationMmPerHr ?? 0
+                    Text(mmValue > 0
+                         ? String(format: "%.1f mm/sa", mmValue)
+                         : "0.0 mm/sa — Kuru")
                         .font(.system(size: 28, weight: .thin, design: .monospaced))
                         .foregroundStyle(.cyan)
 
-                    Text("NASA GPM IMERG • 30 dk gecikmeli")
+                    if let obsTime = precip.latestObservationTime,
+                       let formatted = Self.formatObservationTime(obsTime) {
+                        Text(formatted)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.55))
+                    }
+
+                    Text("NASA GPM IMERG • Saatlik gözlem")
                         .font(.system(size: 9, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.4))
                 }
@@ -174,6 +182,17 @@ struct WeatherLabView: View {
             }
             .listRowBackground(Color.white.opacity(0.03))
         }
+    }
+
+    /// Parses an observation time string in "YYYYMMDDhh" format (e.g. "2026062923")
+    /// and returns it as "UTC YYYY-MM-DD HH:00".
+    private static func formatObservationTime(_ raw: String) -> String? {
+        guard raw.count >= 10 else { return nil }
+        let year  = raw.prefix(4)
+        let month = raw.dropFirst(4).prefix(2)
+        let day   = raw.dropFirst(6).prefix(2)
+        let hour  = raw.dropFirst(8).prefix(2)
+        return "UTC \(year)-\(month)-\(day) \(hour):00"
     }
 
     private func agreementColor(_ v: Double) -> Color {
