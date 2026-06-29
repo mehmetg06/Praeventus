@@ -3,6 +3,12 @@
 
 const METNORWAY_BASE  = "https://api.met.no/weatherapi/locationforecast/2.0/complete";
 const BRIGHTSKY_BASE  = "https://api.brightsky.dev/weather";
+// CRITICAL — Nominatim Usage Policy: max 1 request/second per IP.
+// All traffic from this Worker shares a single outbound IP, so every
+// /search call counts toward that shared quota.  To stay compliant,
+// search results are cached in KV (see handleSearch).  Do NOT remove
+// caching or send multiple concurrent Nominatim requests per user action.
+// Policy: https://operations.osmfoundation.org/policies/nominatim/
 const NOMINATIM_GEO   = "https://nominatim.openstreetmap.org/search";
 const METAR_BASE      = "https://aviationweather.gov/api/data/metar";
 const AIRPORT_BASE    = "https://aviationweather.gov/api/data/airport";
@@ -526,11 +532,15 @@ async function handleNarrative(url, env) {
   return jsonResponse(result);
 }
 
-async function handleSearch(url) {
+async function handleSearch(url, env) {
   const q    = url.searchParams.get("q") || "";
   const count = url.searchParams.get("count") || "5";
   const lang  = url.searchParams.get("lang") || "tr";
   if (!q) return jsonResponse({ error: "q gerekli" }, 400);
+
+  const cacheKey = `search_${lang}_${count}_${encodeURIComponent(q)}`;
+  const cached = await cacheGet(env, cacheKey);
+  if (cached) return jsonResponse({ ...cached, _cached: true });
 
   const geoUrl = `${NOMINATIM_GEO}?q=${encodeURIComponent(q)}&format=json&accept-language=${lang}&limit=${count}`;
   try {
@@ -551,7 +561,9 @@ async function handleSearch(url) {
         admin1: ""
       };
     });
-    return jsonResponse({ results });
+    const response = { results };
+    await cachePut(env, cacheKey, response, 300);
+    return jsonResponse(response);
   } catch (e) {
     return jsonResponse({ error: "geocoding başarısız" }, 503);
   }
@@ -563,7 +575,7 @@ export default {
     if (request.method === "OPTIONS")
       return new Response(null, { headers: corsHeaders() });
     if (url.pathname === "/forecast")  return handleForecast(url, env);
-    if (url.pathname === "/search")    return handleSearch(url);
+    if (url.pathname === "/search")    return handleSearch(url, env);
     if (url.pathname === "/narrative") return handleNarrative(url, env);
     return jsonResponse({
       status: "Praeventus Weather Worker v3",

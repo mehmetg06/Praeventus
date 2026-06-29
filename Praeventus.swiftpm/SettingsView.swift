@@ -35,6 +35,23 @@ struct SettingsView: View {
                 Section("settings.about.title") {
                     LabeledContent("settings.about.source", value: "Cloudflare Worker (ECMWF/GFS/ICON)")
                     LabeledContent("settings.about.version", value: appVersion)
+                    if let url = URL(string: "https://api.met.no") {
+                        Link("Weather Data by MET Norway", destination: url)
+                    }
+                    if let url = URL(string: "https://brightsky.dev") {
+                        Link("Weather Data by DWD (BrightSky)", destination: url)
+                    }
+                    if let url = URL(string: "https://www.openstreetmap.org/copyright") {
+                        Link("Geocoding by OpenStreetMap", destination: url)
+                    }
+                }
+
+                Section {
+                    Text("Praeventus tarafından sunulan UV indeksi, fırtına riski, sıcak çarpması veya hipotermi uyarıları açık veri kaynaklarına dayalıdır. Tıbbi veya hayati kararlar almak için kullanılamaz.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text("Yasal Uyarı")
                 }
             }
             .scrollContentBackground(.hidden)
