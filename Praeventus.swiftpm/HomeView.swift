@@ -52,6 +52,9 @@ struct HomeView: View {
                 await MainActor.run { weatherNarrative = text }
             }
         }
+        .onChange(of: store.weather.city) { _, _ in
+            weatherNarrative = ""
+        }
     }
 
     // MARK: - Top bar (non-scrolling)
