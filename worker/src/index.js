@@ -254,8 +254,8 @@ async function handleNarrative(url, env) {
   if (cached) return jsonResponse({ ...cached, cached: true });
 
   const systemPrompt = lang === "tr"
-    ? "Kısa bir hava durumu yorumu yaz. Maksimum 2 cümle. Samimi ve bilgilendirici ol. Sadece hava koşullarından bahset. Emoji kullanma."
-    : "Write a brief weather commentary. Maximum 2 sentences. Be friendly and informative. Only describe weather conditions. No emojis.";
+    ? "Sadece 2 Türkçe cümle yaz. Düşünme, analiz etme, açıklama yapma. Direkt hava yorumunu yaz. Örnek: 'Bugün hava sıcak ve güneşli. Dışarı çıkmak için ideal bir gün.'"
+    : "Write exactly 2 sentences about the weather. No thinking, no analysis, no explanations. Just write the weather commentary directly.";
 
   const weatherSummary = buildWeatherSummary(url.searchParams, lang);
 
@@ -263,14 +263,16 @@ async function handleNarrative(url, env) {
   let narrative = fallback;
 
   try {
-    const aiResp = await env.AI.run("@cf/zhipu-ai/glm-4.7-flash", {
+    const aiResp = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user",   content: weatherSummary }
       ],
-      max_tokens: 80
+      max_tokens: 200
     });
-    const text = aiResp?.response?.trim();
+    const text = (aiResp?.choices?.[0]?.message?.content
+               || aiResp?.response
+               || "").trim();
     if (text) narrative = text;
   } catch { /* silent fallback */ }
 
