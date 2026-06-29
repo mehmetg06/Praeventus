@@ -23,6 +23,7 @@ struct WeatherLabView: View {
             .listRowBackground(Color.white.opacity(0.03))
 
             fusionSection
+            satelliteSection
             timeAstronomySection
             biomeSection
             medicalSection
@@ -134,6 +135,42 @@ struct WeatherLabView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10))
             } header: {
                 sectionLabel("DATA FUSION", "square.stack.3d.up.fill")
+            }
+            .listRowBackground(Color.white.opacity(0.03))
+        }
+    }
+
+    // MARK: - Satellite Observations
+
+    @ViewBuilder
+    private var satelliteSection: some View {
+        if let precip = store.satellitePrecip,
+           let value = precip.precipitationMmPerHr,
+           value > 0 {
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Uydu Yağış Gözlemi")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white)
+
+                    Text(String(format: "%.1f mm/sa", value))
+                        .font(.system(size: 28, weight: .thin, design: .monospaced))
+                        .foregroundStyle(.cyan)
+
+                    Text("NASA GPM IMERG • 30 dk gecikmeli")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.4))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(.white.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(.cyan.opacity(0.18), lineWidth: 0.75)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            } header: {
+                sectionLabel("SATELLITE OBSERVATIONS", "antenna.radiowaves.left.and.right")
             }
             .listRowBackground(Color.white.opacity(0.03))
         }
