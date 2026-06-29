@@ -209,6 +209,7 @@ async function fetchMETNorway(lat, lon) {
     daily.sunset.push(day + "T18:00:00Z");
   }
 
+  if (!current) return null;
   return { latitude: lat, longitude: lon, current, hourly, daily };
 }
 

@@ -150,7 +150,7 @@ enum WeatherMapping {
             let wind = safe(windSpeeds, at: i, or: 0.0)
             let windDir: Int = safe(windDirs, at: i, or: 0)
             let gust = safe(windGusts, at: i, or: 0.0)
-            let humidity = Double(safe(humidities, at: i, or: 0))
+            let humidity = safe(humidities, at: i, or: 0.0)
             let dew = safe(dewPoints, at: i, or: 0.0)
             let vis = safe(visibilities, at: i, or: 10.0)
 
