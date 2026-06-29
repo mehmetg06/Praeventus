@@ -174,8 +174,9 @@ struct CloudflareWeatherProvider {
     }
 
     private func trimmed(_ value: Double) -> String {
-        // 4 decimals ≈ 11 m precision — coarse on purpose; we never need more.
-        String(format: "%.4f", value)
+        // 2 decimals ≈ 1.1 km precision — deeply anonymized on device.
+        // The Worker doesn't need higher precision for weather models.
+        String(format: "%.2f", value)
     }
 }
 

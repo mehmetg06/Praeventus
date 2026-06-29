@@ -1,5 +1,5 @@
-#if canImport(SwiftUI)
-import SwiftUI
+
+import Foundation
 
 struct AtmosphericState: Equatable {
     let condition: WeatherCondition
@@ -180,4 +180,3 @@ enum AtmosphericEngine {
         min(max(value, 0), 1)
     }
 }
-#endif

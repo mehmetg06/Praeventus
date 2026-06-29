@@ -5,6 +5,7 @@ import UIKit
 #endif
 
 struct PraeventusRootView: View {
+    @Environment(\.scenePhase) var scenePhase
     @StateObject private var store = WeatherStore()
 
     init() {
@@ -48,6 +49,16 @@ struct PraeventusRootView: View {
         .task {
             // Restore the last location (if any) on launch.
             await store.restoreOrPrompt()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .background, .inactive:
+                store.pauseSensors()
+            case .active:
+                store.resumeSensors()
+            @unknown default:
+                break
+            }
         }
     }
 

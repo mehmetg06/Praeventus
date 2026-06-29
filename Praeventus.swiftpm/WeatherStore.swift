@@ -1,5 +1,6 @@
-#if canImport(SwiftUI)
-import SwiftUI
+
+import Foundation
+import Combine
 
 /// A place the user has chosen (via search or "use my location"). Persisted so
 /// the app reopens on the last location. Coordinates are coarse on purpose.
@@ -375,21 +376,34 @@ final class WeatherStore: ObservableObject {
         Task { await retry() }
     }
 
+    // MARK: - Lifecycle
+
+    func pauseSensors() {
+        stormTask?.cancel()
+        Task { await stormSensor.stopMonitoring() }
+    }
+
+    func resumeSensors() {
+        startStormMonitoring()
+    }
+
     // MARK: - Storm monitoring
 
     private func startStormMonitoring() {
         stormTask?.cancel()
-        stormTask = Task {
+        stormTask = Task { [weak self] in
             // Each call to startMonitoring() restarts the sensor and returns a
             // fresh stream; the previous stream is automatically finished.
-            for await alert in await stormSensor.startMonitoring() {
-                stormAlert = alert
+            guard let self else { return }
+            for await alert in await self.stormSensor.startMonitoring() {
+                self.stormAlert = alert
                 // Auto-clear after 30 minutes so a resolved storm doesn't
                 // keep the UI in alarm state indefinitely.
-                Task {
-                    try? await Task.sleep(for: .seconds(1800))
-                    if stormAlert?.triggeredAt == alert.triggeredAt {
-                        stormAlert = nil
+                Task { [weak self] in
+                    try? await Task.sleep(nanoseconds: 1800 * 1_000_000_000)
+                    guard let self else { return }
+                    if self.stormAlert?.triggeredAt == alert.triggeredAt {
+                        self.stormAlert = nil
                     }
                 }
             }
@@ -547,4 +561,3 @@ final class WeatherStore: ObservableObject {
         return try? JSONDecoder().decode(SavedLocation.self, from: data)
     }
 }
-#endif

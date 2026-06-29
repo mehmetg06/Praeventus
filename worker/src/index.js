@@ -377,8 +377,8 @@ async function handleForecast(url, env) {
   if (isNaN(lat) || isNaN(lon))
     return jsonResponse({ error: "lat ve lon gerekli" }, 400);
 
-  const latR = Math.round(lat * 10000) / 10000;
-  const lonR = Math.round(lon * 10000) / 10000;
+  const latR = Math.round(lat * 100) / 100;
+  const lonR = Math.round(lon * 100) / 100;
   const cacheKey = `forecast_v2_${latR}_${lonR}`;
 
   const cached = await cacheGet(env, cacheKey);
@@ -545,9 +545,9 @@ async function handleNowcast(url, env) {
   if (isNaN(lat) || isNaN(lon))
     return jsonResponse({ error: "lat ve lon gerekli" }, 400);
 
-  // 4-decimal precision matches the privacy-truncation done on the Swift side.
-  const latR = Math.round(lat * 10000) / 10000;
-  const lonR = Math.round(lon * 10000) / 10000;
+  // 2-decimal precision matches the privacy-truncation done on the Swift side.
+  const latR = Math.round(lat * 100) / 100;
+  const lonR = Math.round(lon * 100) / 100;
 
   // Nowcast updates every ~5 min → short TTL of 300 s.
   const cacheKey = `nowcast_${latR}_${lonR}`;
