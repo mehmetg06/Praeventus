@@ -209,7 +209,7 @@ async function fetchMETNorway(lat, lon) {
     daily.sunset.push(day + "T18:00:00Z");
   }
 
-  return { current, hourly, daily };
+  return { latitude: lat, longitude: lon, current, hourly, daily };
 }
 
 async function fetchBrightSky(lat, lon) {
@@ -312,7 +312,7 @@ async function fetchBrightSky(lat, lon) {
     daily.sunset.push(day + "T18:00:00Z");
   }
 
-  return { current, hourly, daily };
+  return { latitude: lat, longitude: lon, current, hourly, daily };
 }
 
 function overlayMETAR(forecast, metar) {
@@ -379,7 +379,7 @@ async function handleForecast(url, env) {
 
   const latR = Math.round(lat * 10000) / 10000;
   const lonR = Math.round(lon * 10000) / 10000;
-  const cacheKey = `forecast_${latR}_${lonR}`;
+  const cacheKey = `forecast_v2_${latR}_${lonR}`;
 
   const cached = await cacheGet(env, cacheKey);
   if (cached) return jsonResponse({ ...cached, _cached: true });
