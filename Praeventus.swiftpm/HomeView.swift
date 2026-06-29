@@ -260,7 +260,7 @@ struct HomeView: View {
         } else if !weatherNarrative.isEmpty
             && !weatherNarrative.contains("**")
             && !weatherNarrative.contains("Analyze")
-            && weatherNarrative.count < 300 {
+            && weatherNarrative.count < 600 {
             narrativeCard
         }
         HealthInsightsCard(insights: store.healthInsights)
@@ -316,6 +316,9 @@ struct HomeView: View {
                 tempMax: firstDaily?.max ?? 0,
                 tempMin: firstDaily?.min ?? 0,
                 precipProb: w.rainProbability,
+                uvIndex: Double(w.uvIndex),
+                visibility: w.visibility,
+                pressure: w.pressure,
                 lang: lang
             )
             await MainActor.run {

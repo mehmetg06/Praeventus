@@ -76,6 +76,9 @@ struct CloudflareWeatherProvider {
         tempMax: Double,
         tempMin: Double,
         precipProb: Double,
+        uvIndex: Double,
+        visibility: Double,
+        pressure: Double,
         lang: String
     ) async -> String {
         let queryItems: [URLQueryItem] = [
@@ -88,7 +91,10 @@ struct CloudflareWeatherProvider {
             URLQueryItem(name: "weather_code", value: String(weatherCode)),
             URLQueryItem(name: "temp_max",     value: String(format: "%.0f", tempMax)),
             URLQueryItem(name: "temp_min",     value: String(format: "%.0f", tempMin)),
-            URLQueryItem(name: "precip_prob",  value: String(format: "%.0f", precipProb))
+            URLQueryItem(name: "precip_prob",  value: String(format: "%.0f", precipProb)),
+            URLQueryItem(name: "uv",           value: String(format: "%.0f", uvIndex)),
+            URLQueryItem(name: "visibility",   value: String(format: "%.1f", visibility / 1000)),
+            URLQueryItem(name: "pressure",     value: String(format: "%.0f", pressure)),
         ]
         guard let url = try? buildURL(path: "/narrative", queryItems: queryItems) else { return "" }
         guard let result = try? await get(url, as: NarrativeResponse.self) else { return "" }
