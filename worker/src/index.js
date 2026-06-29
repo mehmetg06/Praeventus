@@ -330,21 +330,22 @@ async function handlePrecipitation(url, env) {
   if (cached) return jsonResponse({ ...cached, _cached: true });
 
   try {
-    // Get today's date and yesterday in YYYYMMDD format
     const now = new Date();
     const yesterday = new Date(now - 86400000);
     const fmt = d => d.toISOString().slice(0, 10).replace(/-/g, "");
     const startDate = fmt(yesterday);
     const endDate = fmt(now);
 
+    // Try hourly MERRA2 endpoint first
     const powerUrl = `https://power.larc.nasa.gov/api/temporal/hourly/point` +
-      `?parameters=PRECTOTCORR` +
+      `?parameters=PRECTOT` +
       `&community=RE` +
       `&longitude=${lonR}` +
       `&latitude=${latR}` +
       `&start=${startDate}` +
       `&end=${endDate}` +
-      `&format=JSON`;
+      `&format=JSON` +
+      `&time-standard=UTC`;
 
     const res = await fetch(powerUrl, {
       signal: AbortSignal.timeout(15000),
@@ -353,30 +354,96 @@ async function handlePrecipitation(url, env) {
     if (!res.ok) throw new Error(`NASA POWER ${res.status}`);
 
     const data = await res.json();
+    const hourlyData = data?.properties?.parameter?.PRECTOT;
 
-    const hourlyData = data?.properties?.parameter?.PRECTOTCORR;
-    if (!hourlyData) throw new Error("No precipitation data");
+    // Collect valid hourly values — -999 is NASA POWER's fill value (no data)
+    const validHourly = hourlyData
+      ? Object.entries(hourlyData)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .filter(([, v]) => v !== -999 && v >= 0)
+      : [];
 
-    // Get the most recent hour value
-    const keys = Object.keys(hourlyData).sort();
-    const latestKey = keys[keys.length - 1];
-    const latestValue = hourlyData[latestKey];
+    if (validHourly.length > 0) {
+      // Use most recent valid hour; average the last 3 valid readings for trend
+      const latestEntry = validHourly[validHourly.length - 1];
+      const last3 = validHourly.slice(-3);
+      const avg3h = last3.reduce((a, [, v]) => a + v, 0) / last3.length;
 
-    // Get last 3 hours for trend
-    const last3 = keys.slice(-3).map(k => hourlyData[k]);
-    const avg3h = last3.reduce((a, b) => a + b, 0) / last3.length;
+      const result = {
+        precipitation_mm_per_hr: latestEntry[1],
+        precipitation_3h_avg: avg3h,
+        latest_observation_time: latestEntry[0],
+        unit: "mm/hr",
+        data_source: "MERRA2 hourly",
+        product: "NASA POWER MERRA2",
+        source: "NASA POWER / MERRA2",
+        license: "Public Domain",
+        _cached: false
+      };
+
+      await cachePut(env, cacheKey, result, 2700);
+      return jsonResponse(result);
+    }
+
+    // All hourly values were -999 → fall back to daily MERRA2 endpoint
+    const dailyUrl = `https://power.larc.nasa.gov/api/temporal/daily/point` +
+      `?parameters=PRECTOTCORR` +
+      `&community=RE` +
+      `&longitude=${lonR}` +
+      `&latitude=${latR}` +
+      `&start=${startDate}` +
+      `&end=${endDate}` +
+      `&format=JSON`;
+
+    const dailyRes = await fetch(dailyUrl, {
+      signal: AbortSignal.timeout(15000),
+      headers: { "User-Agent": "Praeventus/1.0 (contact: weather@praeventus.app)" }
+    });
+
+    if (!dailyRes.ok) {
+      return jsonResponse({
+        error: "no_satellite_coverage",
+        precipitation_mm_per_hr: null,
+        product: "NASA POWER MERRA2",
+        source: "NASA POWER / MERRA2"
+      }, 503);
+    }
+
+    const dailyData = await dailyRes.json();
+    const dailyParam = dailyData?.properties?.parameter?.PRECTOTCORR;
+
+    const validDaily = dailyParam
+      ? Object.entries(dailyParam)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .filter(([, v]) => v !== -999 && v >= 0)
+      : [];
+
+    if (validDaily.length === 0) {
+      return jsonResponse({
+        error: "no_satellite_coverage",
+        precipitation_mm_per_hr: null,
+        product: "NASA POWER MERRA2",
+        source: "NASA POWER / MERRA2"
+      }, 503);
+    }
+
+    // Convert daily mm/day → mm/hr by dividing by 24
+    const latestDaily = validDaily[validDaily.length - 1];
+    const last3Daily = validDaily.slice(-3);
+    const avg3d = last3Daily.reduce((a, [, v]) => a + v / 24, 0) / last3Daily.length;
 
     const result = {
-      precipitation_mm_per_hr: latestValue === -999 ? 0 : latestValue,
-      precipitation_3h_avg: avg3h === -999 ? 0 : avg3h,
-      latest_observation_time: latestKey,
-      product: "NASA POWER IMERG-Corrected",
-      source: "NASA POWER / GPM IMERG",
+      precipitation_mm_per_hr: latestDaily[1] / 24,
+      precipitation_3h_avg: avg3d,
+      latest_observation_time: latestDaily[0],
+      unit: "mm/hr",
+      data_source: "MERRA2 daily",
+      product: "NASA POWER MERRA2",
+      source: "NASA POWER / MERRA2",
       license: "Public Domain",
       _cached: false
     };
 
-    // Cache 45 minutes
     await cachePut(env, cacheKey, result, 2700);
     return jsonResponse(result);
 
@@ -384,8 +451,8 @@ async function handlePrecipitation(url, env) {
     return jsonResponse({
       error: err.message,
       precipitation_mm_per_hr: null,
-      product: "NASA POWER IMERG-Corrected",
-      source: "NASA POWER / GPM IMERG"
+      product: "NASA POWER MERRA2",
+      source: "NASA POWER / MERRA2"
     }, 503);
   }
 }
