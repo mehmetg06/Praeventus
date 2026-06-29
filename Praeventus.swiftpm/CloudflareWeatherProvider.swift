@@ -101,6 +101,20 @@ struct CloudflareWeatherProvider {
         return result.narrative
     }
 
+    // MARK: - Satellite Precipitation
+
+    /// Fetches the nearest NASA IMERG 30-minute precipitation observation for a
+    /// coordinate. Latitude/longitude are trimmed to 1 decimal place before
+    /// sending to NASA — city-level precision only, no sub-kilometre data leaves
+    /// the device. Returns `nil` on any network or decoding error.
+    func satellitePrecipitation(latitude: Double, longitude: Double) async -> IMERGPrecipitation? {
+        guard let url = try? buildURL(path: "/precipitation", queryItems: [
+            URLQueryItem(name: "lat", value: String(format: "%.1f", latitude)),
+            URLQueryItem(name: "lon", value: String(format: "%.1f", longitude))
+        ]) else { return nil }
+        return try? await get(url, as: IMERGPrecipitation.self)
+    }
+
     // MARK: - Search
 
     /// Forwards a geocoding query to the Worker's `/search` endpoint.
@@ -185,4 +199,22 @@ enum WeatherClientError: Error {
     case badResponse(Int)
     case noResults
     case transport(String)
+}
+
+// MARK: - Satellite precipitation response
+
+/// Decoded response from the Worker's `/precipitation` endpoint, which relays
+/// the nearest NASA GPM IMERG 30-minute observation for a requested coordinate.
+struct IMERGPrecipitation: Decodable {
+    let precipitationMmPerHr: Double?
+    let product: String?
+    let dataDate: String?
+    let source: String?
+
+    enum CodingKeys: String, CodingKey {
+        case precipitationMmPerHr = "precipitation_mm_per_hr"
+        case product
+        case dataDate = "data_date"
+        case source
+    }
 }

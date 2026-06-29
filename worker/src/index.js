@@ -1,5 +1,6 @@
-// Praeventus Weather Worker v2
+// Praeventus Weather Worker v3
 // Aşama 1: METAR gözlem + Open-Meteo fallback
+// Aşama 2: NASA IMERG uydu yağış gözlemi (/precipitation)
 
 const OPEN_METEO_BASE = "https://api.open-meteo.com/v1/forecast";
 const OPEN_METEO_GEO  = "https://geocoding-api.open-meteo.com/v1/search";
@@ -315,6 +316,96 @@ async function handleNarrative(url, env) {
   return jsonResponse(result);
 }
 
+async function handlePrecipitation(url, env) {
+  const lat = parseFloat(url.searchParams.get("lat") || "");
+  const lon = parseFloat(url.searchParams.get("lon") || "");
+  if (isNaN(lat) || isNaN(lon))
+    return jsonResponse({ error: "lat ve lon gerekli" }, 400);
+
+  const cacheKey = `imerg_${Math.round(lat*10)/10}_${Math.round(lon*10)/10}`;
+  const cached = await cacheGet(env, cacheKey);
+  if (cached) return jsonResponse({ ...cached, _cached: true });
+
+  try {
+    // Step 1: Get file listing from NASA IMERG OpenSearch
+    const searchUrl = `https://pmmpublisher.pps.eosdis.nasa.gov/opensearch` +
+      `?q=precip_30mn&lat=${lat}&lon=${lon}&limit=1`;
+
+    const searchRes = await fetch(searchUrl, {
+      signal: AbortSignal.timeout(10000),
+      headers: { "User-Agent": "Praeventus/1.0 (contact: weather@praeventus.app)" }
+    });
+    if (!searchRes.ok) throw new Error(`IMERG search ${searchRes.status}`);
+
+    const searchData = await searchRes.json();
+    const items = searchData.items || [];
+    if (items.length === 0) throw new Error("No IMERG data");
+
+    // Find GeoJSON export URL from item actions
+    const item = items[0];
+    const exportAction = item.action?.find(a => a["@type"] === "ojo:export");
+    const geojsonEntry = exportAction?.using?.find(u => u["@id"] === "geojson");
+    if (!geojsonEntry?.url) throw new Error("No GeoJSON URL");
+
+    // Step 2: Fetch GeoJSON precipitation polygons
+    const geoRes = await fetch(geojsonEntry.url, {
+      signal: AbortSignal.timeout(15000),
+      headers: { "User-Agent": "Praeventus/1.0" }
+    });
+    if (!geoRes.ok) throw new Error(`GeoJSON fetch ${geoRes.status}`);
+    const geoData = await geoRes.json();
+
+    // Step 3: Find nearest feature centroid to requested point
+    let bestValue = null;
+    let bestDist = Infinity;
+
+    for (const feature of geoData.features || []) {
+      const coords = feature.geometry?.coordinates;
+      const value = feature.properties?.value;
+      if (value === null || value === undefined) continue;
+
+      // Get first ring — handle both Polygon and MultiPolygon
+      const ring = Array.isArray(coords[0][0])
+        ? coords[0]
+        : coords[0][0];
+
+      if (!ring || ring.length === 0) continue;
+
+      const centLon = ring.reduce((s, p) => s + p[0], 0) / ring.length;
+      const centLat = ring.reduce((s, p) => s + p[1], 0) / ring.length;
+      const dist = Math.hypot(centLat - lat, centLon - lon);
+
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestValue = value;
+      }
+    }
+
+    const dataDate = item.properties?.date?.["@value"] || null;
+
+    const result = {
+      precipitation_mm_per_hr: bestValue,
+      product: "GPM IMERG Early Run (30 min)",
+      data_date: dataDate,
+      source: "NASA GPM",
+      license: "Public Domain",
+      _cached: false
+    };
+
+    // Cache for 25 minutes (IMERG updates every 30 min)
+    await cachePut(env, cacheKey, result, 1500);
+    return jsonResponse(result);
+
+  } catch (err) {
+    return jsonResponse({
+      error: err.message,
+      precipitation_mm_per_hr: null,
+      product: "GPM IMERG Early Run (30 min)",
+      source: "NASA GPM"
+    }, 503);
+  }
+}
+
 async function handleSearch(url) {
   const q    = url.searchParams.get("q") || "";
   const count = url.searchParams.get("count") || "5";
@@ -336,12 +427,18 @@ export default {
     const url = new URL(request.url);
     if (request.method === "OPTIONS")
       return new Response(null, { headers: corsHeaders() });
-    if (url.pathname === "/forecast")  return handleForecast(url, env);
-    if (url.pathname === "/search")    return handleSearch(url);
-    if (url.pathname === "/narrative") return handleNarrative(url, env);
+    if (url.pathname === "/forecast")       return handleForecast(url, env);
+    if (url.pathname === "/search")         return handleSearch(url);
+    if (url.pathname === "/narrative")      return handleNarrative(url, env);
+    if (url.pathname === "/precipitation")  return handlePrecipitation(url, env);
     return jsonResponse({
-      status: "Praeventus Weather Worker v1",
-      routes: ["/forecast?lat=&lon=", "/search?q=&lang=", "/narrative?lang=&temp=&weather_code="]
+      status: "Praeventus Weather Worker v3",
+      routes: [
+        "/forecast?lat=&lon=",
+        "/search?q=&lang=",
+        "/narrative?lang=&temp=&weather_code=",
+        "/precipitation?lat=&lon="
+      ]
     });
   }
 };
