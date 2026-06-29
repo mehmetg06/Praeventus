@@ -53,7 +53,16 @@
 "health.uv.subtitle" = "Cilt tipi %lld · SPF %lld";
 "health.uv.title" = "Güneş yanığı süresi";
 "home.activities.heading" = "BUGÜNKÜ AKTİVİTELER";
+"home.atmosphere.heading" = "ATMOSFER";
+"home.cloudCover" = "Bulut Örtüsü";
+"home.daily.heading" = "7 GÜNLÜK TAHMİN";
 "home.empty.cta" = "Konum seç";
+"home.fusion.agreement" = "uyum";
+"home.instability" = "İstikrarsızlık";
+"home.rainSignal" = "Yağış Sinyali";
+"home.stale" = "Önbellek";
+"home.stormRisk" = "Fırtına Riski";
+"home.today" = "Bugün";
 "home.empty.subtitle" = "Dünyadaki herhangi bir şehri arayın veya yaklaşık konumunuzu kullanın. Hakkınızda hiçbir şey paylaşılmaz.";
 "home.empty.title" = "Henüz konum yok";
 "home.error.title" = "Hava durumu yüklenemedi";
