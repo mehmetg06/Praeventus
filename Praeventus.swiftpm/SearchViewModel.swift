@@ -89,7 +89,13 @@ final class SearchViewModel: ObservableObject {
         defer { isSearching = false }
 
         do {
-            let results = try await client.search(query)
+            let results: [GeocodingResult]
+            if WeatherSettings.dataSource == .cloudflare {
+                let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
+                results = try await cf.search(query)
+            } else {
+                results = try await client.search(query)
+            }
             guard !Task.isCancelled else { return }
             if cache.count >= Self.cacheLimit { cache.removeAll() }
             cache[query.lowercased()] = results

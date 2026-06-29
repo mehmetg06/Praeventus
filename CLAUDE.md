@@ -904,6 +904,62 @@ Open-Meteo occasionally returns `NaN` or `Infinity` for certain fields in extrem
 
 ---
 
+## Session Log
+
+### 2026-06-29 — Cloudflare Worker as First-Class Data Source
+
+**Branch**: `claude/cloudflare-weather-provider-pgx9p7`
+
+#### What changed
+
+**New file — `CloudflareWeatherProvider.swift`** (Data Layer, pure Foundation)
+
+A new networking struct that replaces `OpenMeteoClient` for forecast and search requests when the Cloudflare data source is active. Key design points:
+
+- `forecast(latitude:longitude:)` sends a single GET to `<baseURL>/forecast?latitude=…&longitude=…` and decodes the worker's JSON envelope (`{ models: { ecmwf_ifs025, gfs_global, icon_global }, metar_station, generated_at }`).
+- The `models` dictionary is mapped to `[WeatherModel: ForecastResponse]` — exactly the shape `WeatherFusion.fuse()` already expects, so WeatherFusion needed zero changes.
+- `search(_:count:)` forwards geocoding queries to `<baseURL>/search` using the same query-item shape as `OpenMeteoClient.search()`.
+- Uses the same 15 s timeout, privacy User-Agent, and non-conforming-float decoder configuration as the existing client.
+- Coordinate trimming to 4 decimal places preserved (≈ 11 m privacy radius).
+- Throws `WeatherClientError.noResults` when the worker's models dict maps to zero recognised `WeatherModel` cases.
+
+**`WeatherModel.swift` — `WeatherSettings` extended**
+
+Added inside the `WeatherSettings` namespace:
+
+- `enum DataSource: String` with cases `.cloudflare` (default) and `.openMeteo`. Backed by `UserDefaults` key `praeventus.dataSource`.
+- `static var dataSource: DataSource` — get/set computed property over that key.
+- `static let cloudflareWorkerURL` — the compiled-in worker URL (`https://praeventus-weather.mehmetgezoglu.workers.dev`).
+
+The default is `.cloudflare`, meaning all fresh installs route through the Worker without any user configuration.
+
+**`WeatherStore.swift` — `fetchForecast` restructured**
+
+The private method now has three paths instead of two:
+
+1. `dataSource == .cloudflare` → instantiates `CloudflareWeatherProvider` and calls `cf.forecast(...)`. The response is always multi-model and goes directly into `WeatherFusion.fuse()`.
+2. `dataSource == .openMeteo` + `multiModelEnabled` → existing concurrent ECMWF/GFS/ICON fetch via `OpenMeteoClient`.
+3. `dataSource == .openMeteo` + single-model → existing single-model path (returns without fusion).
+
+`OpenMeteoClient` is kept intact and still used for the Open-Meteo path.
+
+**`SearchViewModel.swift` — `fetchSuggestions` updated**
+
+The `client.search(query)` call is now conditional:
+- `dataSource == .cloudflare` → `CloudflareWeatherProvider(baseURL: …).search(query)`.
+- Otherwise → existing `client.search(query)` via `OpenMeteoClient`.
+
+**`Package.swift`** — `"CloudflareWeatherProvider.swift"` added to the sources array between `OpenMeteoClient.swift` and `WeatherModel.swift`.
+
+**Localizable.strings** (both `en.lproj` and `tr.lproj`) — two new keys added:
+- `"source.cloudflare"` = `"Cloudflare Worker"` / `"Cloudflare Worker"`
+- `"source.openMeteo"` = `"Open-Meteo"` / `"Open-Meteo"`
+
+#### Files with zero changes (as required)
+`WeatherFusion.swift`, `WeatherMapping.swift`, `OpenMeteoClient.swift`, all UI layer files.
+
+---
+
 ## Contact & Attribution
 
 - **Weather data + models**: [Open-Meteo](https://open-meteo.com) (AGPL-3.0) — ECMWF, GFS, ICON data under respective open data agreements.

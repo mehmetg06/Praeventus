@@ -11,6 +11,7 @@ let sources = [
     "WeatherEndpoint.swift",
     "OpenMeteoModels.swift",
     "OpenMeteoClient.swift",
+    "CloudflareWeatherProvider.swift",
     "WeatherModel.swift",
     "WeatherMapping.swift",
     "WeatherFusion.swift",
