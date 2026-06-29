@@ -8,6 +8,34 @@ struct SavedLocation: Codable, Equatable {
     var country: String
     var latitude: Double
     var longitude: Double
+    /// True when this location came from the device GPS ("use my location"),
+    /// not a manual search. Persisted so `isGPSLocation` — and therefore the
+    /// storm banner — survives an app relaunch instead of resetting to hidden
+    /// every time `restoreOrPrompt()` reloads the last saved location.
+    var isCurrentLocation: Bool = false
+
+    private enum CodingKeys: String, CodingKey {
+        case name, country, latitude, longitude, isCurrentLocation
+    }
+
+    init(name: String, country: String, latitude: Double, longitude: Double, isCurrentLocation: Bool = false) {
+        self.name = name
+        self.country = country
+        self.latitude = latitude
+        self.longitude = longitude
+        self.isCurrentLocation = isCurrentLocation
+    }
+
+    // Custom decoder so locations saved before this flag existed decode with
+    // `isCurrentLocation = false` instead of failing.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decode(String.self, forKey: .name)
+        country = try c.decode(String.self, forKey: .country)
+        latitude = try c.decode(Double.self, forKey: .latitude)
+        longitude = try c.decode(Double.self, forKey: .longitude)
+        isCurrentLocation = try c.decodeIfPresent(Bool.self, forKey: .isCurrentLocation) ?? false
+    }
 }
 
 /// Loading lifecycle for the live forecast.
@@ -97,6 +125,10 @@ final class WeatherStore: ObservableObject {
     func load(_ place: SavedLocation) async {
         isSimulating = false
         forcedHealthInsights = nil
+        // Single source of truth for whether the storm banner is eligible to
+        // show — restored from the persisted flag so a relaunch doesn't reset
+        // a GPS-loaded location back to "remote city" and hide the banner.
+        isGPSLocation = place.isCurrentLocation
         location = place
         Self.persist(place)
 
@@ -157,19 +189,18 @@ final class WeatherStore: ObservableObject {
     }
 
     /// Loads forecast for a searched / saved remote city.
-    /// Sets `isGPSLocation = false` so the storm banner is suppressed — the device
-    /// barometer cannot reflect conditions at a distant location.
+    /// Persists `isCurrentLocation = false` so the storm banner stays suppressed
+    /// — the device barometer cannot reflect conditions at a distant location.
     func load(latitude: Double, longitude: Double, name: String, country: String) async {
-        isGPSLocation = false
-        await load(SavedLocation(name: name, country: country, latitude: latitude, longitude: longitude))
+        await load(SavedLocation(name: name, country: country, latitude: latitude, longitude: longitude, isCurrentLocation: false))
     }
 
     /// Loads forecast for the user's **current physical location** (GPS).
-    /// Sets `isGPSLocation = true` so the storm banner is permitted — the device
-    /// barometer is physically co-located with the displayed forecast.
+    /// Persists `isCurrentLocation = true` so the storm banner is permitted — the
+    /// device barometer is physically co-located with the displayed forecast —
+    /// and stays permitted across app relaunches.
     func loadCurrentLocation(latitude: Double, longitude: Double, name: String, country: String) async {
-        isGPSLocation = true
-        await load(SavedLocation(name: name, country: country, latitude: latitude, longitude: longitude))
+        await load(SavedLocation(name: name, country: country, latitude: latitude, longitude: longitude, isCurrentLocation: true))
     }
 
     func retry() async {
@@ -234,6 +265,11 @@ final class WeatherStore: ObservableObject {
         if let windSpeed { next.windSpeed = windSpeed }
         if let rainProbability { next.rainProbability = rainProbability }
         next.feelsLike = Self.feelsLike(temperature: next.temperature, humidity: next.humidity, windSpeed: next.windSpeed)
+        // Seed once if nothing has ever been loaded, so dragging a slider before
+        // touching a preset/biome still gives the Minutecast card data to render.
+        // Guarded by isEmpty so repeated slider drags don't recompute every frame.
+        if hourly.isEmpty { hourly = Self.syntheticHourly(from: next) }
+        if daily.isEmpty { daily = Self.syntheticDaily(from: next) }
         publish(next)
     }
 
@@ -266,6 +302,11 @@ final class WeatherStore: ObservableObject {
             rainProbability: rain,
             hour: hour
         )
+        // Seed hourly/daily like applyBiome does — without this, HomeView's
+        // Minutecast card (which requires >= 2 hourly points) stays empty for
+        // every Quick Scenario preset.
+        hourly = Self.syntheticHourly(from: next)
+        daily = Self.syntheticDaily(from: next)
         publish(next)
     }
 
@@ -353,6 +394,36 @@ final class WeatherStore: ObservableObject {
                 }
             }
         }
+    }
+
+    // MARK: - Lab: Storm banner preview
+
+    /// Injects a synthetic `StormAlert` and marks the snapshot as GPS-sourced
+    /// so the storm banner can be visually verified in the Weather Lab without
+    /// waiting for a real barometric pressure drop — `StormSensorEngine` only
+    /// fires from genuine CoreMotion readings, which Simulator never produces
+    /// and a real device may not see for hours.
+    func triggerStormAlertPreview(_ severity: StormSeverity = .warning) {
+        isGPSLocation = true
+        let (drop, windowMinutes): (Double, Int) = {
+            switch severity {
+            case .watch:   return (3.4, 180)
+            case .warning: return (5.6, 120)
+            case .extreme: return (8.5, 90)
+            }
+        }()
+        stormAlert = StormAlert(
+            severity: severity,
+            pressureDropHPa: drop,
+            windowMinutes: windowMinutes,
+            triggeredAt: Date()
+        )
+    }
+
+    /// Clears a previewed/real storm alert immediately, without waiting for
+    /// the 30-minute auto-clear.
+    func clearStormAlert() {
+        stormAlert = nil
     }
 
     // MARK: - Internals
