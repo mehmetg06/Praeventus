@@ -322,86 +322,70 @@ async function handlePrecipitation(url, env) {
   if (isNaN(lat) || isNaN(lon))
     return jsonResponse({ error: "lat ve lon gerekli" }, 400);
 
-  const cacheKey = `imerg_${Math.round(lat*10)/10}_${Math.round(lon*10)/10}`;
+  const latR = Math.round(lat * 10) / 10;
+  const lonR = Math.round(lon * 10) / 10;
+  const cacheKey = `precip_${latR}_${lonR}`;
+
   const cached = await cacheGet(env, cacheKey);
   if (cached) return jsonResponse({ ...cached, _cached: true });
 
   try {
-    // Step 1: Get file listing from NASA IMERG OpenSearch
-    const searchUrl = `https://pmmpublisher.pps.eosdis.nasa.gov/opensearch` +
-      `?q=precip_30mn&lat=${lat}&lon=${lon}&limit=1`;
+    // Get today's date and yesterday in YYYYMMDD format
+    const now = new Date();
+    const yesterday = new Date(now - 86400000);
+    const fmt = d => d.toISOString().slice(0, 10).replace(/-/g, "");
+    const startDate = fmt(yesterday);
+    const endDate = fmt(now);
 
-    const searchRes = await fetch(searchUrl, {
-      signal: AbortSignal.timeout(10000),
+    const powerUrl = `https://power.larc.nasa.gov/api/temporal/hourly/point` +
+      `?parameters=PRECTOTCORR` +
+      `&community=RE` +
+      `&longitude=${lonR}` +
+      `&latitude=${latR}` +
+      `&start=${startDate}` +
+      `&end=${endDate}` +
+      `&format=JSON`;
+
+    const res = await fetch(powerUrl, {
+      signal: AbortSignal.timeout(15000),
       headers: { "User-Agent": "Praeventus/1.0 (contact: weather@praeventus.app)" }
     });
-    if (!searchRes.ok) throw new Error(`IMERG search ${searchRes.status}`);
+    if (!res.ok) throw new Error(`NASA POWER ${res.status}`);
 
-    const searchData = await searchRes.json();
-    const items = searchData.items || [];
-    if (items.length === 0) throw new Error("No IMERG data");
+    const data = await res.json();
 
-    // Find GeoJSON export URL from item actions
-    const item = items[0];
-    const exportAction = item.action?.find(a => a["@type"] === "ojo:export");
-    const geojsonEntry = exportAction?.using?.find(u => u["@id"] === "geojson");
-    if (!geojsonEntry?.url) throw new Error("No GeoJSON URL");
+    const hourlyData = data?.properties?.parameter?.PRECTOTCORR;
+    if (!hourlyData) throw new Error("No precipitation data");
 
-    // Step 2: Fetch GeoJSON precipitation polygons
-    const geoRes = await fetch(geojsonEntry.url, {
-      signal: AbortSignal.timeout(15000),
-      headers: { "User-Agent": "Praeventus/1.0" }
-    });
-    if (!geoRes.ok) throw new Error(`GeoJSON fetch ${geoRes.status}`);
-    const geoData = await geoRes.json();
+    // Get the most recent hour value
+    const keys = Object.keys(hourlyData).sort();
+    const latestKey = keys[keys.length - 1];
+    const latestValue = hourlyData[latestKey];
 
-    // Step 3: Find nearest feature centroid to requested point
-    let bestValue = null;
-    let bestDist = Infinity;
-
-    for (const feature of geoData.features || []) {
-      const coords = feature.geometry?.coordinates;
-      const value = feature.properties?.value;
-      if (value === null || value === undefined) continue;
-
-      // Get first ring — handle both Polygon and MultiPolygon
-      const ring = Array.isArray(coords[0][0])
-        ? coords[0]
-        : coords[0][0];
-
-      if (!ring || ring.length === 0) continue;
-
-      const centLon = ring.reduce((s, p) => s + p[0], 0) / ring.length;
-      const centLat = ring.reduce((s, p) => s + p[1], 0) / ring.length;
-      const dist = Math.hypot(centLat - lat, centLon - lon);
-
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestValue = value;
-      }
-    }
-
-    const dataDate = item.properties?.date?.["@value"] || null;
+    // Get last 3 hours for trend
+    const last3 = keys.slice(-3).map(k => hourlyData[k]);
+    const avg3h = last3.reduce((a, b) => a + b, 0) / last3.length;
 
     const result = {
-      precipitation_mm_per_hr: bestValue,
-      product: "GPM IMERG Early Run (30 min)",
-      data_date: dataDate,
-      source: "NASA GPM",
+      precipitation_mm_per_hr: latestValue === -999 ? 0 : latestValue,
+      precipitation_3h_avg: avg3h === -999 ? 0 : avg3h,
+      latest_observation_time: latestKey,
+      product: "NASA POWER IMERG-Corrected",
+      source: "NASA POWER / GPM IMERG",
       license: "Public Domain",
       _cached: false
     };
 
-    // Cache for 25 minutes (IMERG updates every 30 min)
-    await cachePut(env, cacheKey, result, 1500);
+    // Cache 45 minutes
+    await cachePut(env, cacheKey, result, 2700);
     return jsonResponse(result);
 
   } catch (err) {
     return jsonResponse({
       error: err.message,
       precipitation_mm_per_hr: null,
-      product: "GPM IMERG Early Run (30 min)",
-      source: "NASA GPM"
+      product: "NASA POWER IMERG-Corrected",
+      source: "NASA POWER / GPM IMERG"
     }, 503);
   }
 }

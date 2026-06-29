@@ -204,15 +204,19 @@ enum WeatherClientError: Error {
 // MARK: - Satellite precipitation response
 
 /// Decoded response from the Worker's `/precipitation` endpoint, which relays
-/// the nearest NASA GPM IMERG 30-minute observation for a requested coordinate.
+/// NASA POWER IMERG-corrected hourly precipitation for a requested coordinate.
 struct IMERGPrecipitation: Decodable {
     let precipitationMmPerHr: Double?
+    let precipitation3hAvg: Double?
+    let latestObservationTime: String?
     let product: String?
     let dataDate: String?
     let source: String?
 
     enum CodingKeys: String, CodingKey {
         case precipitationMmPerHr = "precipitation_mm_per_hr"
+        case precipitation3hAvg = "precipitation_3h_avg"
+        case latestObservationTime = "latest_observation_time"
         case product
         case dataDate = "data_date"
         case source
