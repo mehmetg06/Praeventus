@@ -1,4 +1,4 @@
-// Praeventus Weather Worker v1
+// Praeventus Weather Worker v2
 // Aşama 1: METAR gözlem + Open-Meteo fallback
 
 const OPEN_METEO_BASE = "https://api.open-meteo.com/v1/forecast";
@@ -229,33 +229,64 @@ function wmoCondition(code, lang) {
       ?? (lang === "tr" ? "Değişken" : "Variable");
 }
 
-function buildWeatherSummary(params, lang) {
-  const temp    = parseFloat(params.get("temp")        || "20");
-  const feels   = parseFloat(params.get("feels")       || String(temp));
-  const humidity= parseFloat(params.get("humidity")    || "60");
-  const wind    = parseFloat(params.get("wind")        || "0");
-  const code    = parseInt(  params.get("weather_code")|| "0", 10);
-  const precip  = parseFloat(params.get("precip_prob") || "0");
-  const cond    = wmoCondition(code, lang);
+function windDirectionLabel(deg, lang) {
+  const d = ((deg % 360) + 360) % 360;
+  if (d <= 22 || d >= 338) return lang === "tr" ? "Kuzey"      : "North";
+  if (d <= 67)              return lang === "tr" ? "Kuzeydoğu"  : "Northeast";
+  if (d <= 112)             return lang === "tr" ? "Doğu"       : "East";
+  if (d <= 157)             return lang === "tr" ? "Güneydoğu"  : "Southeast";
+  if (d <= 202)             return lang === "tr" ? "Güney"      : "South";
+  if (d <= 247)             return lang === "tr" ? "Güneybatı"  : "Southwest";
+  if (d <= 292)             return lang === "tr" ? "Batı"       : "West";
+  return lang === "tr" ? "Kuzeybatı" : "Northwest";
+}
 
-  return lang === "tr"
-    ? `Sıcaklık ${temp}°C, hissedilen ${feels}°C. Nem %${humidity}. Rüzgar ${wind} km/s. Yağış ihtimali %${precip}. ${cond}.`
-    : `Temperature ${temp}°C, feels like ${feels}°C. Humidity ${humidity}%. Wind ${wind} km/h. Precipitation probability ${precip}%. ${cond}.`;
+function buildWeatherSummary(params, lang) {
+  const temp     = parseFloat(params.get("temp")         || "20");
+  const feels    = parseFloat(params.get("feels")        || String(temp));
+  const humidity = parseFloat(params.get("humidity")     || "60");
+  const wind     = parseFloat(params.get("wind")         || "0");
+  const windDeg  = parseFloat(params.get("wind_dir")     || "0");
+  const code     = parseInt(  params.get("weather_code") || "0", 10);
+  const precip   = parseFloat(params.get("precip_prob")  || "0");
+  const tempMax  = parseFloat(params.get("temp_max")     || String(temp));
+  const tempMin  = parseFloat(params.get("temp_min")     || String(temp));
+  const uv       = parseFloat(params.get("uv")           || "0");
+  const vis      = parseFloat(params.get("visibility")   || "10");
+  const pressure = parseFloat(params.get("pressure")     || "1013");
+  const cond     = wmoCondition(code, lang);
+  const windDir  = windDirectionLabel(windDeg, lang);
+
+  if (lang === "tr") {
+    const uvLabel = uv >= 8 ? "çok yüksek" : uv >= 6 ? "yüksek" : uv >= 3 ? "orta" : "düşük";
+    return `Sıcaklık ${temp}°C (hissedilen ${feels}°C), gün boyu ${tempMin}-${tempMax}°C arası.\n` +
+           `Nem %${humidity}, rüzgar ${wind} km/s ${windDir} yönünden.\n` +
+           `UV indeksi ${uv} (${uvLabel}), görüş mesafesi ${vis} km.\n` +
+           `Basınç ${pressure} hPa, yağış ihtimali %${precip}. ${cond}.`;
+  } else {
+    const uvLabel = uv >= 8 ? "very high" : uv >= 6 ? "high" : uv >= 3 ? "moderate" : "low";
+    return `Temperature ${temp}°C (feels like ${feels}°C), daily range ${tempMin}-${tempMax}°C.\n` +
+           `Humidity ${humidity}%, wind ${wind} km/h from the ${windDir}.\n` +
+           `UV index ${uv} (${uvLabel}), visibility ${vis} km.\n` +
+           `Pressure ${pressure} hPa, precipitation probability ${precip}%. ${cond}.`;
+  }
 }
 
 async function handleNarrative(url, env) {
-  const lang    = url.searchParams.get("lang") || "tr";
-  const code    = parseInt(url.searchParams.get("weather_code") || "0", 10);
-  const temp    = parseFloat(url.searchParams.get("temp") || "20");
+  const lang       = url.searchParams.get("lang") || "tr";
+  const code       = parseInt(url.searchParams.get("weather_code") || "0", 10);
+  const temp       = parseFloat(url.searchParams.get("temp") || "20");
+  const uv         = parseFloat(url.searchParams.get("uv")   || "0");
   const tempBucket = Math.round(temp / 5) * 5;
-  const cacheKey = `narrative_${lang}_${code}_${tempBucket}`;
+  const uvBucket   = Math.round(uv / 2) * 2;
+  const cacheKey   = `narrative_${lang}_${code}_${tempBucket}_${uvBucket}`;
 
   const cached = await cacheGet(env, cacheKey);
   if (cached) return jsonResponse({ ...cached, cached: true });
 
   const systemPrompt = lang === "tr"
-    ? "Sadece 2 Türkçe cümle yaz. Düşünme, analiz etme, açıklama yapma. Direkt hava yorumunu yaz. Örnek: 'Bugün hava sıcak ve güneşli. Dışarı çıkmak için ideal bir gün.'"
-    : "Write exactly 2 sentences about the weather. No thinking, no analysis, no explanations. Just write the weather commentary directly.";
+    ? `Sen bir meteoroloji uzmanısın. Verilen hava parametrelerini birlikte değerlendirerek 3 kısa Türkçe cümle yaz. Parametreler birbirini nasıl etkiliyor? Örnek: yüksek nem + düşük rüzgar = boğucu his, yüksek UV + düşük nem = kuru ve yakıcı güneş, düşük basınç + artan rüzgar = hava bozulabilir. Sadece meteorolojik yorumu yaz. Düşünme adımlarını yazma. Emoji kullanma. Direkt başla.`
+    : `You are a meteorologist. Evaluate all given weather parameters together and write 3 short sentences. How do the parameters interact? Examples: high humidity + low wind = muggy feeling, high UV + low humidity = dry and harsh sun, low pressure + increasing wind = weather may deteriorate. Write only the meteorological interpretation. No thinking steps. No emojis. Start directly.`;
 
   const weatherSummary = buildWeatherSummary(url.searchParams, lang);
 
@@ -264,12 +295,11 @@ async function handleNarrative(url, env) {
 
   try {
     const aiResp = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
-
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user",   content: weatherSummary }
       ],
-      max_tokens: 200
+      max_tokens: 400
     });
         const text = (aiResp?.choices?.[0]?.message?.content
                || aiResp?.choices?.[0]?.message?.reasoning_content
