@@ -187,7 +187,8 @@ final class WeatherStore: ObservableObject {
             moonBrightness: phase.cyclePosition,
             daylightHours: base.daylightHours,
             sunAltitude: base.sunAltitude,
-            sunriseSunset: base.sunriseSunset
+            sunriseSunset: base.sunriseSunset,
+            locationTimezone: base.locationTimezone
         )
     }
 

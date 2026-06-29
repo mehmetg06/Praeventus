@@ -1249,15 +1249,12 @@ private struct SunArcView: View {
 
     private var isAboveHorizon: Bool { analysis.sunAltitude > 0 }
 
-    private static let timeFmt: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm"
-        return f
-    }()
-
     private func timeStr(_ date: Date) -> String {
         guard abs(date.timeIntervalSinceNow) < 365 * 24 * 3600 else { return "--:--" }
-        return Self.timeFmt.string(from: date)
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        f.timeZone = analysis.locationTimezone
+        return f.string(from: date)
     }
 
     private var daylightLabel: String {
