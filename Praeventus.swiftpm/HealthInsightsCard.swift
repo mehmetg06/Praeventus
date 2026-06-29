@@ -23,6 +23,10 @@ struct HealthInsightsCard: View {
 
                 divider
                 bestHoursRow
+
+                Text("⚠️ Not for medical use. (Tıbbi amaçlı kullanılamaz).")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.45))
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
