@@ -18,6 +18,7 @@ struct CloudflareWeatherProvider {
 
     private static let sharedDecoder: JSONDecoder = {
         let d = JSONDecoder()
+        d.dateDecodingStrategy = .iso8601
         d.nonConformingFloatDecodingStrategy = .convertFromString(
             positiveInfinity: "Infinity",
             negativeInfinity: "-Infinity",
@@ -45,11 +46,11 @@ struct CloudflareWeatherProvider {
     /// ```
     func forecast(latitude: Double, longitude: Double) async throws -> [WeatherModel: ForecastResponse] {
         let url = try buildURL(path: "/forecast", queryItems: [
-            URLQueryItem(name: "latitude", value: trimmed(latitude)),
-            URLQueryItem(name: "longitude", value: trimmed(longitude))
+            URLQueryItem(name: "lat", value: trimmed(latitude)),
+            URLQueryItem(name: "lon", value: trimmed(longitude))
         ])
 
-        let envelope = try await get(url, as: WorkerForecastEnvelope.self)
+        let envelope = try await get(url, as: WorkerEnvelope.self)
 
         var result: [WeatherModel: ForecastResponse] = [:]
         if let r = envelope.models["ecmwf_ifs025"] { result[.ecmwf] = r }
@@ -68,10 +69,9 @@ struct CloudflareWeatherProvider {
         guard !trimmedQuery.isEmpty else { return [] }
 
         let url = try buildURL(path: "/search", queryItems: [
-            URLQueryItem(name: "name", value: trimmedQuery),
+            URLQueryItem(name: "q", value: trimmedQuery),
             URLQueryItem(name: "count", value: String(count)),
-            URLQueryItem(name: "format", value: "json"),
-            URLQueryItem(name: "language", value: Locale.current.language.languageCode?.identifier ?? "en")
+            URLQueryItem(name: "lang", value: Locale.current.language.languageCode?.identifier ?? "en")
         ])
 
         let response = try await get(url, as: GeocodingResponse.self)
@@ -128,14 +128,8 @@ struct CloudflareWeatherProvider {
 
 // MARK: - Worker response envelope
 
-private struct WorkerForecastEnvelope: Decodable {
+private struct WorkerEnvelope: Decodable {
     let models: [String: ForecastResponse]
-    let metarStation: String?
-    let generatedAt: String?
-
-    enum CodingKeys: String, CodingKey {
-        case models
-        case metarStation = "metar_station"
-        case generatedAt  = "generated_at"
-    }
+    let metar_station: String?
+    let generated_at: String?
 }
