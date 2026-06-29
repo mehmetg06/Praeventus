@@ -36,6 +36,9 @@ final class WeatherStore: ObservableObject {
     /// HomeView to trigger narrative fetches: phase may stay .loaded and city
     /// may be empty for GPS, so neither is a reliable trigger.
     @Published private(set) var forecastID: UUID = UUID()
+    /// Set when the device barometer detects a rapid pressure drop.
+    /// Cleared to nil after 30 minutes so the UI doesn't show a stale alarm.
+    @Published private(set) var stormAlert: StormAlert?
 
     // MARK: - Developer sandbox overrides
 
@@ -50,7 +53,9 @@ final class WeatherStore: ObservableObject {
     /// Forces the health card into a specific medical state, if set.
     @Published private(set) var forcedHealthInsights: HealthInsights?
 
-    private let calibration = SensorCalibration()
+    private let calibration   = SensorCalibration()
+    private let stormSensor   = StormSensorEngine()
+    private var stormTask: Task<Void, Never>?
     private static let locationKey = "praeventus.savedLocation"
 
     /// Seed snapshot used purely so the UI/background have something to render
@@ -91,6 +96,7 @@ final class WeatherStore: ObservableObject {
         Self.persist(place)
 
         if WeatherSettings.sensorCalibrationEnabled { calibration.start() }
+        startStormMonitoring()
 
         // Paint cached data instantly (offline-friendly) before the network call.
         if let cached = ForecastCache.load(latitude: place.latitude, longitude: place.longitude) {
@@ -308,6 +314,27 @@ final class WeatherStore: ObservableObject {
         forcedHealthInsights = nil
         moonPhaseOverride = nil
         Task { await retry() }
+    }
+
+    // MARK: - Storm monitoring
+
+    private func startStormMonitoring() {
+        stormTask?.cancel()
+        stormTask = Task {
+            // Each call to startMonitoring() restarts the sensor and returns a
+            // fresh stream; the previous stream is automatically finished.
+            for await alert in await stormSensor.startMonitoring() {
+                stormAlert = alert
+                // Auto-clear after 30 minutes so a resolved storm doesn't
+                // keep the UI in alarm state indefinitely.
+                Task {
+                    try? await Task.sleep(for: .seconds(1800))
+                    if stormAlert?.triggeredAt == alert.triggeredAt {
+                        stormAlert = nil
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Internals

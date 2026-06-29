@@ -20,6 +20,8 @@ let sources = [
     // Domain + state
     "AtmosphericEngine.swift",
     "AstronomicalEngine.swift",
+    "MinutecastEngine.swift",
+    "StormSensorEngine.swift",
     "WeatherNarrativeEngine.swift",
     "MeteorologicalExpertSystem.swift",
     "ThermalPredictionEngine.swift",
