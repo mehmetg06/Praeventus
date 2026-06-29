@@ -35,7 +35,7 @@ Every piece of personally sensitive information (location, usage patterns, devic
 
 Every external dependency is either a first-party Apple framework or a free, no-key-required open service:
 
-- **Cloudflare Workers**: Free tier; the Worker fans out to ECMWF/GFS/ICON (via Open-Meteo) and METAR (aviationweather.gov) in parallel, caches responses in Workers KV (45-min TTL).
+- **Cloudflare Workers**: Free tier; the Worker fans out to ECMWF/GFS/ICON (via Open-Meteo) and METAR (aviationweather.gov) in parallel, caches responses in Workers KV (45-min TTL). The `/narrative` endpoint uses Workers AI (also free tier) for on-demand meteorological text generation.
 - **ECMWF IFS data** (CC-BY-4.0, since Oct 2025): Free for commercial use; no account required.
 - **GFS / METAR data** (NOAA, Public Domain): Open data; no account required.
 - **ICON data** (DWD, Open Data): Open data; no account required.
@@ -110,7 +110,7 @@ Praeventus/
 └── worker/                             # Cloudflare Worker — sole upstream relay
     ├── README.md                       # Worker URL, KV namespace, deployment notes
     ├── wrangler.toml
-    └── src/index.js                    # Routes /forecast and /search; fans out to 3 NWP models + METAR
+    └── src/index.js                    # Routes /forecast, /search, and /narrative; fans out to 3 NWP models + METAR + Workers AI
 ```
 
 ---
@@ -174,6 +174,16 @@ Optional sensor calibration (iOS):
 
 Offline path:
   ForecastCache.load() ──→ paint instantly ──→ network refresh in background
+
+AI narrative path (per forecast refresh):
+  WeatherData + DailyRange ──→ CloudflareWeatherProvider.narrative()
+  (anonymous weather values only; no coordinates sent)
+         │
+         ▼
+  Worker /narrative ──→ Workers AI (Llama 3.3 70B)
+         │
+         ▼
+  weatherNarrative: String ──→ HomeView.narrativeCard
 ```
 
 ### Platform Layers
@@ -211,7 +221,7 @@ The shared `JSONDecoder` in `CloudflareWeatherProvider` is configured with `.con
 ---
 
 #### `CloudflareWeatherProvider.swift`
-Pure-Foundation HTTP client that is the **sole** upstream networking layer. All forecast and geocoding requests go through the Cloudflare Worker at `WeatherSettings.cloudflareWorkerURL` — no direct calls to upstream weather APIs are made from the device.
+Pure-Foundation HTTP client that is the **sole** upstream networking layer. All forecast, geocoding, and narrative requests go through the Cloudflare Worker at `WeatherSettings.cloudflareWorkerURL` — no direct calls to upstream weather APIs are made from the device.
 
 **Forecast** (`forecast(latitude:longitude:)`):
 - Sends a single GET to `<workerURL>/forecast?lat=…&lon=…`.
@@ -219,11 +229,18 @@ Pure-Foundation HTTP client that is the **sole** upstream networking layer. All 
 - Maps the `models` dictionary to `[WeatherModel: ForecastResponse]` — the exact shape `WeatherFusion.fuse()` expects.
 - Throws `WeatherClientError.noResults` if no recognised model keys are present.
 
+**AI Narrative** (`narrative(temp:feelsLike:humidity:windSpeed:windDir:weatherCode:tempMax:tempMin:precipProb:uvIndex:visibility:pressure:lang:)`):
+- Sends anonymous weather parameters to `<workerURL>/narrative` — no coordinates, no location, no user identifier.
+- Visibility is converted from metres to km before sending (÷ 1000).
+- Decodes `NarrativeResponse { narrative: String }`.
+- Returns an empty string on any network or decoding error so the UI can hide the card gracefully.
+- Called by `HomeView.startNarrativeFetch()` on every `store.forecastID` change.
+
 **Geocoding** (`search(_:count:)`):
 - Forwards to `<workerURL>/search?q=…&count=…&lang=…`.
 - Passes the locale's language code for localised city names.
 
-Both paths use a 15-second timeout, a privacy User-Agent, and coordinate trimming to 4 decimal places (~11 m).
+All paths use a 15-second timeout, a privacy User-Agent, and coordinate trimming to 4 decimal places (~11 m).
 
 ---
 
@@ -312,6 +329,8 @@ The core immutable weather snapshot. Foundation-only (no SwiftUI).
 
 Fields: `city`, `country`, `temperature`, `feelsLike`, `condition`, `humidity`, `pressure`, `windSpeed`, `windDirection`, `windGustSpeed`, `uvIndex`, `dewPoint`, `visibility`, `rainProbability`, `hour`.
 
+**`weatherCode: Int`** (computed): Derives a representative WMO code from the `condition` enum (e.g. `.rain` → `61`, `.storm` → `95`). Used when passing the weather state to the Worker's `/narrative` endpoint so the AI receives a standard numeric code rather than an app-internal enum name.
+
 **`TimeOfDay` enum**: Maps the `hour` field into four bands that drive both the visual atmosphere and narrative text:
 
 | Band | Hours | Darkness | Warmth | Coolness |
@@ -351,14 +370,23 @@ The production Cloudflare Worker that serves as the **sole** upstream relay. All
 
 **Deployment**: `https://praeventus-weather.mehmetgezoglu.workers.dev`  
 **KV namespace**: `PRAEVENTUS_CACHE`  
-**Cache TTL**: 2700 seconds (45 minutes) for forecast responses  
-**Deployed via**: Cloudflare dashboard (no wrangler CLI — project is developed exclusively on iPad).
+**Cache TTL**: 2700 s (45 min) for `/forecast`; 1800 s (30 min) for `/narrative`  
+**Deployed via**: Cloudflare dashboard (no wrangler CLI — project is developed exclusively on iPad).  
+**Bindings required**: `PRAEVENTUS_CACHE` (Workers KV), `AI` (Workers AI)
 
 **Routes**:
-- `GET /forecast?lat=…&lon=…` — fans out to ECMWF IFS 0.25°, GFS Global, and ICON Global in parallel via Open-Meteo, overlays the nearest METAR observation from aviationweather.gov, and returns one `WorkerEnvelope` JSON: `{ models: { ecmwf_ifs025, gfs_global, icon_global }, metar_station, generated_at }`. Responses are cached in Workers KV for 2700 s.
+- `GET /forecast?lat=…&lon=…` — fans out to ECMWF IFS 0.25°, GFS Global, and ICON Global in parallel via Open-Meteo, overlays the nearest METAR observation from aviationweather.gov, and returns one `WorkerEnvelope` JSON: `{ models: { ecmwf_ifs025, gfs_global, icon_global }, metar_station, metar_raw, generated_at }`. Responses are cached in Workers KV for 2700 s.
 - `GET /search?q=…&count=…&lang=…` — proxies geocoding queries to Open-Meteo's geocoding endpoint and returns `GeocodingResult[]`.
+- `GET /narrative?lang=&temp=&feels=&humidity=&wind=&wind_dir=&weather_code=&temp_max=&temp_min=&precip_prob=&uv=&visibility=&pressure=` — generates a 3-sentence meteorological interpretation using Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`). No coordinates are ever sent; only anonymous numeric weather values. Cache key is bucketed by language, WMO code, temperature (±5°C), and UV index (±2 units) to maximise cache reuse across nearby conditions. Cached for 1800 s. Falls back to a safe placeholder string on any AI error.
 
 **CORS**: All routes include `Access-Control-Allow-Origin` headers for browser-based testing.
+
+**`/narrative` implementation details**:
+- `buildWeatherSummary(params, lang)` formats the raw query-string numbers into a readable paragraph (in Turkish or English) that the LLM uses as its user prompt.
+- `windDirectionLabel(deg, lang)` converts a bearing to an 8-point compass label in both languages.
+- `wmoCondition(code, lang)` maps the WMO code integer to a condition word (e.g. `95 → "Fırtınalı"` / `"Thunderstorm"`).
+- The system prompt instructs the LLM to synthesise the parameters (not describe them individually), avoid markdown and emoji, and write exactly 3 sentences.
+- The response is extracted from `choices[0].message.content || choices[0].message.reasoning_content || response` to tolerate structural variations in the Workers AI output.
 
 ---
 
@@ -579,6 +607,8 @@ Runs only on iOS/iPadOS (where `CoreMotion` is available); all other platforms u
 5. On failure with cached data: keep the cached data, mark `isStale = true`.
 6. On failure with no cache: set phase to `.failed(message)`.
 
+**`forecastID: UUID`**: Published on every `applyForecast()` call (cache hit, network refresh, or location switch). `HomeView` observes this with `.onChange(of: store.forecastID)` to trigger a narrative fetch. Using an ID rather than `phase` or city name is necessary because the phase can stay `.loaded` across location changes and the city is empty for GPS locations.
+
 **Sensor calibration**: if enabled, the `SensorCalibration.calibrate()` pass runs after `WeatherMapping.map()` and before publishing.
 
 **Developer sandbox** (all `@Published`, all in `WeatherLabView`):
@@ -678,15 +708,20 @@ The root `@State var store: WeatherStore` holder. Switches between `HomeView` an
 ---
 
 #### `HomeView.swift`
-Primary display screen. Layers:
+Primary display screen. Layers (in order, top to bottom):
 
 1. `AtmosphereBackgroundView` — full-bleed animated background.
-2. Current conditions section — temperature, feels-like, condition label, status text from `AtmosphericEngine`.
-3. Narrative text (`atmosphere.story`) from `MeteorologicalExpertSystem`.
-4. Hourly strip (Swift Charts horizontal scroll).
+2. Temperature hero — large thin numeral, condition label, feels-like.
+3. **Story card** — `atmosphere.story` from `MeteorologicalExpertSystem` (deterministic Turkish/English narrative, always present).
+4. **AI narrative card** — 3-sentence meteorological commentary from the Worker's `/narrative` endpoint. Shows a loading spinner (`fetchingNarrativeCard`) while the network call is in flight, then the text (`narrativeCard`). Hidden when empty, on error, or if the response contains markdown (`**`), the word "Analyze", or exceeds 600 characters. Cleared and re-fetched on every `store.forecastID` change.
 5. `HealthInsightsCard` — thermal/UV health panel.
-6. 7-day daily forecast cards.
-7. Toolbar: Lab button → `WeatherLabView`, Settings → `SettingsView`.
+6. Rotating metric card — Instagram-story-style single-metric display cycling through 9 parameters (humidity, pressure, wind, UV, dew point, wind gust, direction, visibility, rain probability). Tap left/right to navigate; auto-advances every 6 s.
+7. Activity suitability card — top 3 recommended activities with suitability level badges.
+8. Astronomical card — sun arc canvas, moon phase panel, sun altitude panel.
+9. Hourly strip — 6-slot compact row showing time, condition symbol, temperature, rain probability.
+10. `WeatherChartsView` — Swift Charts (hourly temperature, daily range, precipitation).
+
+**Narrative fetch lifecycle**: `startNarrativeFetch()` is triggered by `.onChange(of: store.forecastID)` (covers all forecast arrivals including GPS launches) and by `.onAppear` (covers re-navigation to tab). The `.onChange(of: store.phase)` watcher clears the narrative when a new `.loading` phase begins, so stale text from a previous location is never shown briefly during a location switch.
 
 ---
 
@@ -818,6 +853,7 @@ The sandbox is accessed via **Weather Lab** (Lab button in `HomeView`). It provi
 - All requests go to the Cloudflare Worker over HTTPS; the device never contacts upstream weather APIs directly.
 - The Worker's IP is what upstream services see — the device IP is never exposed to them.
 - User-Agent is a generic `Praeventus/1.0 (privacy-weather)` — no device identifier, no OS version, no app version beyond the major.
+- The `/narrative` request sends only anonymous numeric weather values (temperature, humidity, WMO code, etc.) — no coordinates, no location name, no user identifier.
 
 ### On-Device Computation
 - `NLTagger` sentiment analysis: text never leaves the device.
@@ -825,6 +861,7 @@ The sandbox is accessed via **Weather Lab** (Lab button in `HomeView`). It provi
 - `AstronomicalEngine`: pure arithmetic, no network.
 - `ThermalPredictionEngine`: pure arithmetic, no network, no ML model file.
 - `MeteorologicalExpertSystem`: deterministic pattern match, no network.
+- The `MeteorologicalExpertSystem` Turkish narrative (the "story card") is fully on-device. The Workers AI narrative (the second card in `HomeView`) is the one place weather values leave the device — but only as anonymous numeric parameters, never as location or identity.
 
 ### Data Retention
 - No user account. No telemetry. No analytics SDK.
@@ -917,6 +954,12 @@ The Cloudflare Worker may relay `NaN` or `Infinity` values from upstream NWP mod
 
 ### Worker Deployment
 - **No wrangler CLI on iPad**: The Worker (`worker/src/index.js`) is deployed manually via the Cloudflare dashboard. `wrangler.toml` is kept for documentation purposes but `wrangler deploy` is not run in CI or from the iPad development environment.
+
+### Workers AI Binding
+The `/narrative` endpoint uses the `env.AI` binding (Workers AI). This binding must be added to the Worker in the Cloudflare dashboard under **Settings → Bindings → Add binding → AI**. Without it `env.AI` is `undefined` and narrative calls return the fallback placeholder. The free Workers AI quota (10,000 neurons/day) is ample for a personal weather app.
+
+### AI Narrative Privacy
+The `/narrative` endpoint sends only anonymous numeric weather values (temperature, humidity, wind speed, WMO code, UV index, etc.) — never coordinates, location name, city, or any user identifier. The text generated by the LLM is cached on the Worker by weather-state bucket, not by user or session.
 
 ---
 
@@ -1071,13 +1114,65 @@ All Swift source files, `worker/src/index.js`, `Package.swift`.
 
 ---
 
+### 2026-06-29 — Workers AI Narrative Endpoint
+
+**Branch**: `claude/claude-md-docs-w8cwp5`
+
+#### What changed
+
+**`worker/src/index.js` — `/narrative` route added**
+
+Third route added to the Worker alongside `/forecast` and `/search`.
+
+- `handleNarrative(url, env)`: reads weather parameters from the query string, builds a bilingual plain-text summary via `buildWeatherSummary()`, and calls `env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", ...)` with a strict system prompt (no markdown, no emoji, exactly 3 sentences, synthesise parameter interactions).
+- `buildWeatherSummary(params, lang)`: formats `temp`, `feels`, `humidity`, `wind`, `wind_dir`, `weather_code`, `temp_max`, `temp_min`, `precip_prob`, `uv`, `visibility`, `pressure` into a readable paragraph in Turkish or English.
+- `windDirectionLabel(deg, lang)`: converts a bearing to an 8-point compass label.
+- `wmoCondition(code, lang)`: maps WMO integer to a localized condition word.
+- Cache key: `narrative_<lang>_<code>_<tempBucket>_<uvBucket>` (5°C and 2-unit buckets to maximise hit rate). TTL: 1800 s.
+- AI response extraction: `choices[0].message.content || choices[0].message.reasoning_content || response` to tolerate Workers AI output shape variations.
+- Falls back to `"Hava durumu yükleniyor..."` / `"Loading weather summary..."` on any error without propagating the error to the client.
+- The initial implementation (PR #58) used `@cf/thudm/glm-4-32b-0414` (GLM-4.7-Flash); PR #59 switched to `@cf/meta/llama-3.3-70b-instruct-fp8-fast` for better instruction-following and added stricter prompts. PR #63 enriched the parameter set to include wind direction, UV, visibility, and pressure.
+- `metar_raw` field added to the `/forecast` response envelope (exposes the raw METAR values that were applied as overlays, for debugging).
+
+**`CloudflareWeatherProvider.swift` — `narrative()` method added**
+
+New method `narrative(temp:feelsLike:humidity:windSpeed:windDir:weatherCode:tempMax:tempMin:precipProb:uvIndex:visibility:pressure:lang:)`:
+- Converts visibility from metres to km (÷1000) before sending.
+- All errors silently return an empty string — the UI hides the card rather than showing an error.
+- Decodes `NarrativeResponse { narrative: String }` (private struct, same file).
+
+**`WeatherData.swift` — `weatherCode` computed property added**
+
+Derives a representative WMO integer from the `condition` enum. No stored field — no migration needed. Used solely by `HomeView.startNarrativeFetch()` to pass a standard code to the Worker.
+
+**`WeatherStore.swift` — `forecastID` property added**
+
+`@Published private(set) var forecastID: UUID = UUID()`. Bumped on every `applyForecast()` call regardless of phase or city value, giving `HomeView` a reliable trigger for narrative fetches that works for GPS locations and cache-first loads.
+
+**`HomeView.swift` — AI narrative card system**
+
+- `@State private var weatherNarrative: String` and `@State private var isFetchingNarrative: Bool` drive the card visibility.
+- `startNarrativeFetch()` fires on `.onChange(of: store.forecastID)` and on `.onAppear`.
+- `.onChange(of: store.phase)` clears state when a new `.loading` begins.
+- `fetchingNarrativeCard`: spinner shown while the network call is in flight.
+- `narrativeCard`: plain text card; guarded against responses containing `**` (markdown), the word `"Analyze"` (leaked reasoning), or exceeding 600 characters.
+
+**Localizable.strings** (both `en.lproj` and `tr.lproj`) — one new key:
+- `"narrative.fetching"` = `"Fetching weather insight…"` / `"Hava durumu özeti alınıyor…"`
+
+#### Files with zero changes
+`WeatherFusion.swift`, `WeatherMapping.swift`, `OpenMeteoModels.swift`, `WeatherModel.swift`, `ForecastCache.swift`, all domain engine files, all other UI files.
+
+---
+
 ## Contact & Attribution
 
 - **Weather data + models** (via Cloudflare Worker → Open-Meteo + aviationweather.gov): ECMWF IFS data CC-BY-4.0; GFS and METAR data Public Domain (NOAA); ICON data Open Data (DWD). All free for commercial use; no account required.
+- **AI narrative**: Cloudflare Workers AI, `@cf/meta/llama-3.3-70b-instruct-fp8-fast` (Meta Llama 3.3 70B, free tier).
 - **Icons**: SF Symbols (Apple, license: Apple SF Symbols License Agreement).
 - **Data relay**: [Cloudflare Workers](https://workers.cloudflare.com/) (free tier).
 - **Maintainer**: [@mehmetg06](https://github.com/mehmetg06)
 
 ---
 
-**Last updated**: 2026-06-29 | Cloudflare Worker architecture documentation pass
+**Last updated**: 2026-06-29 | Workers AI narrative endpoint + CLAUDE.md audit
