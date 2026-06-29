@@ -237,7 +237,10 @@ struct AtmosphereBackgroundView: View {
         // Keep the glow stack as native transparent views. Flattening these
         // oversized blurred discs into a Metal layer can leave a faint boxed
         // edge visible behind the weather UI on some iPadOS renderers.
-        .scaleEffect(breathe ? 1.012 : 0.994)
+        // Opacity animation is used instead of scaleEffect: scaling blurred
+        // layers forces the compositor to recomposite every frame (~60fps),
+        // whereas opacity is a single alpha-multiply on the cached textures.
+        .opacity(breathe ? 1.0 : 0.90)
         .animation(.easeInOut(duration: (hotSunny ? 18 : 14) / animSpeed).repeatForever(autoreverses: true), value: breathe)
         .ignoresSafeArea()
     }
@@ -358,7 +361,7 @@ struct AtmosphereBackgroundView: View {
     // MARK: - Air Mass Layer
 
     private var airMassLayer: some View {
-        TimelineView(.periodic(from: .now, by: 1.0 / 14.0)) { timeline in
+        TimelineView(.periodic(from: .now, by: 1.0 / 8.0)) { timeline in
             Canvas { context, size in
                 let time = timeline.date.timeIntervalSinceReferenceDate * animSpeed
                 let bands = max(2, min(6, Int(2 + atmosphere.cloudCover * 5)))
@@ -531,10 +534,10 @@ private struct HotSunnyLayer: View {
             )
             .blendMode(.screen)
 
-            TimelineView(.periodic(from: .now, by: 1.0 / 12.0)) { timeline in
+            TimelineView(.periodic(from: .now, by: 1.0 / 8.0)) { timeline in
                 Canvas { context, size in
                     let time = timeline.date.timeIntervalSinceReferenceDate * animSpeed
-                    for index in 0..<6 {
+                    for index in 0..<4 {
                         let y = size.height * (0.55 + CGFloat(index) * 0.075)
                         let phase = CGFloat(time * 0.36 + Double(index) * 1.7)
                         var path = Path()
