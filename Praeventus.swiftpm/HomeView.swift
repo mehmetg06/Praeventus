@@ -55,6 +55,29 @@ struct HomeView: View {
         .onChange(of: store.weather.city) { _, _ in
             weatherNarrative = ""
         }
+        .onAppear {
+            if case .loaded = store.phase, weatherNarrative.isEmpty {
+                let w = weather
+                let firstDaily = store.daily.first
+                let provider = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
+                let lang = Locale.current.language.languageCode?.identifier ?? "en"
+                Task {
+                    let text = await provider.narrative(
+                        temp: w.temperature,
+                        feelsLike: w.feelsLike,
+                        humidity: w.humidity,
+                        windSpeed: w.windSpeed,
+                        windDir: Double(w.windDirection),
+                        weatherCode: w.weatherCode,
+                        tempMax: firstDaily?.max ?? 0,
+                        tempMin: firstDaily?.min ?? 0,
+                        precipProb: w.rainProbability,
+                        lang: lang
+                    )
+                    await MainActor.run { weatherNarrative = text }
+                }
+            }
+        }
     }
 
     // MARK: - Top bar (non-scrolling)
