@@ -35,8 +35,12 @@ let sources = [
     "LocationProvider.swift",
     // Search MVVM
     "SearchViewModel.swift",
+    // METAR domain model
+    "MetarSnapshot.swift",
     // UI
     "WeatherCondition+Palette.swift",
+    "WeatherMapView.swift",
+    "AviationMetarCard.swift",
     "SandboxEnvironment.swift",
     "PraeventusRootView.swift",
     "AtmosphereBackgroundView.swift",
