@@ -183,12 +183,20 @@ struct HomeView: View {
         return weather.city
     }
 
+    /// Uses the same lat/lon-derived timezone + sun geometry as `AstronomicalCard`.
     private var headerSubtitle: String {
         if store.phase == .idle {
             return String(localized: "home.tagline", defaultValue: "Privacy-first weather, anywhere")
         }
         let country = weather.country.isEmpty ? "" : "\(weather.country) · "
-        return "\(country)\(weather.formattedHour) · \(weather.timeOfDay.displayName)"
+        let analysis = store.astronomicalAnalysis(at: Date())
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        formatter.timeZone = analysis.locationTimezone
+        let timeLabel = formatter.string(from: Date())
+        let solarNoon = analysis.sunriseSunset.sunrise.addingTimeInterval(analysis.sunriseSunset.duration / 2)
+        let timeOfDay = TimeOfDay(sunAltitude: analysis.sunAltitude, isRising: Date() < solarNoon)
+        return "\(country)\(timeLabel) · \(timeOfDay.displayName)"
     }
 
     // MARK: - Phase states
