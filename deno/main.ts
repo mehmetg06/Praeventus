@@ -17,8 +17,15 @@ import { handleForecast, handleNarrative, handleNowcast, handleSearch } from "./
 import { handleTileDwd, handleTileNexrad, handleTileSatellite } from "./tiles.ts";
 
 function clientIP(request: Request): string {
+  // Use the RIGHTMOST X-Forwarded-For entry: the platform edge appends the real
+  // peer IP at the end, so anything to its left is client-supplied and spoofable.
+  // Taking XFF[0] would let a caller set `X-Forwarded-For: <random>` and cycle
+  // fake IPs to dodge the per-IP rate limit.
   const xff = request.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0].trim();
+  if (xff) {
+    const parts = xff.split(",").map((s) => s.trim()).filter(Boolean);
+    if (parts.length) return parts[parts.length - 1];
+  }
   return request.headers.get("x-real-ip") || "unknown";
 }
 
