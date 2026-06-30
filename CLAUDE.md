@@ -17,9 +17,14 @@ Sistem, aşağıdaki bağımsız kaynakları eşzamanlı olarak sorgular ve birl
 | **ECMWF & GFS** | **MET Norway** (`api.met.no`) | CC-BY-4.0 / Public Domain | Global tahmin liderleri. `User-Agent: Praeventus/1.0` başlığı zorunludur. |
 | **ICON Global** | **Bright Sky** (`api.brightsky.dev`) | Open Data (DWD) | Yüksek çözünürlüklü Avrupa ve global kapsam. |
 | **Nowcast (Radar)** | **MET Norway** (`api.met.no/weatherapi/nowcast`) | CC-BY-4.0 | Radar tabanlı anlık yağış tahmini (5 dk güncelleme). Sadece Kuzey Avrupa kapsama alanında aktiftir; dışında `radarCoverage: false` döner. |
-| **METAR** | **aviationweather.gov** (NOAA) | Public Domain | İstasyon bazlı, yerel anlık gözlem verisi (yer doğrulaması). |
+| **METAR** | **aviationweather.gov** (NOAA) | Public Domain | İstasyon bazlı, yerel anlık gözlem verisi (yer doğrulaması). `MetarSnapshot` domain modeline eşlenir (FAA flight category dahil). |
 | **Geocoding** | **Nominatim** (OpenStreetMap) | ODbL / Open Data | Arama sorgularını koordinatlara çeviren açık veri servisi. |
 | **AI Narrative** | **Groq** (primary) / **Google Gemini** (fallback) | API-key (env var) | Groq `llama-3.3-70b-versatile`; 429/404'te Gemini `gemini-2.5-flash-lite`'a düşer. Bkz. `deno/aiProvider.ts`. |
+| **NEXRAD Radar Tile** | **Iowa Environmental Mesonet** (WMS) | Public Domain (akademik) | ABD radar kompoziti; harita karo katmanı (`/tile/nexrad`). |
+| **IR Satellite Tile** | **NASA GIBS** (GOES-East) | Public Domain | Kızılötesi bulut görüntüsü; harita karo katmanı (`/tile/satellite`). |
+| **DWD Radar Tile** | **DWD Geoserver** (WMS) | CC-BY-4.0 (attribution gerekli) | Avrupa yağış radarı; harita karo katmanı (`/tile/dwd`). |
+
+> Harita karo kaynakları `WeatherMapView` (Map tab) için backend'de tam çalışır durumdadır (`deno/tiles.ts`, `/tile/*` rotaları), ancak istemci tarafında `WeatherSettings.mapTabEnabled = false` ile derleme zamanında kapatılmıştır — sekme şu an gizlidir.
 
 ### Privacy by Architecture (Mimari Seviyede Gizlilik)
 Kullanıcıya ait hiçbir veri, işlenmek veya satılmak üzere dışarı çıkarılmaz:
@@ -55,8 +60,17 @@ Sistemin veri akışı, birbirinden tamamen izole edilmiş üç katmanda gerçek
   ├─ 3. Nowcast (Radar) ────→ CloudflareWorker.nowcast()
   │                             └─→ MET Norway Nowcast API ──→ NowcastResponse (5 dk radar)
   │
-  └─ 4. Narrative (AI) ─────→ CloudflareWorker.narrative()
-                                └─→ Groq→Gemini (aiProvider.ts) ──→ 3 cümlelik meteoroloji metni
+  ├─ 4. Narrative (AI) ─────→ CloudflareWorker.narrative()
+  │                             └─→ Groq→Gemini (aiProvider.ts) ──→ 3 cümlelik meteoroloji metni
+  │
+  └─ 5. Harita Karoları ────→ WeatherMapView (mapTabEnabled = false iken pasif)
+                                └─→ CloudflareWorker.tile() ──→ NEXRAD / IR Sat / DWD PNG karoları
+
+[ Backend Zenginleştirme (deno/astro.ts, weather.ts) ]
+  │
+  ▼
+ timezoneForCoord() (tz-lookup) ──→ IANA timezone + utcOffsetSeconds (DST-aware)
+ sunriseSunsetISO() (NOAA algoritması) ──→ /forecast `daily.sunrise` / `daily.sunset`
 
 [ Cihaz İçi İşleme (On-Device) ]
   │
@@ -70,9 +84,11 @@ Sistemin veri akışı, birbirinden tamamen izole edilmiş üç katmanda gerçek
   ├─→ ThermalPredictionEngine ──→ NWS Heat Index, Rüzgar Soğuğu, UV Yanma Riski (Fitzpatrick)
   ├─→ AstronomicalEngine      ──→ Güneş Yüksekliği, Ay Evresi, Meeus Algoritmaları
   ├─→ MinutecastEngine        ──→ Catmull-Rom Spline ile saatlik → dakika çözünürlüğü enterpolasyon
+  ├─→ NowcastSummaryEngine    ──→ `/nowcast` radar noktalarından "N dk sonra yağmur başlıyor/duruyor" özeti
   ├─→ StormSensorEngine       ──→ CMAltimeter tabanlı hızlı basınç düşüşü tespiti (WMO kriterleri)
   ├─→ ActivityAnalysisEngine  ──→ 10 aktivite türü için hava durumu uygunluk skoru
-  └─→ SensorCalibration       ──→ iPad barometre okumasıyla anlık basınç kalibrasyonu
+  ├─→ SensorCalibration       ──→ iPad barometre okumasıyla anlık basınç kalibrasyonu
+  └─→ MetarSnapshot.from()    ──→ `metar_raw`'dan FAA flight category (VFR/MVFR/IFR/LIFR) içeren METAR modeli
   │
   ▼
  MeteorologicalExpertSystem ──→ Sayısal verilerden Türkçe Uzman Sistem Metni (On-Device)
@@ -93,12 +109,14 @@ Praeventus/
 ├── README.md
 ├── deno/                              # Deno Deploy backend (Direct Aggregator)
 │   ├── main.ts                        # Deno.serve entrypoint: routing, CORS, rate limit
-│   ├── cache.ts                       # Deno KV: grid rounding, TTL, write-dedup, SWR
+│   ├── cache.ts                       # Deno KV: grid rounding, TTL, write-dedup, SWR, fixed-window rate limit
 │   ├── aiProvider.ts                  # Groq (primary) → Gemini (fallback) zinciri
 │   ├── weather.ts                     # MET Norway + Bright Sky + METAR fusion + handlers
-│   ├── tiles.ts                       # radar/uydu tile proxy (binary KV cache)
+│   ├── astro.ts                       # NOAA güneş açısı algoritması: sunriseSunsetISO()
+│   ├── tiles.ts                       # NEXRAD/satellite/DWD tile proxy (binary KV cache)
 │   ├── util.ts                        # birim çevrimleri, WMO map, CORS, AI summary
-│   └── deno.json                      # task + fmt/lint config
+│   ├── deno.json                      # task + fmt/lint config + tz-lookup import
+│   └── README.md                      # backend mimarisi, env var ve deploy talimatları
 └── Praeventus.swiftpm/
     ├── Package.swift                  # Swift 6.0, iOS 17+, iPad only
     ├── en.lproj/Localizable.strings   # İngilizce lokalizasyon
@@ -120,17 +138,20 @@ Sistemin dış dünya ile iletişim kuran yegane bileşeni (Direct Aggregator). 
 
 | Rota | İşlev |
 |------|-------|
-| `GET /forecast?lat=&lon=` | MET Norway + Bright Sky'ı paralel sorgular, METAR ile günceller. Deno KV'de 12 dk. TTL + stale-while-revalidate. |
+| `GET /forecast?lat=&lon=` | MET Norway + Bright Sky'ı paralel sorgular, METAR ile günceller. IANA timezone + `utc_offset_seconds` + NOAA günlük gün doğumu/batımı ekler. Deno KV'de 12 dk. TTL + stale-while-revalidate. |
 | `GET /search?q=&lang=&count=` | Nominatim'e yönlendirir. Deno KV'de 30 gün TTL ile agresif önbellek (OSM politikası). |
 | `GET /narrative?lang=&temp=&...` | Anonim parametre grubuyla Groq→Gemini AI zincirini çağırır. Deno KV'de 30 dk. TTL. |
-| `GET /nowcast?lat=&lon=` | MET Norway Nowcast API. Kapsama dışında `radarCoverage: false` döner. Deno KV'de 5 dk. TTL. |
+| `GET /nowcast?lat=&lon=` | MET Norway Nowcast API. Kapsama dışında `radarCoverage: false` döner. Timezone/offset alanları forecast ile aynı. Deno KV'de 5 dk. TTL. |
+| `GET /tile/{nexrad,satellite,dwd}?z=&x=&y=` | XYZ karo koordinatını ilgili WMS/WMTS sağlayıcıya (IEM, NASA GIBS, DWD) proxy'ler; PNG ikili veri Deno KV'de 5 dk. TTL ile önbelleklenir. `WeatherMapView`'un karo overlay'leri için kullanılır (sekme şu an `mapTabEnabled = false`). |
 
 **Önemli backend detayları:**
 - Deno KV (`Deno.openKv()`) Deno Deploy'da otomatik provision edilir; binding gerekmez. Koordinat key'leri ~0.1° grid'e yuvarlanır (`CACHE_GRID`).
 - AI key'leri env var: `GROQ_API_KEY`, `GEMINI_API_KEY`. Hiçbiri yoksa narrative statik fallback string döner.
 - Tüm isteklerde `User-Agent: Praeventus/1.0 (Contact: mehmetgezoglu@icloud.com)` başlığı gönderilir.
 - `handleForecast`: Yanıtları `ecmwf_ifs025` (MET Norway) ve `icon_global` (Bright Sky) anahtarlı `models` nesnesi içinde döner.
-- `overlayMETAR`: En yakın ICAO istasyonu bulunursa METAR okumaları anlık (current) verinin üzerine yazılır.
+- `overlayMETAR`: En yakın ICAO istasyonu bulunursa METAR okumaları anlık (current) verinin üzerine yazılır; `metarAltimToHPa` altimetre biriminin Q (hPa) mı yoksa A (inHg) mı olduğunu raw METAR'dan tespit eder.
+- `timezoneForCoord` (`tz-lookup` npm paketi) ve `astro.ts`'teki NOAA güneş açısı formülleri her forecast/nowcast yanıtına `timezone` + `utc_offset_seconds` ekler; bu, istemcide header/sunset etiketinin doğru saat diliminde gösterilmesini sağlar (bkz. `AstronomicalEngine`'in cihaz üstü hesaplamasıyla tutarlılık).
+- `checkRateLimit` (`cache.ts`): IP+rota başına **gerçek sabit pencere** (fixed window) sayaç, Deno KV `atomic()` ile race-condition'a karşı korumalı. Rota başına limit farklıdır (`/forecast`, `/search`, `/nowcast` 60 sn'de 30; `/narrative` 60 sn'de 10; `/tile/*` 60 sn'de 120 — harita karoları patlamalı yüklendiği için daha yüksek).
 - Nominatim için max 1 req/sn politikası; KV önbellek bu limiti karşılamak için zorunludur, **asla kaldırılmamalı**.
 
 **Dağıtım:**
@@ -156,6 +177,7 @@ Backend URL'si (`WeatherSettings.backendBaseURL`) `WeatherModel.swift`'te sabit 
 | `WeatherData.swift` | `WeatherData`, `WeatherCondition`, `TimeOfDay` — temel domain veri modelleri |
 | `StorySentiment.swift` | Apple `NaturalLanguage` (NLTagger) ile üretilen metin üzerinde duygu analizi ve tehlike seviyesi güncelleme |
 | `LocalizedStringCompat.swift` | `String(localized:)` uyumluluk yardımcısı |
+| `MetarSnapshot.swift` | Backend `metar_raw` verisini temiz bir domain tipine eşler (knots/inHg/SM/ft AGL korunur). FAA `FlightCategory` (VFR/MVFR/IFR/LIFR) hesaplar; `windString`/`altimeterString`/`visibilityString` görüntüleme yardımcıları içerir. |
 
 ### 4.3 Domain Layer (Fizik ve Matematik Motorları)
 
@@ -169,6 +191,7 @@ Backend URL'si (`WeatherSettings.backendBaseURL`) `WeatherModel.swift`'te sabit 
 | `MeteorologicalExpertSystem.swift` | `AtmosphericDynamics` girişinden deterministik Türkçe uzman meteoroloji raporu üretir. |
 | `WeatherNarrativeEngine.swift` | `AtmosphericState` → `AtmosphericDynamics` adapter'ı. `MeteorologicalExpertSystem`'i çağırır. SwiftUI gerektirdiğinden `#if canImport(SwiftUI)` guard'ı içerir. |
 | `MinutecastEngine.swift` | Saatlik tahmin dizilerini Catmull-Rom kübik spline ile dakika çözünürlüğüne enterpolasyon yapar. WMO UV model formülü (Green et al., 1994). |
+| `NowcastSummaryEngine.swift` | `/nowcast` radar noktalarından "N dk sonra yağmur başlıyor/duruyor" geçiş özetini (`NowcastEvent`) türetir. Foundation-only, test edilebilir (`referenceDate` enjekte edilir). |
 | `StormSensorEngine.swift` | `CMAltimeter` tabanlı `actor`. WMO hızlı derinleşme kriterlerine göre üç pencerede (90 dk/2 sa/3 sa) basınç düşüşü tarar. `AsyncStream<StormAlert>` döner. CoreMotion olmayan platformlarda stub. |
 | `HealthInsights.swift` | `ThermalPredictionEngine` çıktısından hazır UI bundle'ı: heatwave alert, UV yanma süresi, best outdoor hours. |
 | `SensorCalibration.swift` | `@MainActor` sınıfı. iPad barometresini (kPa→hPa dönüşüm) kullanarak model basıncını max ±25 hPa ile kalibre eder. CoreMotion olmayan platformlarda no-op. |
@@ -188,10 +211,12 @@ Backend URL'si (`WeatherSettings.backendBaseURL`) `WeatherModel.swift`'te sabit 
 | Dosya | Görev |
 |-------|-------|
 | `App.swift` | `@main`, `WeatherStore` ve `LocationProvider` environment enjeksiyonu |
-| `PraeventusRootView.swift` | Ana navigasyon: tab bar (Home, Charts, Activities, Lab, Settings) |
-| `HomeView.swift` | Ana hava durumu görünümü. Narratif, fırtına afişi, minutecast grafiği. |
+| `PraeventusRootView.swift` | Ana navigasyon: tab bar (Atmosphere/Home, koşullu Map, Lab, Settings). Map sekmesi sadece `WeatherSettings.mapTabEnabled == true` iken görünür. |
+| `HomeView.swift` | Ana hava durumu görünümü. Narratif, fırtına afişi, minutecast grafiği, `AviationMetarCard`, nowcast yağmur özeti şeridi. |
 | `WeatherChartsView.swift` | Saatlik ve günlük tahmin grafikleri |
 | `WeatherLabView.swift` | Geliştirici sandbox: slider'lar, biome preset'ler, medical stress test'ler, fırtına önizleme, model güven göstergesi |
+| `WeatherMapView.swift` | `mapTabEnabled` arkasında: `MKMapView` tabanlı NEXRAD/IR Satellite/DWD karo overlay'leri (`WorkerTileOverlay` → `/tile/*`), katman seçim çipleri, 5 dk otomatik yenileme döngüsü. UIKit/MapKit olmayan platformlarda placeholder. |
+| `AviationMetarCard.swift` | `MetarSnapshot`'ı aviation-stili kartla render eder: flight category rozeti (VFR/MVFR/IFR/LIFR renk kodlu), rüzgar/altimetre/görüş/tavan hücreleri, raw METAR satırı. |
 | `LocationSearchView.swift` | Şehir arama ve mevcut konum seçimi |
 | `SettingsView.swift` | Multi-model fusion toggle, sensor calibration toggle, aktivite yönetimi, gizlilik etiketleri, attribution linkleri |
 | `SandboxEnvironment.swift` | `EnvironmentKey`'ler: `performanceMode`, `showLayoutBounds`, `sandboxAnimationSpeed`, `moonCycleOverride` |
@@ -223,7 +248,8 @@ DailyRange                // Günlük min/max aralığı
 // Minutecast
 MinutePoint               // Dakika çözünürlüklü enterpolasyon çıktısı
 NowcastPoint              // Worker /nowcast radar noktası (5 dk)
-NowcastResponse           // { minutecast, radarCoverage, generated_at }
+NowcastResponse           // { minutecast, radarCoverage, timezone, utc_offset_seconds, generated_at }
+NowcastEvent              // .startingSoon / .stoppingSoon / .ongoing — NowcastSummaryEngine çıktısı
 
 // Füzyon
 FusionConfidence          // { agreement: 0…1, temperatureSpreadC, models: [String] }
@@ -231,6 +257,10 @@ FusionConfidence          // { agreement: 0…1, temperatureSpreadC, models: [St
 // Fırtına sensörü
 StormAlert                // { severity, pressureDropHPa, windowMinutes, triggeredAt }
 StormSeverity             // .watch / .warning / .extreme (WMO kriterleri)
+
+// Aviation METAR
+MetarSnapshot             // { station, windSpeedKt, altimeterInHg, visibilityMiles, ceilingFt, rawOb, ... }
+MetarSnapshot.FlightCategory // .vfr / .mvfr / .ifr / .lifr (FAA ceiling/visibility eşikleri)
 ```
 
 ---
@@ -244,22 +274,29 @@ StormSeverity             // .watch / .warning / .extreme (WMO kriterleri)
     "ecmwf_ifs025": <ForecastResponse>,
     "icon_global":  <ForecastResponse>
   },
+  "timezone": "Europe/Istanbul",
+  "utc_offset_seconds": 10800,
   "metar_station": "LTAC",
-  "metar_raw": { "temp": 22, "dewp": 14, ... },
+  "metar_raw": { "temp": 22, "dewp": 14, "skyCondition": [...], "rawOb": "...", ... },
   "generated_at": "2026-06-30T12:00:00Z",
   "_cached": true
 }
 ```
+`<ForecastResponse>.daily` ayrıca `sunrise[]`/`sunset[]` (NOAA algoritması, `deno/astro.ts`) içerir.
 
 `/nowcast` yanıtı:
 ```json
 {
   "minutecast": [{ "time": "...", "precipitationRate": 1.2, ... }],
   "radarCoverage": true,
+  "timezone": "Europe/Istanbul",
+  "utc_offset_seconds": 10800,
   "geometry": { ... },
   "generated_at": "..."
 }
 ```
+
+`/tile/{nexrad,satellite,dwd}?z=&x=&y=` yanıtı: ham `image/png` ikili veri (JSON değil), 5 dk `Cache-Control`.
 
 ---
 
