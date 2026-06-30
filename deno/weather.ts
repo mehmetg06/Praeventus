@@ -67,21 +67,67 @@ function timezoneForCoord(lat: number, lon: number): string | null {
   }
 }
 
+// Current UTC offset (seconds) for an IANA timezone, DST-aware. Computes the
+// difference between wall-clock time in `tz` and UTC for the current instant.
+function utcOffsetSeconds(tz: string | null): number | null {
+  if (!tz) return null;
+  try {
+    const now = new Date();
+    // Drop milliseconds so the difference below is a whole number of seconds
+    // (formatToParts truncates the wall clock to whole seconds).
+    now.setMilliseconds(0);
+    const dtf = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hour12: false,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    const parts: Record<string, number> = {};
+    for (const p of dtf.formatToParts(now)) {
+      if (p.type !== "literal") parts[p.type] = parseInt(p.value, 10);
+    }
+    // Intl can emit hour "24" at midnight; normalise to 0.
+    const hour = parts.hour === 24 ? 0 : parts.hour;
+    const asUTC = Date.UTC(
+      parts.year,
+      parts.month - 1,
+      parts.day,
+      hour,
+      parts.minute,
+      parts.second,
+    );
+    return Math.round((asUTC - now.getTime()) / 1000);
+  } catch {
+    return null;
+  }
+}
+
 // --- METAR ------------------------------------------------------------------
 
 async function nearestICAO(lat: number, lon: number): Promise<string | null> {
   const delta = 2.0;
-  const url = `${AIRPORT_BASE}?bbox=${lon - delta},${lat - delta},${lon + delta},${
-    lat + delta
+  // aviationweather.gov expects bbox as minLat,minLon,maxLat,maxLon (lat first).
+  const url = `${AIRPORT_BASE}?bbox=${lat - delta},${lon - delta},${lat + delta},${
+    lon + delta
   }&format=json`;
   try {
     const res = await fetch(url, {
       signal: AbortSignal.timeout(4000),
       headers: { "User-Agent": USER_AGENT },
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(`nearestICAO airport query failed: HTTP ${res.status} for ${url}`);
+      return null;
+    }
     const airports = await res.json();
-    if (!airports?.length) return null;
+    if (!airports?.length) {
+      console.warn(`nearestICAO: no airports in bbox for lat=${lat} lon=${lon}`);
+      return null;
+    }
     let best: Json = null;
     let bestDist = Infinity;
     for (const ap of airports) {
@@ -94,7 +140,11 @@ async function nearestICAO(lat: number, lon: number): Promise<string | null> {
         best = ap;
       }
     }
-    return best ? (best.icaoId || best.stationIdentifier || best.id || null) : null;
+    const icao = best ? (best.icaoId || best.stationIdentifier || best.id || null) : null;
+    if (!icao) {
+      console.warn(`nearestICAO: nearest airport had no ICAO id (${JSON.stringify(best)})`);
+    }
+    return icao;
   } catch (err) {
     console.warn("nearestICAO failed:", err);
     return null;
@@ -108,9 +158,16 @@ async function fetchMETAR(icao: string | null): Promise<Json> {
       `${METAR_BASE}?ids=${icao}&format=json&taf=false`,
       { signal: AbortSignal.timeout(4000), headers: { "User-Agent": USER_AGENT } },
     );
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(`fetchMETAR failed: HTTP ${res.status} for ICAO ${icao}`);
+      return null;
+    }
     const data = await res.json();
-    return Array.isArray(data) && data.length > 0 ? data[0] : null;
+    if (!Array.isArray(data) || data.length === 0) {
+      console.warn(`fetchMETAR: empty METAR response for ICAO ${icao}`);
+      return null;
+    }
+    return data[0];
   } catch (err) {
     console.warn("fetchMETAR failed:", err);
     return null;
@@ -510,8 +567,12 @@ async function buildForecast(latR: number, lonR: number): Promise<Json> {
   const visibRaw = metar?.visib ?? null;
   const visibNum = visibRaw != null ? parseFloat(visibRaw) : null;
 
+  const timezone = timezoneForCoord(latR, lonR);
+
   return {
     models,
+    timezone,
+    utc_offset_seconds: utcOffsetSeconds(timezone),
     metar_station: icaoId,
     metar_raw: metar
       ? {
@@ -598,12 +659,26 @@ async function buildNowcast(latR: number, lonR: number): Promise<Json> {
   });
 
   // MET Norway returns 422 when the coordinate is outside radar coverage.
-  if (res.status === 422) return { radarCoverage: false, minutecast: [] };
+  if (res.status === 422) {
+    const tz = timezoneForCoord(latR, lonR);
+    return {
+      radarCoverage: false,
+      minutecast: [],
+      timezone: tz,
+      utc_offset_seconds: utcOffsetSeconds(tz),
+    };
+  }
   if (!res.ok) throw new Error(`MET Nowcast ${res.status}`);
 
   const data = await res.json();
   if (!data.properties?.timeseries?.length) {
-    return { radarCoverage: false, minutecast: [] };
+    const tz = timezoneForCoord(latR, lonR);
+    return {
+      radarCoverage: false,
+      minutecast: [],
+      timezone: tz,
+      utc_offset_seconds: utcOffsetSeconds(tz),
+    };
   }
 
   const minutecast = data.properties.timeseries.map((entry: Json) => {
@@ -622,9 +697,13 @@ async function buildNowcast(latR: number, lonR: number): Promise<Json> {
     };
   });
 
+  const timezone = timezoneForCoord(latR, lonR);
+
   return {
     minutecast,
     radarCoverage: true,
+    timezone,
+    utc_offset_seconds: utcOffsetSeconds(timezone),
     geometry: data.geometry ?? null,
     generated_at: new Date().toISOString(),
   };
