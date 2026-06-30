@@ -105,7 +105,7 @@ enum WeatherMapping {
             humidity: humidity,
             pressure: pressure,
             windSpeed: current.windSpeed10m ?? 0,
-            windDirection: current.windDirection10m ?? 0,
+            windDirection: Int((current.windDirection10m ?? 0).rounded()),
             windGustSpeed: current.windGusts10m ?? 0,
             uvIndex: Int((current.uvIndex ?? 0).rounded()),
             dewPoint: current.dewPoint2m ?? 0,
@@ -148,7 +148,7 @@ enum WeatherMapping {
             let code: Int? = i < codes.count ? codes[i] : nil
             let uv = safe(uvs, at: i, or: 0.0)
             let wind = safe(windSpeeds, at: i, or: 0.0)
-            let windDir: Int = safe(windDirs, at: i, or: 0)
+            let windDir: Int = Int(safe(windDirs, at: i, or: 0.0).rounded())
             let gust = safe(windGusts, at: i, or: 0.0)
             let humidity = safe(humidities, at: i, or: 0.0)
             let dew = safe(dewPoints, at: i, or: 0.0)
@@ -194,7 +194,7 @@ enum WeatherMapping {
             let feelsLoMax = safe(feelsLikeMaxes, at: i, or: hi)
             let uv = safe(uvMaxes, at: i, or: 0.0)
             let windMax = safe(windMaxes, at: i, or: 0.0)
-            let windDir: Int = safe(windDirs, at: i, or: 0)
+            let windDir: Int = Int(safe(windDirs, at: i, or: 0.0).rounded())
             let gustMax = safe(windGustMaxes, at: i, or: 0.0)
             let precip = safe(precips, at: i, or: 0.0)
             let code: Int? = i < codes.count ? codes[i] : nil

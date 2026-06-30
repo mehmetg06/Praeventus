@@ -175,16 +175,16 @@ enum WeatherFusion {
     }
 
     /// Vector (circular) mean of compass bearings — correct across the 0°/360° seam.
-    private static func fusedDirection(_ values: [Int?]) -> Int? {
+    private static func fusedDirection(_ values: [Double?]) -> Double? {
         let present = values.compactMap { $0 }
         guard !present.isEmpty else { return nil }
-        let radians = present.map { Double($0) * .pi / 180 }
+        let radians = present.map { $0 * .pi / 180 }
         let s = radians.reduce(0) { $0 + sin($1) }
         let c = radians.reduce(0) { $0 + cos($1) }
         if s == 0, c == 0 { return present[0] }
         var degrees = atan2(s, c) * 180 / .pi
         if degrees < 0 { degrees += 360 }
-        return Int(degrees.rounded()) % 360
+        return degrees.truncatingRemainder(dividingBy: 360)
     }
 
     /// Majority-vote weather code; ties break toward the more severe (higher) code.

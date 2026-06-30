@@ -151,7 +151,7 @@ async function fetchMETNorway(lat, lon) {
         surface_pressure: d.air_pressure_at_sea_level,
         pressure_msl: d.air_pressure_at_sea_level,
         wind_speed_10m: wind_speed,
-        wind_direction_10m: d.wind_from_direction,
+        wind_direction_10m: d.wind_from_direction != null ? Math.round(d.wind_from_direction) : null,
         wind_gusts_10m: wind_gusts,
         uv_index: d.ultraviolet_index_clear_sky || 0,
         dew_point_2m: d.dew_point_temperature || d.air_temperature,
@@ -167,7 +167,7 @@ async function fetchMETNorway(lat, lon) {
     hourly.relative_humidity_2m.push(d.relative_humidity);
     hourly.precipitation_probability.push(precip_prob);
     hourly.wind_speed_10m.push(wind_speed);
-    hourly.wind_direction_10m.push(d.wind_from_direction);
+    hourly.wind_direction_10m.push(d.wind_from_direction != null ? Math.round(d.wind_from_direction) : null);
     hourly.wind_gusts_10m.push(wind_gusts);
     hourly.uv_index.push(d.ultraviolet_index_clear_sky || 0);
     hourly.weather_code.push(weather_code);
@@ -255,7 +255,7 @@ async function fetchBrightSky(lat, lon) {
         surface_pressure: w.pressure_msl,
         pressure_msl: w.pressure_msl,
         wind_speed_10m: w.wind_speed,
-        wind_direction_10m: w.wind_direction,
+        wind_direction_10m: w.wind_direction != null ? Math.round(w.wind_direction) : null,
         wind_gusts_10m: w.wind_gust_speed || w.wind_speed,
         uv_index: 0,
         dew_point_2m: w.dew_point,
@@ -271,7 +271,7 @@ async function fetchBrightSky(lat, lon) {
     hourly.relative_humidity_2m.push(w.relative_humidity);
     hourly.precipitation_probability.push(precip_prob);
     hourly.wind_speed_10m.push(w.wind_speed);
-    hourly.wind_direction_10m.push(w.wind_direction);
+    hourly.wind_direction_10m.push(w.wind_direction != null ? Math.round(w.wind_direction) : null);
     hourly.wind_gusts_10m.push(w.wind_gust_speed || w.wind_speed);
     hourly.uv_index.push(0);
     hourly.weather_code.push(weather_code);
@@ -330,7 +330,7 @@ function overlayMETAR(forecast, metar) {
   if (hpa) { c.surface_pressure = hpa; c.pressure_msl = hpa; }
   const wspd = ktsToKmh(metar.wspd);
   if (wspd != null) c.wind_speed_10m = wspd;
-  if (metar.wdir != null) c.wind_direction_10m = parseFloat(metar.wdir);
+  if (metar.wdir != null) c.wind_direction_10m = Math.round(parseFloat(metar.wdir));
   const wgst = ktsToKmh(metar.wgst);
   if (wgst != null) c.wind_gusts_10m = wgst;
   const vis = smToMetres(metar.visib);
