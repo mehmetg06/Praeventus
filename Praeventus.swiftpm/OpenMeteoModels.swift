@@ -24,7 +24,7 @@ struct ForecastResponse: Codable, Equatable {
         let surfacePressure: Double?
         let pressureMsl: Double?
         let windSpeed10m: Double?
-        let windDirection10m: Int?
+        let windDirection10m: Double?
         let windGusts10m: Double?
         let precipitationProbability: Double?
         let weatherCode: Int?
@@ -57,7 +57,7 @@ struct ForecastResponse: Codable, Equatable {
         let weatherCode: [Int?]?
         let uvIndex: [Double?]?
         let windSpeed10m: [Double?]?
-        let windDirection10m: [Int?]?
+        let windDirection10m: [Double?]?
         let windGusts10m: [Double?]?
         let relativeHumidity2m: [Double?]?
         let dewPoint2m: [Double?]?
@@ -86,7 +86,7 @@ struct ForecastResponse: Codable, Equatable {
         let apparentTemperatureMin: [Double?]?
         let uvIndexMax: [Double?]?
         let windSpeed10mMax: [Double?]?
-        let windDirection10mDominant: [Int?]?
+        let windDirection10mDominant: [Double?]?
         let windGusts10mMax: [Double?]?
         let precipitationSum: [Double?]?
         let weatherCode: [Int?]?
