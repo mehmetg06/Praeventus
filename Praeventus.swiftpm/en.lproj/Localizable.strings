@@ -223,3 +223,34 @@
 "narrative.advice.cold" = "A warm layer will help, especially if you will be outside for more than a few minutes.";
 "narrative.advice.calm" = "Overall, normal outdoor plans look reasonable; just adjust clothing for the local breeze and time of day.";
 "narrative.fetching" = "Fetching weather insight…";
+
+/* Aviation METAR card */
+"metar.heading"    = "LIVE METAR";
+"metar.station"    = "STATION";
+"metar.wind"       = "WIND";
+"metar.altimeter"  = "ALTIMETER";
+"metar.visibility" = "VISIBILITY";
+"metar.wx"         = "WEATHER";
+"metar.ceiling"    = "CEILING";
+"metar.raw"        = "RAW OB";
+
+/* Weather map tab */
+"tab.map"              = "Map";
+"map.layer.nexrad"     = "NEXRAD Radar";
+"map.layer.satellite"  = "IR Satellite";
+"map.layer.dwd"        = "DWD Radar";
+"map.live"             = "Live";
+"map.updating"         = "Updating…";
+"map.justNow"          = "just now";
+"map.unavailable"      = "Map requires iOS/iPadOS";
+
+/* Data attribution */
+"settings.attribution.title"       = "Data Sources";
+"settings.attribution.footer"      = "Weather data: Deutscher Wetterdienst (DWD), licensed under CC BY 4.0 · NOAA/aviationweather.gov: Public Domain · IEM NEXRAD: academic open data, no SLA · NASA GIBS (GOES-East IR): Public Domain";
+"settings.attribution.noaa.desc"   = "Aviation METARs and airport data";
+"settings.attribution.dwd.desc"    = "Radar precipitation tiles via DWD WMS";
+"settings.attribution.iem.desc"    = "NEXRAD radar composite via Iowa Mesonet WMS";
+"settings.attribution.gibs.desc"   = "GOES-East infrared satellite tiles via NASA GIBS";
+"settings.attribution.publicDomain" = "Public Domain";
+"settings.attribution.academic"    = "Academic";
+"common.reset"         = "Reset";

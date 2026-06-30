@@ -283,6 +283,9 @@ struct HomeView: View {
         if !minutecastPoints.isEmpty {
             MinutecastGraphCard(minutePoints: minutecastPoints, paletteTint: paletteTint)
         }
+        if let metar = store.metarSnapshot {
+            AviationMetarCard(metar: metar)
+        }
         atmosphericSignalsCard
         HealthInsightsCard(insights: store.healthInsights)
         rotatingMetricCard

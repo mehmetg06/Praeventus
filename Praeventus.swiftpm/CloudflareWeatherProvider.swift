@@ -29,8 +29,8 @@ struct CloudflareWeatherProvider {
 
     // MARK: - Forecast
 
-    /// Fetches all three NWP model forecasts from the Worker in one request and
-    /// returns them keyed by `WeatherModel` — the same shape `WeatherFusion` expects.
+    /// Fetches all three NWP model forecasts plus the nearest-airport METAR
+    /// from the Worker in one request and returns a `ForecastBundle`.
     ///
     /// Worker JSON shape:
     /// ```json
@@ -41,10 +41,11 @@ struct CloudflareWeatherProvider {
     ///     "icon_global":  <ForecastResponse>
     ///   },
     ///   "metar_station": "LTAC",
+    ///   "metar_raw": { ... },
     ///   "generated_at": "2026-06-29T..."
     /// }
     /// ```
-    func forecast(latitude: Double, longitude: Double) async throws -> [WeatherModel: ForecastResponse] {
+    func forecast(latitude: Double, longitude: Double) async throws -> ForecastBundle {
         let url = try buildURL(path: "/forecast", queryItems: [
             URLQueryItem(name: "lat", value: trimmed(latitude)),
             URLQueryItem(name: "lon", value: trimmed(longitude))
@@ -52,13 +53,18 @@ struct CloudflareWeatherProvider {
 
         let envelope = try await get(url, as: WorkerEnvelope.self)
 
-        var result: [WeatherModel: ForecastResponse] = [:]
-        if let r = envelope.models["ecmwf_ifs025"] { result[.ecmwf] = r }
-        if let r = envelope.models["gfs_global"]   { result[.gfs]   = r }
-        if let r = envelope.models["icon_global"]  { result[.icon]  = r }
+        var models: [WeatherModel: ForecastResponse] = [:]
+        if let r = envelope.models["ecmwf_ifs025"] { models[.ecmwf] = r }
+        if let r = envelope.models["gfs_global"]   { models[.gfs]   = r }
+        if let r = envelope.models["icon_global"]  { models[.icon]  = r }
 
-        if result.isEmpty { throw WeatherClientError.noResults }
-        return result
+        if models.isEmpty { throw WeatherClientError.noResults }
+
+        return ForecastBundle(
+            models: models,
+            metarStation: envelope.metar_station,
+            metarRaw: envelope.metar_raw
+        )
     }
 
     // MARK: - Nowcast
@@ -181,6 +187,13 @@ struct CloudflareWeatherProvider {
 
 // MARK: - Worker response types
 
+/// All data returned by a single `/forecast` call.
+struct ForecastBundle {
+    let models: [WeatherModel: ForecastResponse]
+    let metarStation: String?
+    let metarRaw: MetarRaw?
+}
+
 private struct NarrativeResponse: Decodable {
     let narrative: String
 }
@@ -188,6 +201,7 @@ private struct NarrativeResponse: Decodable {
 private struct WorkerEnvelope: Decodable {
     let models: [String: ForecastResponse]
     let metar_station: String?
+    let metar_raw: MetarRaw?
     let generated_at: String?
 }
 

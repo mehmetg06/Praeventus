@@ -414,9 +414,17 @@ async function handleForecast(url, env) {
     models,
     metar_station: icao.status === "fulfilled" ? icao.value : null,
     metar_raw: metar ? {
-      temp: metar.temp, dewp: metar.dewp, wspd: metar.wspd,
-      wdir: metar.wdir, altim: metar.altim, visib: metar.visib,
-      wxString: metar.wxString,
+      temp: metar.temp,
+      dewp: metar.dewp,
+      wspd: metar.wspd,
+      wgst: metar.wgst ?? null,
+      wdir: metar.wdir,
+      altim: metar.altim,
+      visib: metar.visib,
+      wxString: metar.wxString ?? null,
+      skyCondition: metar.skyCondition || metar.sky_condition || [],
+      rawOb: metar.rawOb ?? null,
+      reportTime: metar.reportTime ?? metar.obsTime ?? null,
     } : null,
     generated_at: new Date().toISOString(),
   };
@@ -644,22 +652,184 @@ async function handleSearch(url, env) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Tile proxy helpers — route radar / satellite tiles through Worker so device
+// IP never reaches upstream tile servers and KV caching minimises their load.
+// ---------------------------------------------------------------------------
+
+// Convert XYZ tile coordinates to an EPSG:3857 BBOX [west, south, east, north].
+function tileToBbox3857(z, x, y) {
+  const R = 6378137;
+  const n = 1 << z;
+  const west  = (x       / n) * 2 * Math.PI * R - Math.PI * R;
+  const east  = ((x + 1) / n) * 2 * Math.PI * R - Math.PI * R;
+  const latN = Math.atan(Math.sinh(Math.PI * (1 - 2 * y       / n)));
+  const latS = Math.atan(Math.sinh(Math.PI * (1 - 2 * (y + 1) / n)));
+  const north = Math.log(Math.tan(Math.PI / 4 + latN / 2)) * R;
+  const south = Math.log(Math.tan(Math.PI / 4 + latS / 2)) * R;
+  return [
+    Math.round(west),
+    Math.round(south),
+    Math.round(east),
+    Math.round(north)
+  ];
+}
+
+// Cache binary tile data (PNG/JPG) in KV as ArrayBuffer.
+async function tileCacheGet(env, key) {
+  try {
+    if (!env?.PRAEVENTUS_CACHE) return null;
+    return await env.PRAEVENTUS_CACHE.get(key, { type: "arrayBuffer" });
+  } catch { return null; }
+}
+
+async function tileCachePut(env, key, buffer, ttl) {
+  try {
+    if (!env?.PRAEVENTUS_CACHE) return;
+    await env.PRAEVENTUS_CACHE.put(key, buffer, { expirationTtl: ttl });
+  } catch {}
+}
+
+function tileResponse(buffer, contentType) {
+  return new Response(buffer, {
+    status: 200,
+    headers: {
+      "Content-Type": contentType,
+      "Cache-Control": "public, max-age=300",
+      ...corsHeaders()
+    }
+  });
+}
+
+// IEM NEXRAD composite radar (Public Domain academic service, graceful fallback).
+// Docs: https://mesonet.agron.iastate.edu/ogc/
+async function handleTileNexrad(url, env) {
+  const z = parseInt(url.searchParams.get("z") || "");
+  const x = parseInt(url.searchParams.get("x") || "");
+  const y = parseInt(url.searchParams.get("y") || "");
+  if (isNaN(z) || isNaN(x) || isNaN(y) || z > 10) {
+    return new Response(null, { status: 400, headers: corsHeaders() });
+  }
+
+  const cacheKey = `tile_nexrad_${z}_${x}_${y}`;
+  const cached = await tileCacheGet(env, cacheKey);
+  if (cached && cached.byteLength > 0) return tileResponse(cached, "image/png");
+
+  const [west, south, east, north] = tileToBbox3857(z, x, y);
+  // nexrad-n0r-900913 is IEM's EPSG:3857 composite layer
+  const wmsUrl =
+    `https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0r.cgi` +
+    `?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&FORMAT=image%2Fpng` +
+    `&TRANSPARENT=true&LAYERS=nexrad-n0r-900913` +
+    `&WIDTH=256&HEIGHT=256&SRS=EPSG%3A3857&BBOX=${west},${south},${east},${north}`;
+
+  try {
+    const res = await fetch(wmsUrl, {
+      signal: AbortSignal.timeout(10000),
+      headers: { "User-Agent": USER_AGENT }
+    });
+    if (!res.ok) return new Response(null, { status: 503, headers: corsHeaders() });
+    const buffer = await res.arrayBuffer();
+    await tileCachePut(env, cacheKey, buffer, 300);
+    return tileResponse(buffer, "image/png");
+  } catch {
+    return new Response(null, { status: 503, headers: corsHeaders() });
+  }
+}
+
+// NOAA GOES-East IR satellite tiles via NASA GIBS (Public Domain).
+// GIBS WMTS uses {z}/{y}/{x} axis order (row-major).
+// Service info: https://nasa.github.io/gibs/
+async function handleTileSatellite(url, env) {
+  const z = parseInt(url.searchParams.get("z") || "");
+  const x = parseInt(url.searchParams.get("x") || "");
+  const y = parseInt(url.searchParams.get("y") || "");
+  if (isNaN(z) || isNaN(x) || isNaN(y) || z > 9) {
+    return new Response(null, { status: 400, headers: corsHeaders() });
+  }
+
+  const cacheKey = `tile_sat_${z}_${x}_${y}`;
+  const cached = await tileCacheGet(env, cacheKey);
+  if (cached && cached.byteLength > 0) return tileResponse(cached, "image/png");
+
+  // GIBS WMTS "default" time = most recent available image (~10 min latency)
+  const gibsUrl =
+    `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best` +
+    `/GOES_East_IR_BrightnessTempColorized/default/default` +
+    `/GoogleMapsCompatible_Level9/${z}/${y}/${x}.png`;
+
+  try {
+    const res = await fetch(gibsUrl, {
+      signal: AbortSignal.timeout(12000),
+      headers: { "User-Agent": USER_AGENT }
+    });
+    if (!res.ok) return new Response(null, { status: 503, headers: corsHeaders() });
+    const buffer = await res.arrayBuffer();
+    await tileCachePut(env, cacheKey, buffer, 300);
+    return tileResponse(buffer, "image/png");
+  } catch {
+    return new Response(null, { status: 503, headers: corsHeaders() });
+  }
+}
+
+// DWD precipitation radar WMS (CC BY 4.0, attribution required in UI).
+// WMS endpoint: https://maps.dwd.de/geoserver/dwd/wms
+// Layer: dwd:Niederschlagsradar (current radar composite)
+async function handleTileDwd(url, env) {
+  const z = parseInt(url.searchParams.get("z") || "");
+  const x = parseInt(url.searchParams.get("x") || "");
+  const y = parseInt(url.searchParams.get("y") || "");
+  if (isNaN(z) || isNaN(x) || isNaN(y) || z > 10) {
+    return new Response(null, { status: 400, headers: corsHeaders() });
+  }
+
+  const cacheKey = `tile_dwd_${z}_${x}_${y}`;
+  const cached = await tileCacheGet(env, cacheKey);
+  if (cached && cached.byteLength > 0) return tileResponse(cached, "image/png");
+
+  const [west, south, east, north] = tileToBbox3857(z, x, y);
+  const dwdUrl =
+    `https://maps.dwd.de/geoserver/dwd/wms` +
+    `?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&FORMAT=image%2Fpng` +
+    `&TRANSPARENT=true&LAYERS=dwd%3ANiederschlagsradar` +
+    `&WIDTH=256&HEIGHT=256&SRS=EPSG%3A3857&BBOX=${west},${south},${east},${north}`;
+
+  try {
+    const res = await fetch(dwdUrl, {
+      signal: AbortSignal.timeout(10000),
+      headers: { "User-Agent": USER_AGENT }
+    });
+    if (!res.ok) return new Response(null, { status: 503, headers: corsHeaders() });
+    const buffer = await res.arrayBuffer();
+    await tileCachePut(env, cacheKey, buffer, 300);
+    return tileResponse(buffer, "image/png");
+  } catch {
+    return new Response(null, { status: 503, headers: corsHeaders() });
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === "OPTIONS")
       return new Response(null, { headers: corsHeaders() });
-    if (url.pathname === "/forecast")  return handleForecast(url, env);
-    if (url.pathname === "/search")    return handleSearch(url, env);
-    if (url.pathname === "/narrative") return handleNarrative(url, env);
-    if (url.pathname === "/nowcast")   return handleNowcast(url, env);
+    if (url.pathname === "/forecast")       return handleForecast(url, env);
+    if (url.pathname === "/search")         return handleSearch(url, env);
+    if (url.pathname === "/narrative")      return handleNarrative(url, env);
+    if (url.pathname === "/nowcast")        return handleNowcast(url, env);
+    if (url.pathname === "/tile/nexrad")    return handleTileNexrad(url, env);
+    if (url.pathname === "/tile/satellite") return handleTileSatellite(url, env);
+    if (url.pathname === "/tile/dwd")       return handleTileDwd(url, env);
     return jsonResponse({
       status: "Praeventus Weather Worker v3",
       routes: [
         "/forecast?lat=&lon=",
         "/search?q=&lang=",
         "/narrative?lang=&temp=&weather_code=",
-        "/nowcast?lat=&lon="
+        "/nowcast?lat=&lon=",
+        "/tile/nexrad?z=&x=&y=",
+        "/tile/satellite?z=&x=&y=",
+        "/tile/dwd?z=&x=&y="
       ]
     });
   }

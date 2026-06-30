@@ -114,6 +114,49 @@ struct ForecastResponse: Codable, Equatable {
     }
 }
 
+// MARK: - METAR (aviation ground observation from Worker /forecast envelope)
+
+/// Raw METAR fields forwarded by the Cloudflare Worker from aviationweather.gov.
+/// Values retain aviation units (knots, inHg, statute miles) so the UI can
+/// present genuine aviation notation without lossy conversion.
+struct MetarRaw: Codable, Equatable {
+    /// Temperature °C
+    let temp: Double?
+    /// Dew point °C
+    let dewp: Double?
+    /// Wind speed in knots
+    let wspd: Double?
+    /// Wind gust in knots
+    let wgst: Double?
+    /// Wind direction in degrees true (0 = calm / variable)
+    let wdir: Double?
+    /// Altimeter setting in inHg
+    let altim: Double?
+    /// Prevailing visibility in statute miles
+    let visib: Double?
+    /// Significant present weather string (e.g. "RA", "TSRA")
+    let wxString: String?
+    /// Sky condition layers, lowest first
+    let skyCondition: [SkyCoverLayer]?
+    /// Full raw METAR observation string
+    let rawOb: String?
+    /// ISO-8601 observation time
+    let reportTime: String?
+
+    struct SkyCoverLayer: Codable, Equatable {
+        let skyCover: String?   // CLR, FEW, SCT, BKN, OVC
+        let cloudBase: Int?     // hundreds of feet AGL
+
+        enum CodingKeys: String, CodingKey {
+            case skyCover, cloudBase
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case temp, dewp, wspd, wgst, wdir, altim, visib, wxString, skyCondition, rawOb, reportTime
+    }
+}
+
 // MARK: - Geocoding (city search)
 
 struct GeocodingResponse: Decodable, Equatable {

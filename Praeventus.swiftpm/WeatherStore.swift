@@ -60,6 +60,8 @@ final class WeatherStore: ObservableObject {
     @Published private(set) var fusionConfidence: FusionConfidence?
     /// True when the on-screen forecast came from cache and could not be refreshed.
     @Published private(set) var isStale = false
+    /// Latest aviation METAR from the nearest airport. Nil when no station is nearby.
+    @Published private(set) var metarSnapshot: MetarSnapshot?
     /// Changes on every applyForecast call (cache or network). Observe this in
     /// HomeView to trigger narrative fetches: phase may stay .loaded and city
     /// may be empty for GPS, so neither is a reliable trigger.
@@ -151,9 +153,10 @@ final class WeatherStore: ObservableObject {
         }
 
         do {
-            let (response, confidence) = try await fetchForecast(place)
+            let (response, confidence, metar) = try await fetchForecast(place)
             applyForecast(response, city: place.name, country: place.country)
             fusionConfidence = confidence
+            metarSnapshot = metar
             isStale = false
             phase = .loaded
             ForecastCache.save(
@@ -173,11 +176,15 @@ final class WeatherStore: ObservableObject {
         }
     }
 
-    private func fetchForecast(_ place: SavedLocation) async throws -> (ForecastResponse, FusionConfidence) {
+    private func fetchForecast(_ place: SavedLocation) async throws -> (ForecastResponse, FusionConfidence, MetarSnapshot?) {
         let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
-        let forecasts = try await cf.forecast(latitude: place.latitude, longitude: place.longitude)
-        let fused = WeatherFusion.fuse(forecasts)
-        return (fused.response, fused.confidence)
+        let bundle = try await cf.forecast(latitude: place.latitude, longitude: place.longitude)
+        let fused = WeatherFusion.fuse(bundle.models)
+        let metar: MetarSnapshot? = {
+            guard let raw = bundle.metarRaw, let station = bundle.metarStation else { return nil }
+            return MetarSnapshot.from(raw: raw, station: station)
+        }()
+        return (fused.response, fused.confidence, metar)
     }
 
     /// Maps a response into the app model, applies opt-in sensor calibration, and publishes.
