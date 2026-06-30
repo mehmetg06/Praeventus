@@ -68,6 +68,9 @@
 "home.empty.title" = "No location yet";
 "home.error.title" = "Could not load weather";
 "home.feelsLike" = "Feels like %lld°";
+"home.highlights.heading" = "THIS WEEK'S HIGHLIGHTS";
+"home.highlights.rain" = "%1$@ %2$@–%3$@ rain";
+"home.highlights.heat" = "%1$@ %2$@–%3$@ very hot (%4$@)";
 "home.hourly.heading" = "LIVE OUTLOOK";
 "home.loading" = "Loading the latest forecast…";
 "home.now" = "Now";

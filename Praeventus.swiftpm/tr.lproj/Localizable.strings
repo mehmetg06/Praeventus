@@ -68,6 +68,9 @@
 "home.empty.title" = "Henüz konum yok";
 "home.error.title" = "Hava durumu yüklenemedi";
 "home.feelsLike" = "Hissedilen %lld°";
+"home.highlights.heading" = "BU HAFTA ÖNE ÇIKANLAR";
+"home.highlights.rain" = "%1$@ %2$@–%3$@ arası yağmur";
+"home.highlights.heat" = "%1$@ %2$@–%3$@ arası çok sıcak (%4$@)";
 "home.hourly.heading" = "CANLI ÖNGÖRÜ";
 "home.loading" = "En güncel tahmin yükleniyor…";
 "home.now" = "Şimdi";

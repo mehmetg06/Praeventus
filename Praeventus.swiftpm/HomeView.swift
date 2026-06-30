@@ -313,6 +313,9 @@ struct HomeView: View {
         }
         astronomicalCard
         hourlyPreview
+        if !store.weeklyHighlights.isEmpty {
+            weeklyHighlightsCard
+        }
         if !store.daily.isEmpty {
             dailyForecastCard
         }
@@ -419,6 +422,8 @@ struct HomeView: View {
         let firstDaily = store.daily.first
         let provider = CloudflareWeatherProvider(baseURL: WeatherSettings.backendBaseURL)
         let lang = Locale.current.language.languageCode?.identifier ?? "en"
+        let confidence = store.fusionConfidence
+        let metarAge = metarAgeMinutes()
         Task {
             let text = await provider.narrative(
                 temp: w.temperature,
@@ -433,7 +438,11 @@ struct HomeView: View {
                 uvIndex: Double(w.uvIndex),
                 visibility: w.visibility,
                 pressure: w.pressure,
-                lang: lang
+                lang: lang,
+                agreementPercent: confidence?.agreementPercent,
+                anomalyDetected: confidence?.anomalyDetected,
+                anomalySource: confidence?.anomalySource,
+                metarAgeMinutes: metarAge
             )
             await MainActor.run {
                 weatherNarrative = text
@@ -441,6 +450,28 @@ struct HomeView: View {
             }
         }
     }
+
+    /// Minutes since the current METAR observation, used as an anonymous
+    /// freshness signal for the AI narrative. `nil` when unavailable.
+    private func metarAgeMinutes() -> Int? {
+        guard let iso = store.metarSnapshot?.observationTime,
+              let observed = Self.metarTimeFormatter.date(from: iso)
+              ?? Self.metarTimeFallbackFormatter.date(from: iso) else { return nil }
+        return max(0, Int(Date().timeIntervalSince(observed) / 60))
+    }
+
+    private nonisolated(unsafe) static let metarTimeFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    private static let metarTimeFallbackFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        return f
+    }()
 
     private var astronomicalCard: some View {
         AstronomicalCard(analysis: store.astronomicalAnalysis(at: Date()))
@@ -967,6 +998,79 @@ struct HomeView: View {
         let f = DateFormatter()
         f.dateFormat = "EEE"
         return f.string(from: date).uppercased()
+    }
+
+    private var weeklyHighlightsCard: some View {
+        let tz = store.utcOffsetSeconds.flatMap { TimeZone(secondsFromGMT: $0) } ?? .current
+        let dayFormatter = DateFormatter()
+        dayFormatter.dateFormat = "EEE"
+        dayFormatter.timeZone = tz
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        timeFormatter.timeZone = tz
+
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 9) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 13, weight: .semibold))
+                Text(String(localized: "home.highlights.heading", defaultValue: "THIS WEEK'S HIGHLIGHTS"))
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .tracking(1.4)
+                Spacer()
+            }
+            .foregroundStyle(.white.opacity(0.56))
+
+            VStack(spacing: 0) {
+                ForEach(Array(store.weeklyHighlights.enumerated()), id: \.offset) { index, highlight in
+                    VStack(spacing: 0) {
+                        HStack(spacing: 12) {
+                            Image(systemName: highlight.kind == .rain ? "cloud.rain.fill" : "thermometer.sun.fill")
+                                .font(.system(size: 16, weight: .medium))
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(highlight.kind == .rain
+                                    ? Color(red: 0.4, green: 0.65, blue: 1.0)
+                                    : Color(red: 1.0, green: 0.55, blue: 0.25))
+                                .frame(width: 26)
+
+                            Text(highlightText(highlight, day: dayFormatter, time: timeFormatter))
+                                .font(.system(size: 14, weight: .regular, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.85))
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.vertical, 11)
+
+                        if index < store.weeklyHighlights.count - 1 {
+                            Rectangle()
+                                .fill(.white.opacity(0.07))
+                                .frame(height: 0.5)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(18)
+        .background(ThinGlassShape(cornerRadius: 28))
+    }
+
+    private func highlightText(_ highlight: WeatherHighlight, day: DateFormatter, time: DateFormatter) -> String {
+        let dayLabel = day.string(from: highlight.start)
+        let startLabel = time.string(from: highlight.start)
+        let endLabel = time.string(from: highlight.end)
+        switch highlight.kind {
+        case .rain:
+            return String(
+                format: String(localized: "home.highlights.rain", defaultValue: "%1$@ %2$@–%3$@ rain"),
+                dayLabel, startLabel, endLabel
+            )
+        case .heat:
+            let peak = "\(Int(highlight.peakValue.rounded()))°C"
+            return String(
+                format: String(localized: "home.highlights.heat", defaultValue: "%1$@ %2$@–%3$@ very hot (%4$@)"),
+                dayLabel, startLabel, endLabel, peak
+            )
+        }
     }
 
     private func dayTempColor(_ temp: Double) -> Color {

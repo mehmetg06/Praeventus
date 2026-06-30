@@ -260,22 +260,94 @@ export function buildWeatherSummary(params: URLSearchParams, lang: string): stri
   const cond = wmoCondition(code, lang);
   const windDir = windDirectionLabel(windDeg, lang);
 
+  // Confidence signals from the on-device ensemble fusion (all optional; absent
+  // when the caller blends a single source or has no live observation).
+  const agreementRaw = params.get("agreement");
+  const agreement = agreementRaw !== null ? parseInt(agreementRaw, 10) : null;
+  const anomaly = params.get("anomaly_detected") === "1";
+  const anomalySource = params.get("anomaly_source") || "";
+  const metarAgeRaw = params.get("metar_age_minutes");
+  const metarAge = metarAgeRaw !== null ? parseInt(metarAgeRaw, 10) : null;
+
   if (lang === "tr") {
     const uvLabel = uv >= 8 ? "çok yüksek" : uv >= 6 ? "yüksek" : uv >= 3 ? "orta" : "düşük";
-    return `Sıcaklık ${temp}°C (hissedilen ${feels}°C), gün boyu ${tempMin}-${tempMax}°C arası.\n` +
-      `Nem %${humidity}, rüzgar ${wind} km/s ${windDir} yönünden.\n` +
-      `UV indeksi ${uv} (${uvLabel}), görüş mesafesi ${vis} km.\n` +
-      `Basınç ${pressure} hPa, yağış ihtimali %${precip}. ${cond}.`;
+    const lines = [
+      `Sıcaklık ${temp}°C (hissedilen ${feels}°C), gün boyu ${tempMin}-${tempMax}°C arası.`,
+      `Nem %${humidity}, rüzgar ${wind} km/s ${windDir} yönünden.`,
+      `UV indeksi ${uv} (${uvLabel}), görüş mesafesi ${vis} km.`,
+      `Basınç ${pressure} hPa, yağış ihtimali %${precip}. ${cond}.`,
+    ];
+    lines.push(confidenceLineTR(agreement, anomaly, anomalySource, metarAge));
+    return lines.join("\n");
   }
   const uvLabel = uv >= 8 ? "very high" : uv >= 6 ? "high" : uv >= 3 ? "moderate" : "low";
-  return `Temperature ${temp}°C (feels like ${feels}°C), daily range ${tempMin}-${tempMax}°C.\n` +
-    `Humidity ${humidity}%, wind ${wind} km/h from the ${windDir}.\n` +
-    `UV index ${uv} (${uvLabel}), visibility ${vis} km.\n` +
-    `Pressure ${pressure} hPa, precipitation probability ${precip}%. ${cond}.`;
+  const lines = [
+    `Temperature ${temp}°C (feels like ${feels}°C), daily range ${tempMin}-${tempMax}°C.`,
+    `Humidity ${humidity}%, wind ${wind} km/h from the ${windDir}.`,
+    `UV index ${uv} (${uvLabel}), visibility ${vis} km.`,
+    `Pressure ${pressure} hPa, precipitation probability ${precip}%. ${cond}.`,
+  ];
+  lines.push(confidenceLineEN(agreement, anomaly, anomalySource, metarAge));
+  return lines.join("\n");
+}
+
+/// Builds an abstract confidence sentence (Turkish) appended to the summary so
+/// the model can pick a tone. Only anonymous fusion statistics — no identity.
+function confidenceLineTR(
+  agreement: number | null,
+  anomaly: boolean,
+  anomalySource: string,
+  metarAge: number | null,
+): string {
+  const parts: string[] = [];
+  if (agreement !== null) {
+    const level = agreement >= 80 ? "yüksek" : agreement >= 50 ? "orta" : "düşük";
+    parts.push(`Model uyumu %${agreement} (${level} güven)`);
+  }
+  if (metarAge !== null) {
+    const fresh = metarAge <= 15 ? "taze" : metarAge <= 45 ? "kısmen güncel" : "eski";
+    parts.push(`yer gözlemi ${metarAge} dk önce (${fresh})`);
+  }
+  if (anomaly) {
+    parts.push(
+      `bir veri kaynağında tutarsızlık var${
+        anomalySource ? ` (${anomalySource})` : ""
+      }, bu yüzden belirsizlik biraz daha yüksek`,
+    );
+  }
+  if (parts.length === 0) return "Tahmin güveni: standart.";
+  return `Güven sinyali: ${parts.join("; ")}.`;
+}
+
+/// English counterpart of `confidenceLineTR`.
+function confidenceLineEN(
+  agreement: number | null,
+  anomaly: boolean,
+  anomalySource: string,
+  metarAge: number | null,
+): string {
+  const parts: string[] = [];
+  if (agreement !== null) {
+    const level = agreement >= 80 ? "high" : agreement >= 50 ? "moderate" : "low";
+    parts.push(`model agreement ${agreement}% (${level} confidence)`);
+  }
+  if (metarAge !== null) {
+    const fresh = metarAge <= 15 ? "fresh" : metarAge <= 45 ? "fairly recent" : "stale";
+    parts.push(`ground observation ${metarAge} min old (${fresh})`);
+  }
+  if (anomaly) {
+    parts.push(
+      `one data source disagrees${
+        anomalySource ? ` (${anomalySource})` : ""
+      }, so uncertainty is a bit higher`,
+    );
+  }
+  if (parts.length === 0) return "Forecast confidence: standard.";
+  return `Confidence signal: ${parts.join("; ")}.`;
 }
 
 export function narrativeSystemPrompt(lang: string): string {
   return lang === "tr"
-    ? `Sen bir meteoroloji uzmanısın. Verilen hava parametrelerini birlikte değerlendirerek 3 kısa Türkçe cümle yaz. Parametreler birbirini nasıl etkiliyor? Örnek: yüksek nem + düşük rüzgar = boğucu his, yüksek UV + düşük nem = kuru ve yakıcı güneş, düşük basınç + artan rüzgar = hava bozulabilir. Sadece meteorolojik yorumu yaz. Düşünme adımlarını yazma. Emoji kullanma. Direkt başla.`
-    : `You are a meteorologist. Evaluate all given weather parameters together and write 3 short sentences. How do the parameters interact? Examples: high humidity + low wind = muggy feeling, high UV + low humidity = dry and harsh sun, low pressure + increasing wind = weather may deteriorate. Write only the meteorological interpretation. No thinking steps. No emojis. Start directly.`;
+    ? `Sen bir meteoroloji uzmanısın. Verilen hava parametrelerini birlikte değerlendirerek 3 kısa Türkçe cümle yaz. Parametreler birbirini nasıl etkiliyor? Örnek: yüksek nem + düşük rüzgar = boğucu his, yüksek UV + düşük nem = kuru ve yakıcı güneş, düşük basınç + artan rüzgar = hava bozulabilir. Bir "Güven sinyali" satırı verilirse tonunu ona göre ayarla: yüksek güvende kesin ifadeler kullan, düşük güvende veya tutarsızlık bildirildiğinde "değişebilir/belirsiz" tonu kullan; ama güven satırını metne tekrar yazma. Sadece meteorolojik yorumu yaz. Düşünme adımlarını yazma. Emoji kullanma. Direkt başla.`
+    : `You are a meteorologist. Evaluate all given weather parameters together and write 3 short sentences. How do the parameters interact? Examples: high humidity + low wind = muggy feeling, high UV + low humidity = dry and harsh sun, low pressure + increasing wind = weather may deteriorate. If a "Confidence signal" line is provided, match your tone to it: use decisive wording when confidence is high, and a "may change/uncertain" tone when confidence is low or a disagreement is reported; do not repeat the confidence line in your text. Write only the meteorological interpretation. No thinking steps. No emojis. Start directly.`;
 }
