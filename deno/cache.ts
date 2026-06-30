@@ -157,7 +157,14 @@ export async function withSWR<T>(
 }
 
 // --- Rate limiting ----------------------------------------------------------
-// Per-IP sliding window using a Deno KV atomic counter with expireIn.
+// Per-IP fixed window using a Deno KV atomic counter with expireIn.
+//
+// Note: Deno KV's `set()` is a full overwrite — a `set()` call without
+// `expireIn` does NOT preserve a key's existing TTL, it clears it (the key
+// becomes permanent). So each increment must re-derive `expireIn` from the
+// window's original start time rather than omitting it; otherwise the window
+// either slides forward forever (the original bug) or the key never expires
+// at all (worse: the IP stays rate-limited permanently once it hits the cap).
 
 const RATE_LIMITS: Record<string, { windowSec: number; maxRequests: number }> = {
   "/narrative": { windowSec: 60, maxRequests: 10 },
@@ -171,21 +178,45 @@ const RATE_LIMITS: Record<string, { windowSec: number; maxRequests: number }> = 
   "/tile/dwd": { windowSec: 60, maxRequests: 120 },
 };
 
+interface RateLimitEntry {
+  count: number;
+  windowStart: number;
+}
+
 export async function checkRateLimit(ip: string, pathname: string): Promise<boolean> {
   const config = RATE_LIMITS[pathname];
   if (!config) return false;
   const key: KvKey = ["rl", pathname, ip];
+  const windowMs = config.windowSec * 1000;
   try {
     // Atomic compare-and-set so concurrent requests from the same IP can't read
     // the same count and each slip a write past the limit. On contention we
     // retry against the freshly-read value a bounded number of times.
     for (let attempt = 0; attempt < 5; attempt++) {
-      const res = await kv.get<number>(key);
-      const count = res.value ?? 0;
-      if (count >= config.maxRequests) return true;
+      const res = await kv.get<RateLimitEntry>(key);
+      const entry = res.value;
+      const now = Date.now();
+      const remaining = entry ? entry.windowStart + windowMs - now : 0;
+
+      if (!entry || remaining <= 0) {
+        // No window yet (or it has lapsed): start a fresh fixed window.
+        const commit = await kv.atomic()
+          .check(res)
+          .set(key, { count: 1, windowStart: now } satisfies RateLimitEntry, { expireIn: windowMs })
+          .commit();
+        if (commit.ok) return false;
+        continue;
+      }
+
+      if (entry.count >= config.maxRequests) return true;
+
+      // Increment within the existing window; keep the original window end
+      // (re-derived as `remaining`) so the limit doesn't reset on every hit.
       const commit = await kv.atomic()
         .check(res)
-        .set(key, count + 1, { expireIn: config.windowSec * 1000 })
+        .set(key, { count: entry.count + 1, windowStart: entry.windowStart } satisfies RateLimitEntry, {
+          expireIn: remaining,
+        })
         .commit();
       if (commit.ok) return false;
     }
