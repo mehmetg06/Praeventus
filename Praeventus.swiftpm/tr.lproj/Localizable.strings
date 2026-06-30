@@ -142,7 +142,7 @@
 "settings.fusion.title" = "Tahmin Doğruluğu";
 "settings.fusion.multiModel" = "Çok modelli füzyon";
 "settings.fusion.sensor" = "Cihaz içi sensör kalibrasyonu";
-"settings.fusion.footer" = "ECMWF, GFS ve ICON modellerini cihazda birleştirir ve uyumlarına göre ağırlıklandırır. Sensör kalibrasyonu, cihazın barometresini kullanarak basıncı düzeltir. Her şey cihazınızda kalır.";
+"settings.fusion.footer" = "ECMWF ve ICON modellerini cihazda birleştirir ve uyumlarına göre ağırlıklandırır. Sensör kalibrasyonu, cihazın barometresini kullanarak basıncı düzeltir. Her şey cihazınızda kalır.";
 "model.bestMatch" = "En İyi Eşleşme";
 "model.ecmwf" = "ECMWF";
 "model.icon" = "ICON";

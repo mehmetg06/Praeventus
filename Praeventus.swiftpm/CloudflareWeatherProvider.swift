@@ -6,7 +6,7 @@ import FoundationNetworking // Linux: URLSession async lives here
 
 /// Networking layer that fetches pre-blended forecast data from the backend
 /// (Deno Deploy) in one round-trip instead of querying each NWP model source
-/// separately. The backend returns the genuine NWP model responses (ECMWF/GFS
+/// separately. The backend returns the genuine NWP model responses (ECMWF
 /// via MET Norway, ICON via Bright Sky) inside a single JSON envelope, which
 /// maps directly into the shape `WeatherFusion` already expects.
 ///

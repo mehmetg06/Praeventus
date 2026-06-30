@@ -96,6 +96,10 @@ final class WeatherStore: ObservableObject {
     private let stormSensor   = StormSensorEngine()
     private var stormTask: Task<Void, Never>?
     private var autoClearTask: Task<Void, Never>?
+    /// Monotonic token identifying the current storm-sensor session. A stop
+    /// request captures the session it was issued for so a late-arriving stop
+    /// can never terminate a newer session started by a subsequent resume.
+    private var stormSession = 0
     private var clockTask: Task<Void, Never>?
     private static let locationKey = "praeventus.savedLocation"
     private static let logger = Logger(subsystem: "com.mehmetg06.praeventus", category: "WeatherStore")
@@ -137,7 +141,8 @@ final class WeatherStore: ObservableObject {
         stormTask = nil
         autoClearTask?.cancel()
         autoClearTask = nil
-        Task { await stormSensor.stopMonitoring() }
+        let session = stormSession
+        Task { await stormSensor.stopMonitoring(session: session) }
         calibration.stop()
     }
 
@@ -161,6 +166,11 @@ final class WeatherStore: ObservableObject {
         if place.isCurrentLocation {
             if WeatherSettings.sensorCalibrationEnabled { calibration.start() }
             startStormMonitoring()
+        } else {
+            // Switching from a GPS location to a remote city: the device
+            // barometer no longer reflects the displayed forecast, so stop the
+            // sensors instead of leaving them running silently.
+            suspendSensors()
         }
 
         // Paint cached data instantly (offline-friendly) before the network call.
@@ -214,7 +224,9 @@ final class WeatherStore: ObservableObject {
         hourly = mapped.hourly
         daily = mapped.daily
         var snapshot = mapped.weather
-        if WeatherSettings.sensorCalibrationEnabled {
+        // Only calibrate when the forecast is for the user's physical location;
+        // the local barometer is meaningless for a remote city's pressure.
+        if isGPSLocation && WeatherSettings.sensorCalibrationEnabled {
             snapshot = calibration.calibrate(snapshot)
         }
         forecastID = UUID()
@@ -413,24 +425,41 @@ final class WeatherStore: ObservableObject {
 
     // MARK: - Storm monitoring
 
+    /// Auto-clear window for a storm banner, in seconds (30 minutes).
+    private static let stormAutoClearWindow: TimeInterval = 1800
+
     private func startStormMonitoring() {
         autoClearTask?.cancel()
         autoClearTask = nil
         stormTask?.cancel()
+        // Re-arm the auto-clear timer for an alert that was already on-screen
+        // when monitoring was suspended, so a stale banner can't linger forever
+        // after a suspend/resume cycle with no new pressure event.
+        if let existing = stormAlert {
+            armAutoClear(for: existing)
+        }
+        stormSession += 1
+        let session = stormSession
         stormTask = Task {
             // Each call to startMonitoring() restarts the sensor and returns a
             // fresh stream; the previous stream is automatically finished.
-            for await alert in await stormSensor.startMonitoring() {
+            for await alert in await stormSensor.startMonitoring(session: session) {
                 stormAlert = alert
-                // Auto-clear after 30 minutes so a resolved storm doesn't
-                // keep the UI in alarm state indefinitely.
-                autoClearTask?.cancel()
-                autoClearTask = Task {
-                    try? await Task.sleep(for: .seconds(1800))
-                    if stormAlert?.triggeredAt == alert.triggeredAt {
-                        stormAlert = nil
-                    }
-                }
+                armAutoClear(for: alert)
+            }
+        }
+    }
+
+    /// Schedules the storm banner to clear once `stormAutoClearWindow` has
+    /// elapsed since the alert was triggered. Using the remaining time (rather
+    /// than a fresh 30 minutes) keeps the window correct across suspend/resume.
+    private func armAutoClear(for alert: StormAlert) {
+        autoClearTask?.cancel()
+        let remaining = max(0, Self.stormAutoClearWindow - Date().timeIntervalSince(alert.triggeredAt))
+        autoClearTask = Task {
+            if remaining > 0 { try? await Task.sleep(for: .seconds(remaining)) }
+            if !Task.isCancelled, stormAlert?.triggeredAt == alert.triggeredAt {
+                stormAlert = nil
             }
         }
     }

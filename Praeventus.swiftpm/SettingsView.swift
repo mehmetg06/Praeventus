@@ -33,7 +33,7 @@ struct SettingsView: View {
                 }
 
                 Section("settings.about.title") {
-                    LabeledContent("settings.about.source", value: "ECMWF / GFS / ICON (Deno Deploy)")
+                    LabeledContent("settings.about.source", value: "ECMWF / ICON (Deno Deploy)")
                     LabeledContent("settings.about.version", value: appVersion)
                     if let url = URL(string: "https://api.met.no") {
                         Link("Weather Data by MET Norway", destination: url)

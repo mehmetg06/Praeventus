@@ -10,7 +10,7 @@ only needs its base URL (`WeatherSettings.backendBaseURL`) changed.
 
 | Route                                       | Function                                                                            |
 | ------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `GET /forecast?lat=&lon=`                   | MET Norway (ECMWF/GFS) + Bright Sky (ICON) + METAR overlay, fused into one envelope |
+| `GET /forecast?lat=&lon=`                   | MET Norway (ECMWF) + Bright Sky (ICON) + METAR overlay, fused into one envelope |
 | `GET /search?q=&lang=&count=`               | Nominatim (OpenStreetMap) geocoding                                                 |
 | `GET /narrative?lang=&temp=&...`            | AI weather commentary — **anonymous numeric values only**                           |
 | `GET /nowcast?lat=&lon=`                    | MET Norway radar nowcast (Scandinavia coverage)                                     |

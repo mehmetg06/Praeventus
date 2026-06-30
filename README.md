@@ -29,9 +29,9 @@ City search ──────────────────────�
                                          │ HTTPS
                                          ▼
                                praeventus.deno.dev (Deno Deploy)
-                               ┌─────────┼──────────┐
-                               ▼         ▼           ▼
-                            ECMWF      GFS         ICON       + METAR overlay
+                               ┌────────────────────┐
+                               ▼                    ▼
+                            ECMWF                 ICON       + METAR overlay
               (MET Norway · Bright Sky · Deno KV cache · 12 min TTL + SWR)
                                          │
                               [WorkerEnvelope JSON]
@@ -44,9 +44,9 @@ City search ──────────────────────�
 
 ## Weather data pipeline
 
-The Deno Deploy backend fans out to global NWP models in parallel — ECMWF
-IFS 0.25° / GFS via MET Norway and ICON (DWD, Germany) via Bright Sky — and
-returns the forecasts in a single JSON envelope. The app blends them on-device:
+The Deno Deploy backend fans out to two global NWP models in parallel — ECMWF
+IFS 0.25° (MET Norway) and ICON (DWD, Germany) via Bright Sky — and
+returns both forecasts in a single JSON envelope. The app blends them on-device:
 models that agree closely are weighted heavily; outliers contribute less. The
 result is statistically more accurate than any single model, at no extra cost.
 
@@ -55,8 +55,7 @@ provide real-time surface pressure and wind from nearby reporting stations.
 
 | Model | Operator | License |
 |-------|----------|---------|
-| ECMWF IFS 0.25° | ECMWF | CC-BY-4.0 |
-| GFS Global | NOAA, USA | Public Domain |
+| ECMWF IFS 0.25° | MET Norway | CC-BY-4.0 |
 | ICON Global | DWD, Germany | Open Data |
 | METAR | aviationweather.gov | Public Domain |
 

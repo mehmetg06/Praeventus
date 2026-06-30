@@ -17,7 +17,7 @@ enum WeatherModel: String, CaseIterable, Equatable, Codable {
         }
     }
 
-    /// Short label for the Lab readout (e.g. "ECMWF" / "GFS").
+    /// Short label for the Lab readout (e.g. "ECMWF" / "ICON").
     var displayName: String {
         switch self {
         case .bestMatch: return String(localized: "model.bestMatch", defaultValue: "Best Match")

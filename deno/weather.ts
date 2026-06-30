@@ -1,5 +1,5 @@
 // Weather aggregation handlers — the core fusion logic, ported verbatim from
-// the Cloudflare Worker (v4). The backend fans out to MET Norway (ECMWF/GFS),
+// the Cloudflare Worker (v4). The backend fans out to MET Norway (ECMWF),
 // Bright Sky (ICON) and aviationweather.gov (METAR), normalises everything into
 // the Open-Meteo-shaped envelope the Swift `WeatherFusion` expects, and overlays
 // the nearest-station METAR onto the current conditions.
@@ -116,7 +116,7 @@ async function fetchMETARForCoord(
   return { icao, metar };
 }
 
-// --- MET Norway (ECMWF/GFS) -------------------------------------------------
+// --- MET Norway (ECMWF) -----------------------------------------------------
 
 async function fetchMETNorway(lat: number, lon: number): Promise<ForecastModel | null> {
   const url = `${METNORWAY_BASE}?lat=${lat}&lon=${lon}`;

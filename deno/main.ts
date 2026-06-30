@@ -5,7 +5,7 @@
 // narrative is the Groq -> Gemini provider chain (see aiProvider.ts).
 //
 // Routes:
-//   GET /forecast?lat=&lon=        ECMWF + GFS + ICON + METAR fusion
+//   GET /forecast?lat=&lon=        ECMWF + ICON + METAR fusion
 //   GET /search?q=&lang=&count=    Nominatim geocoding
 //   GET /narrative?lang=&temp=&... AI weather commentary (anonymous values only)
 //   GET /nowcast?lat=&lon=         MET Norway radar nowcast

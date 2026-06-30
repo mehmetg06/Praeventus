@@ -142,7 +142,7 @@
 "settings.fusion.title" = "Forecast Accuracy";
 "settings.fusion.multiModel" = "Multi-model fusion";
 "settings.fusion.sensor" = "On-device sensor calibration";
-"settings.fusion.footer" = "Blend ECMWF, GFS and ICON on-device and weight them by agreement. Sensor calibration nudges pressure using the device barometer. Everything stays on your device.";
+"settings.fusion.footer" = "Blend ECMWF and ICON on-device and weight them by agreement. Sensor calibration nudges pressure using the device barometer. Everything stays on your device.";
 "model.bestMatch" = "Best Match";
 "model.ecmwf" = "ECMWF";
 "model.icon" = "ICON";
