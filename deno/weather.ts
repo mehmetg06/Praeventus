@@ -21,6 +21,8 @@ import {
   smToMetres,
   USER_AGENT,
 } from "./util.ts";
+import tzlookup from "tz-lookup";
+import { sunriseSunsetISO } from "./astro.ts";
 import {
   cacheGet,
   cachePut,
@@ -51,9 +53,18 @@ type Json = any;
 interface ForecastModel {
   latitude: number;
   longitude: number;
+  timezone: string | null;
   current: Json;
   hourly: Json;
   daily: Json;
+}
+
+function timezoneForCoord(lat: number, lon: number): string | null {
+  try {
+    return tzlookup(lat, lon);
+  } catch {
+    return null;
+  }
 }
 
 // --- METAR ------------------------------------------------------------------
@@ -243,10 +254,17 @@ async function fetchMETNorway(lat: number, lon: number): Promise<ForecastModel |
     }
   }
 
-  const daily = buildDaily(dailyMap, true);
+  const daily = buildDaily(dailyMap, true, lat, lon);
 
   if (!current) return null;
-  return { latitude: lat, longitude: lon, current, hourly, daily };
+  return {
+    latitude: lat,
+    longitude: lon,
+    timezone: timezoneForCoord(lat, lon),
+    current,
+    hourly,
+    daily,
+  };
 }
 
 // --- Bright Sky (ICON) ------------------------------------------------------
@@ -363,13 +381,20 @@ async function fetchBrightSky(lat: number, lon: number): Promise<ForecastModel> 
     }
   }
 
-  const daily = buildDaily(dailyMap, false);
-  return { latitude: lat, longitude: lon, current, hourly, daily };
+  const daily = buildDaily(dailyMap, false, lat, lon);
+  return {
+    latitude: lat,
+    longitude: lon,
+    timezone: timezoneForCoord(lat, lon),
+    current,
+    hourly,
+    daily,
+  };
 }
 
 // Shared daily-aggregate builder. `withUV` controls whether UV maxima come from
 // the source (MET Norway) or are forced to 0 (Bright Sky has no UV).
-function buildDaily(dailyMap: Json, withUV: boolean): Json {
+function buildDaily(dailyMap: Json, withUV: boolean, lat: number, lon: number): Json {
   const daily: Json = {
     time: [],
     temperature_2m_max: [],
@@ -413,8 +438,9 @@ function buildDaily(dailyMap: Json, withUV: boolean): Json {
       }
     }
     daily.weather_code.push(maxCode);
-    daily.sunrise.push(null);
-    daily.sunset.push(null);
+    const ss = sunriseSunsetISO(day, lat, lon);
+    daily.sunrise.push(ss.sunrise);
+    daily.sunset.push(ss.sunset);
   }
   return daily;
 }

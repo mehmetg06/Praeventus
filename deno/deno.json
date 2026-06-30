@@ -1,4 +1,7 @@
 {
+  "imports": {
+    "tz-lookup": "npm:tz-lookup@6.1.25"
+  },
   "tasks": {
     "start": "deno run --allow-net --allow-env --unstable-kv main.ts",
     "dev": "deno run --watch --allow-net --allow-env --unstable-kv main.ts",
