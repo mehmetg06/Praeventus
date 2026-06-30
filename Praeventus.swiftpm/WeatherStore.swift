@@ -1,5 +1,6 @@
 #if canImport(SwiftUI)
 import SwiftUI
+import os
 
 /// A place the user has chosen (via search or "use my location"). Persisted so
 /// the app reopens on the last location. Coordinates are coarse on purpose.
@@ -96,6 +97,7 @@ final class WeatherStore: ObservableObject {
     private var stormTask: Task<Void, Never>?
     private var clockTask: Task<Void, Never>?
     private static let locationKey = "praeventus.savedLocation"
+    private static let logger = Logger(subsystem: "com.mehmetg06.praeventus", category: "WeatherStore")
 
     /// Seed snapshot used purely so the UI/background have something to render
     /// before the first load. Not a real location — `phase` stays `.idle`.
@@ -557,6 +559,9 @@ final class WeatherStore: ObservableObject {
                 return String(localized: "error.noResults", defaultValue: "No results found.")
             case .transport(let detail):
                 return String(format: String(localized: "error.transport", defaultValue: "Connection problem: %@"), detail)
+            case .decodingFailed(_, let detail):
+                logger.error("Decoding failed: \(detail)")
+                return String(localized: "error.decodingFailed", defaultValue: "Could not read the weather data.")
             }
         }
         return error.localizedDescription
@@ -565,14 +570,22 @@ final class WeatherStore: ObservableObject {
     // MARK: - Persistence
 
     private static func persist(_ place: SavedLocation) {
-        if let data = try? JSONEncoder().encode(place) {
+        do {
+            let data = try JSONEncoder().encode(place)
             UserDefaults.standard.set(data, forKey: locationKey)
+        } catch {
+            logger.error("Failed to persist location: \(error)")
         }
     }
 
     private static func loadSavedLocation() -> SavedLocation? {
         guard let data = UserDefaults.standard.data(forKey: locationKey) else { return nil }
-        return try? JSONDecoder().decode(SavedLocation.self, from: data)
+        do {
+            return try JSONDecoder().decode(SavedLocation.self, from: data)
+        } catch {
+            logger.error("Failed to decode saved location: \(error)")
+            return nil
+        }
     }
 }
 #endif

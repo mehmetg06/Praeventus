@@ -160,7 +160,10 @@ struct CloudflareWeatherProvider {
         do {
             return try Self.sharedDecoder.decode(T.self, from: data)
         } catch {
-            throw WeatherClientError.transport("decode: \(error.localizedDescription)")
+            throw WeatherClientError.decodingFailed(
+                type: String(describing: T.self),
+                detail: error.localizedDescription
+            )
         }
     }
 
@@ -212,5 +215,6 @@ enum WeatherClientError: Error {
     case badResponse(Int)
     case noResults
     case transport(String)
+    case decodingFailed(type: String, detail: String)
 }
 
