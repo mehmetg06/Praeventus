@@ -75,8 +75,11 @@ Sistemin veri akışı, birbirinden tamamen izole edilmiş üç katmanda gerçek
 [ Cihaz İçi İşleme (On-Device) ]
   │
   ▼
- WeatherFusion.fuse() ──→ İstatistiksel Model Birleştirme (Inverse-Spread Weighting)
-  │                         └─→ FusionConfidence (agreement%, temperatureSpreadC)
+ WeatherFusion.fuse() ──→ Adaptif Çok-Kaynaklı Topluluk (Inverse-Spread + METAR ground-truth anchor)
+  │                         ├─→ FusionGroundTruth (METAR sapma skoru + yaş ağırlığı, exponential decay)
+  │                         ├─→ Çapraz-kaynak basınç anomali tespiti (MAD / modified z-score)
+  │                         └─→ FusionConfidence (agreement%, temperatureSpreadC,
+  │                                horizonDecay, anomalyDetected/anomalySource)
   ▼
  WeatherMapping.map() ──→ `WeatherData`, `HourlyPoint`, `DailyRange` (Domain Modelleri)
   │
@@ -87,6 +90,7 @@ Sistemin veri akışı, birbirinden tamamen izole edilmiş üç katmanda gerçek
   ├─→ NowcastSummaryEngine    ──→ `/nowcast` radar noktalarından "N dk sonra yağmur başlıyor/duruyor" özeti
   ├─→ StormSensorEngine       ──→ CMAltimeter tabanlı hızlı basınç düşüşü tespiti (WMO kriterleri)
   ├─→ ActivityAnalysisEngine  ──→ 10 aktivite türü için hava durumu uygunluk skoru
+  ├─→ WeeklyHighlightsEngine  ──→ 7 günlük saatlik dizilerden yağmur/sıcaklık pencerelerini özetler ("Bu Hafta Öne Çıkanlar")
   ├─→ SensorCalibration       ──→ iPad barometre okumasıyla anlık basınç kalibrasyonu
   └─→ MetarSnapshot.from()    ──→ `metar_raw`'dan FAA flight category (VFR/MVFR/IFR/LIFR) içeren METAR modeli
   │
@@ -140,7 +144,7 @@ Sistemin dış dünya ile iletişim kuran yegane bileşeni (Direct Aggregator). 
 |------|-------|
 | `GET /forecast?lat=&lon=` | MET Norway + Bright Sky'ı paralel sorgular, METAR ile günceller. IANA timezone + `utc_offset_seconds` + NOAA günlük gün doğumu/batımı ekler. Deno KV'de 12 dk. TTL + stale-while-revalidate. |
 | `GET /search?q=&lang=&count=` | Nominatim'e yönlendirir. Deno KV'de 30 gün TTL ile agresif önbellek (OSM politikası). |
-| `GET /narrative?lang=&temp=&...` | Anonim parametre grubuyla Groq→Gemini AI zincirini çağırır. Deno KV'de 30 dk. TTL. |
+| `GET /narrative?lang=&temp=&...&agreement=&anomaly_detected=&anomaly_source=&metar_age_minutes=` | Anonim parametre grubuyla Groq→Gemini AI zincirini çağırır. `agreement` (model uzlaşı %), `anomaly_detected` (0/1), `anomaly_source` (örn. "pressure"), `metar_age_minutes` (gözlem tazeliği) opsiyonel güven sinyalleridir; AI tonunu yüksek/düşük güvene göre ayarlar. Hiçbir koordinat/kimlik gönderilmez. Deno KV'de 30 dk. TTL. |
 | `GET /nowcast?lat=&lon=` | MET Norway Nowcast API. Kapsama dışında `radarCoverage: false` döner. Timezone/offset alanları forecast ile aynı. Deno KV'de 5 dk. TTL. |
 | `GET /tile/{nexrad,satellite,dwd}?z=&x=&y=` | XYZ karo koordinatını ilgili WMS/WMTS sağlayıcıya (IEM, NASA GIBS, DWD) proxy'ler; PNG ikili veri Deno KV'de 5 dk. TTL ile önbelleklenir. `WeatherMapView`'un karo overlay'leri için kullanılır (sekme şu an `mapTabEnabled = false`). |
 
@@ -171,7 +175,7 @@ Backend URL'si (`WeatherSettings.backendBaseURL`) `WeatherModel.swift`'te sabit 
 | `OpenMeteoModels.swift` | `ForecastResponse`, `GeocodingResponse`, `GeocodingResult` — ağ veri sözleşmeleri |
 | `WeatherModel.swift` | `WeatherModel` enum, `WeatherSettings` (UserDefaults feature flag'leri, Worker URL) |
 | `CloudflareWeatherProvider.swift` | Tek ağ geçidi: `forecast()`, `nowcast()`, `narrative()`, `search()`. `User-Agent`, timeout, hata çevirimi. |
-| `WeatherFusion.swift` | Çoklu NWP modelini *Inverse-Spread Weighted Mean* ile tek sentetik modele indirger. `FusionConfidence` üretir. Wind direction için circular mean kullanır. |
+| `WeatherFusion.swift` | Çoklu NWP modelini *Adaptive Multi-Source Ensemble* ile tek sentetik modele indirger: Inverse-Spread ağırlık + (METAR varsa) `FusionGroundTruth` sapma skoruna göre `exp(-k·dev)` model yeniden-ağırlıklandırması ve METAR yaş güveni. Çapraz-kaynak basınç anomalisini (MAD / modified z-score) tespit edip şüpheli kaynağı düşük ağırlıklandırır. `FusionConfidence` (agreement%, temperatureSpreadC, opsiyonel `horizonDecay`/`anomalyDetected`/`anomalySource`) üretir. Wind direction için circular mean kullanır. |
 | `WeatherMapping.swift` | Ham `ForecastResponse` → `MappedForecast` (`WeatherData`, `HourlyPoint`, `DailyRange`). Eksik dizileri tolere eder. |
 | `ForecastCache.swift` | Disk bazlı önbellek, 1 saat TTL. Cache-first yükleme stratejisi. |
 | `WeatherData.swift` | `WeatherData`, `WeatherCondition`, `TimeOfDay` — temel domain veri modelleri |
@@ -196,6 +200,7 @@ Backend URL'si (`WeatherSettings.backendBaseURL`) `WeatherModel.swift`'te sabit 
 | `HealthInsights.swift` | `ThermalPredictionEngine` çıktısından hazır UI bundle'ı: heatwave alert, UV yanma süresi, best outdoor hours. |
 | `SensorCalibration.swift` | `@MainActor` sınıfı. iPad barometresini (kPa→hPa dönüşüm) kullanarak model basıncını max ±25 hPa ile kalibre eder. CoreMotion olmayan platformlarda no-op. |
 | `ActivityAnalysisEngine.swift` | 10 aktivite türü için ağırlıklı puan (0–100) ve uyarı üretir. `SuitabilityLevel` (unsuitable→excellent) döner. |
+| `WeeklyHighlightsEngine.swift` | 7 günlük `hourly` dizilerini (precipitation_probability, temperature_2m) tek geçişte (O(n)) tarar; ardışık yağmur (`>%50`) ve sıcaklık (mutlak 32°C+ veya hafta ortalaması +5°C) pencerelerini bulup `[WeatherHighlight]` (start/end/peakValue, lokalize edilmeyen ham model) döndürür. UI cümleleri lokalize eder. Foundation-only. |
 | `Activity.swift` | `Activity`, `ActivityType`, `ActivitySuitability`, `ActivityStorage` (UserDefaults). 10 varsayılan aktivite profili. |
 
 ### 4.4 State Layer
@@ -251,8 +256,19 @@ NowcastPoint              // Worker /nowcast radar noktası (5 dk)
 NowcastResponse           // { minutecast, radarCoverage, timezone, utc_offset_seconds, generated_at }
 NowcastEvent              // .startingSoon / .stoppingSoon / .ongoing — NowcastSummaryEngine çıktısı
 
-// Füzyon
-FusionConfidence          // { agreement: 0…1, temperatureSpreadC, models: [String] }
+// Füzyon (Adaptive Multi-Source Ensemble)
+FusionConfidence          // { agreement: 0…1, temperatureSpreadC, models: [String],
+                          //   horizonDecay?: HorizonConfidence, anomalyDetected?: Bool, anomalySource?: String }
+                          //   — yeni alanlar OPSİYONEL (Codable backward-compat; eski cache nil okur)
+HorizonConfidence         // { shortRange, midRange, longRange } — tahmin ufkuna göre güven çarpanı
+                          //   (0–6s / 6–24s / 24s+); multiplier(atHoursAhead:) ve nowcast short-range boost
+FusionGroundTruth         // { temperatureC, windSpeedKmh, windDirectionDeg, pressureHPa, ageMinutes }
+                          //   METAR'dan kurulur (init?(metar: MetarRaw, now:)); freshness = exp(-ageMinutes/τ)
+                          //   model sapma skorunu (exp(-k·dev)) ve METAR anchor güvenini besler. Domain-only.
+
+// Haftalık öne çıkanlar (WeeklyHighlightsEngine)
+WeatherHighlight          // { kind: .rain/.heat, start: Date, end: Date, peakValue: Double }
+                          //   ham olay modeli — UI lokalize eder ("Çar 14:00–17:00 arası yağmur")
 
 // Fırtına sensörü
 StormAlert                // { severity, pressureDropHPa, windowMinutes, triggeredAt }
@@ -297,6 +313,18 @@ MetarSnapshot.FlightCategory // .vfr / .mvfr / .ifr / .lifr (FAA ceiling/visibil
 ```
 
 `/tile/{nexrad,satellite,dwd}?z=&x=&y=` yanıtı: ham `image/png` ikili veri (JSON değil), 5 dk `Cache-Control`.
+
+### Narrative güven sinyalleri (request query, opsiyonel)
+`/narrative` artık standart anonim hava değerlerine ek olarak şu opsiyonel güven parametrelerini kabul eder (yalnızca soyut sayısal sinyaller; koordinat/kimlik **yok**):
+```
+&agreement=<0–100 model uzlaşı %>
+&anomaly_detected=<0|1>
+&anomaly_source=<örn. "pressure">
+&metar_age_minutes=<METAR gözlem yaşı>
+```
+Backend (`util.ts`) bunları AI özetine kısa bir güven cümlesi (TR/EN) olarak ekler ve prompt tonunu yüksek/düşük güvene göre ayarlar.
+
+> Not: `FusionConfidence`'ın yeni `horizonDecay`/`anomalyDetected`/`anomalySource` alanları **Worker JSON envelope'unda taşınmaz**; cihaz üstünde `WeatherFusion` tarafından üretilip `ForecastCache`'e (disk) serialize edilir. Tümü opsiyonel olduğundan mevcut cache sözleşmesi kırılmaz.
 
 ---
 

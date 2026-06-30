@@ -98,9 +98,13 @@ struct CloudflareWeatherProvider {
         uvIndex: Double,
         visibility: Double,
         pressure: Double,
-        lang: String
+        lang: String,
+        agreementPercent: Int? = nil,
+        anomalyDetected: Bool? = nil,
+        anomalySource: String? = nil,
+        metarAgeMinutes: Int? = nil
     ) async -> String {
-        let queryItems: [URLQueryItem] = [
+        var queryItems: [URLQueryItem] = [
             URLQueryItem(name: "lang",         value: lang),
             URLQueryItem(name: "temp",         value: String(format: "%.0f", temp)),
             URLQueryItem(name: "feels",        value: String(format: "%.0f", feelsLike)),
@@ -115,6 +119,19 @@ struct CloudflareWeatherProvider {
             URLQueryItem(name: "visibility",   value: String(format: "%.1f", visibility / 1000)),
             URLQueryItem(name: "pressure",     value: String(format: "%.0f", pressure)),
         ]
+        // Anonymous confidence signals only — never any identity or location.
+        if let agreementPercent {
+            queryItems.append(URLQueryItem(name: "agreement", value: String(agreementPercent)))
+        }
+        if let anomalyDetected {
+            queryItems.append(URLQueryItem(name: "anomaly_detected", value: anomalyDetected ? "1" : "0"))
+        }
+        if let anomalySource, !anomalySource.isEmpty {
+            queryItems.append(URLQueryItem(name: "anomaly_source", value: anomalySource))
+        }
+        if let metarAgeMinutes {
+            queryItems.append(URLQueryItem(name: "metar_age_minutes", value: String(metarAgeMinutes)))
+        }
         guard let url = try? buildURL(path: "/narrative", queryItems: queryItems) else { return "" }
         guard let result = try? await get(url, as: NarrativeResponse.self) else { return "" }
         return result.narrative

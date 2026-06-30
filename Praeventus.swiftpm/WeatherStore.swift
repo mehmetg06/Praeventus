@@ -59,6 +59,9 @@ final class WeatherStore: ObservableObject {
     @Published private(set) var isSimulating = false
     /// How well the blended models agreed on the current snapshot, if fused.
     @Published private(set) var fusionConfidence: FusionConfidence?
+    /// Actionable rain/heat events distilled from the 7-day hourly forecast.
+    /// Empty for simulated/Lab states. Drives the "This Week's Highlights" card.
+    @Published private(set) var weeklyHighlights: [WeatherHighlight] = []
     /// True when the on-screen forecast came from cache and could not be refreshed.
     @Published private(set) var isStale = false
     /// Latest aviation METAR from the nearest airport. Nil when no station is nearby.
@@ -215,6 +218,11 @@ final class WeatherStore: ObservableObject {
         }
 
         nowcast = await nowcastFetch
+        // Short-term radar beats the models in the first hour or two; pin the
+        // near-term confidence band high when the location has radar coverage.
+        if nowcast?.radarCoverage == true {
+            fusionConfidence = fusionConfidence?.withNowcastShortRangeBoost()
+        }
     }
 
     /// `nonisolated` so the network round-trip *and* the CPU-bound model fusion
@@ -226,7 +234,8 @@ final class WeatherStore: ObservableObject {
     ) async throws -> (ForecastResponse, FusionConfidence, MetarSnapshot?, Int?) {
         let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.backendBaseURL)
         let bundle = try await cf.forecast(latitude: place.latitude, longitude: place.longitude)
-        let fused = WeatherFusion.fuse(bundle.models)
+        let groundTruth = bundle.metarRaw.flatMap { FusionGroundTruth(metar: $0) }
+        let fused = WeatherFusion.fuse(bundle.models, groundTruth: groundTruth)
         let metar: MetarSnapshot? = {
             guard let raw = bundle.metarRaw, let station = bundle.metarStation else { return nil }
             return MetarSnapshot.from(raw: raw, station: station)
@@ -239,6 +248,7 @@ final class WeatherStore: ObservableObject {
         let mapped = await mapForecast(response, city: city, country: country)
         hourly = mapped.hourly
         daily = mapped.daily
+        weeklyHighlights = WeeklyHighlightsEngine.highlights(from: response.hourly)
         var snapshot = mapped.weather
         if WeatherSettings.sensorCalibrationEnabled {
             snapshot = calibration.calibrate(snapshot)
@@ -514,6 +524,8 @@ final class WeatherStore: ObservableObject {
 
     private func publish(_ next: WeatherData) {
         weather = next
+        // Synthetic Lab states have no real 7-day hourly series to summarise.
+        if isSimulating { weeklyHighlights = [] }
         var nextAtmosphere = AtmosphericEngine.calculate(from: next)
         nextAtmosphere.story = WeatherNarrativeEngine.story(
             weather: next,
