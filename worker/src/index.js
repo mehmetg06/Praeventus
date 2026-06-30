@@ -461,6 +461,7 @@ function corsHeaders() {
     "Access-Control-Allow-Origin":  "*",
     "Access-Control-Allow-Methods": "GET, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
+    "X-Content-Type-Options": "nosniff",
   };
 }
 
@@ -476,6 +477,8 @@ async function handleForecast(url, env) {
   const lon = parseFloat(url.searchParams.get("lon") || "");
   if (isNaN(lat) || isNaN(lon))
     return jsonResponse({ error: "lat ve lon gerekli" }, 400);
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
+    return jsonResponse({ error: "lat/lon aralık dışı" }, 400);
 
   const latR = Math.round(lat * 10000) / 10000;
   const lonR = Math.round(lon * 10000) / 10000;
@@ -490,6 +493,10 @@ async function handleForecast(url, env) {
     fetchMETARForCoord(latR, lonR),
   ]);
 
+  if (ecmwf.status === "rejected") console.warn("MET Norway fetch rejected:", ecmwf.reason);
+  if (brightsky.status === "rejected") console.warn("Bright Sky fetch rejected:", brightsky.reason);
+  if (metarFetch.status === "rejected") console.warn("METAR fetch rejected:", metarFetch.reason);
+
   const models = {};
   if (ecmwf.status === "fulfilled" && ecmwf.value) {
     models.ecmwf_ifs025 = ecmwf.value;
@@ -501,10 +508,6 @@ async function handleForecast(url, env) {
 
   if (Object.keys(models).length === 0)
     return jsonResponse({ error: "tüm modeller başarısız" }, 503);
-
-  if (ecmwf.status === "rejected") console.warn("MET Norway fetch rejected:", ecmwf.reason);
-  if (brightsky.status === "rejected") console.warn("Bright Sky fetch rejected:", brightsky.reason);
-  if (metarFetch.status === "rejected") console.warn("METAR fetch rejected:", metarFetch.reason);
 
   const mr     = metarFetch.status === "fulfilled" ? metarFetch.value : { icao: null, metar: null };
   const metar  = mr.metar;
@@ -612,8 +615,11 @@ function buildWeatherSummary(params, lang) {
   }
 }
 
+const ALLOWED_LANGS = new Set(["tr", "en", "de", "fr", "es", "it", "pt", "nl", "ja", "ko", "zh"]);
+
 async function handleNarrative(url, env) {
-  const lang       = url.searchParams.get("lang") || "tr";
+  const langRaw    = url.searchParams.get("lang") || "tr";
+  const lang       = ALLOWED_LANGS.has(langRaw) ? langRaw : "en";
   const code       = parseInt(url.searchParams.get("weather_code") || "0", 10);
   const temp       = parseFloat(url.searchParams.get("temp") || "20");
   const uv         = parseFloat(url.searchParams.get("uv")   || "0");
@@ -648,7 +654,7 @@ async function handleNarrative(url, env) {
     if (text) narrative = text;
   } catch (err) {
     console.error("AI narrative generation failed:", err);
-    // Keep the localised fallback — never expose raw error text to the user.
+    narrative = fallback;
   }
 
   const result = { narrative, cached: false, lang };
@@ -668,6 +674,8 @@ async function handleNowcast(url, env) {
   const lon = parseFloat(url.searchParams.get("lon") || "");
   if (isNaN(lat) || isNaN(lon))
     return jsonResponse({ error: "lat ve lon gerekli" }, 400);
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
+    return jsonResponse({ error: "lat/lon aralık dışı" }, 400);
 
   // 4-decimal precision matches the privacy-truncation done on the Swift side.
   const latR = Math.round(lat * 10000) / 10000;
@@ -725,13 +733,14 @@ async function handleNowcast(url, env) {
     return jsonResponse(result);
 
   } catch (err) {
-    return jsonResponse({ error: String(err), radarCoverage: false, minutecast: [] }, 503);
+    return jsonResponse({ error: "nowcast unavailable", radarCoverage: false, minutecast: [] }, 503);
   }
 }
 
 async function handleSearch(url, env) {
-  const q    = url.searchParams.get("q") || "";
-  const count = url.searchParams.get("count") || "5";
+  const q    = (url.searchParams.get("q") || "").slice(0, 200);
+  const countRaw = parseInt(url.searchParams.get("count") || "5", 10);
+  const count = String(Math.max(1, Math.min(countRaw || 5, 10)));
   const lang  = url.searchParams.get("lang") || "tr";
   if (!q) return jsonResponse({ error: "q gerekli" }, 400);
 
@@ -764,7 +773,7 @@ async function handleSearch(url, env) {
     return jsonResponse(response);
   } catch (e) {
     console.error("handleSearch geocoding failed:", e);
-    return jsonResponse({ error: "geocoding başarısız", detail: String(e) }, 503);
+    return jsonResponse({ error: "geocoding başarısız" }, 503);
   }
 }
 
@@ -927,11 +936,48 @@ async function handleTileDwd(url, env) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Rate limiting — per-IP sliding window stored in KV.
+// /narrative is expensive (AI inference), so it gets a stricter budget.
+// ---------------------------------------------------------------------------
+
+const RATE_LIMITS = {
+  "/narrative": { windowSec: 60, maxRequests: 10 },
+  "/search":    { windowSec: 60, maxRequests: 30 },
+  "/forecast":  { windowSec: 60, maxRequests: 30 },
+  "/nowcast":   { windowSec: 60, maxRequests: 30 },
+};
+
+async function checkRateLimit(env, ip, pathname) {
+  const config = RATE_LIMITS[pathname];
+  if (!config || !env?.PRAEVENTUS_CACHE) return false;
+  const key = `rl_${pathname}_${ip}`;
+  try {
+    const raw = await env.PRAEVENTUS_CACHE.get(key);
+    const count = raw ? parseInt(raw, 10) : 0;
+    if (count >= config.maxRequests) return true;
+    await env.PRAEVENTUS_CACHE.put(key, String(count + 1), {
+      expirationTtl: config.windowSec
+    });
+  } catch {}
+  return false;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === "OPTIONS")
       return new Response(null, { headers: corsHeaders() });
+
+    // Only allow GET requests for all endpoints.
+    if (request.method !== "GET")
+      return new Response(null, { status: 405, headers: corsHeaders() });
+
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    if (await checkRateLimit(env, ip, url.pathname)) {
+      return jsonResponse({ error: "rate limit exceeded" }, 429);
+    }
+
     if (url.pathname === "/forecast")       return handleForecast(url, env);
     if (url.pathname === "/search")         return handleSearch(url, env);
     if (url.pathname === "/narrative")      return handleNarrative(url, env);
@@ -939,17 +985,6 @@ export default {
     if (url.pathname === "/tile/nexrad")    return handleTileNexrad(url, env);
     if (url.pathname === "/tile/satellite") return handleTileSatellite(url, env);
     if (url.pathname === "/tile/dwd")       return handleTileDwd(url, env);
-    return jsonResponse({
-      status: "Praeventus Weather Worker v4",
-      routes: [
-        "/forecast?lat=&lon=",
-        "/search?q=&lang=",
-        "/narrative?lang=&temp=&weather_code=",
-        "/nowcast?lat=&lon=",
-        "/tile/nexrad?z=&x=&y=",
-        "/tile/satellite?z=&x=&y=",
-        "/tile/dwd?z=&x=&y="
-      ]
-    });
+    return new Response(null, { status: 404, headers: corsHeaders() });
   }
 };
