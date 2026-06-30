@@ -143,7 +143,7 @@ struct CloudflareWeatherProvider {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Praeventus/1.0 (privacy-weather)", forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = 15
+        request.timeoutInterval = 25
 
         let data: Data
         let response: URLResponse

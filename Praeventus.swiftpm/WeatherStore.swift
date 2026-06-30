@@ -132,6 +132,7 @@ final class WeatherStore: ObservableObject {
     func load(_ place: SavedLocation) async {
         isSimulating = false
         forcedHealthInsights = nil
+        metarSnapshot = nil
         // Single source of truth for whether the storm banner is eligible to
         // show — restored from the persisted flag so a relaunch doesn't reset
         // a GPS-loaded location back to "remote city" and hide the banner.
