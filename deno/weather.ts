@@ -565,6 +565,45 @@ export async function handleNarrative(url: URL): Promise<Response> {
   return jsonResponse(result);
 }
 
+async function buildNowcast(latR: number, lonR: number): Promise<Json> {
+  const res = await fetch(`${NOWCAST_BASE}?lat=${latR}&lon=${lonR}`, {
+    signal: AbortSignal.timeout(10000),
+    headers: { "User-Agent": USER_AGENT },
+  });
+
+  // MET Norway returns 422 when the coordinate is outside radar coverage.
+  if (res.status === 422) return { radarCoverage: false, minutecast: [] };
+  if (!res.ok) throw new Error(`MET Nowcast ${res.status}`);
+
+  const data = await res.json();
+  if (!data.properties?.timeseries?.length) {
+    return { radarCoverage: false, minutecast: [] };
+  }
+
+  const minutecast = data.properties.timeseries.map((entry: Json) => {
+    const d = entry.data?.instant?.details || {};
+    const next = entry.data?.next_1_hours?.details || {};
+    return {
+      time: entry.time,
+      precipitationRate: d.precipitation_rate ?? 0,
+      precipitationAmount: next.precipitation_amount ?? 0,
+      temperature: d.air_temperature ?? null,
+      humidity: d.relative_humidity ?? null,
+      windSpeed: (d.wind_speed ?? 0) * 3.6,
+      windDirection: d.wind_from_direction ?? 0,
+      windGust: (d.wind_speed_of_gust ?? d.wind_speed ?? 0) * 3.6,
+      symbolCode: entry.data?.next_1_hours?.summary?.symbol_code ?? "",
+    };
+  });
+
+  return {
+    minutecast,
+    radarCoverage: true,
+    geometry: data.geometry ?? null,
+    generated_at: new Date().toISOString(),
+  };
+}
+
 export async function handleNowcast(url: URL): Promise<Response> {
   const lat = parseFloat(url.searchParams.get("lat") || "");
   const lon = parseFloat(url.searchParams.get("lon") || "");
@@ -577,49 +616,14 @@ export async function handleNowcast(url: URL): Promise<Response> {
   const lonR = snapGrid(lon);
   const key: Deno.KvKey = ["nowcast", latR, lonR];
 
-  const cached = await cacheGet<Json>(key);
-  if (cached) return jsonResponse({ ...cached, _cached: true });
-
   try {
-    const res = await fetch(`${NOWCAST_BASE}?lat=${latR}&lon=${lonR}`, {
-      signal: AbortSignal.timeout(10000),
-      headers: { "User-Agent": USER_AGENT },
-    });
-
-    // MET Norway returns 422 when the coordinate is outside radar coverage.
-    if (res.status === 422) return jsonResponse({ radarCoverage: false, minutecast: [] }, 200);
-    if (!res.ok) throw new Error(`MET Nowcast ${res.status}`);
-
-    const data = await res.json();
-    if (!data.properties?.timeseries?.length) {
-      return jsonResponse({ radarCoverage: false, minutecast: [] }, 200);
-    }
-
-    const minutecast = data.properties.timeseries.map((entry: Json) => {
-      const d = entry.data?.instant?.details || {};
-      const next = entry.data?.next_1_hours?.details || {};
-      return {
-        time: entry.time,
-        precipitationRate: d.precipitation_rate ?? 0,
-        precipitationAmount: next.precipitation_amount ?? 0,
-        temperature: d.air_temperature ?? null,
-        humidity: d.relative_humidity ?? null,
-        windSpeed: (d.wind_speed ?? 0) * 3.6,
-        windDirection: d.wind_from_direction ?? 0,
-        windGust: (d.wind_speed_of_gust ?? d.wind_speed ?? 0) * 3.6,
-        symbolCode: entry.data?.next_1_hours?.summary?.symbol_code ?? "",
-      };
-    });
-
-    const result = {
-      minutecast,
-      radarCoverage: true,
-      geometry: data.geometry ?? null,
-      generated_at: new Date().toISOString(),
-    };
-
-    await cachePut(key, result, TTL.nowcast);
-    return jsonResponse(result);
+    const { value, cached } = await withSWR(
+      key,
+      SOFT_TTL.nowcast,
+      TTL.nowcast,
+      () => buildNowcast(latR, lonR),
+    );
+    return jsonResponseWithCache(value, cached);
   } catch (err) {
     console.warn("handleNowcast failed:", err);
     return jsonResponse(

@@ -79,10 +79,13 @@ class GroqProvider implements AIProvider {
     return text;
   }
 
-  // Fall back to the next provider on rate limit (429) or model-not-found (404).
+  // Fall back to the next provider on rate limit (429), model-not-found (404),
+  // or any server-side error (5xx) — Groq being down shouldn't deny the user a
+  // narrative when Gemini is available.
   shouldFallback(err: unknown): boolean {
     if (err instanceof AIProviderError) {
-      return err.status === 429 || err.status === 404 || err.status === null;
+      return err.status === null || err.status === 429 || err.status === 404 ||
+        err.status >= 500;
     }
     return true; // network/timeout errors -> try the next provider
   }

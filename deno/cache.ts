@@ -164,6 +164,11 @@ const RATE_LIMITS: Record<string, { windowSec: number; maxRequests: number }> = 
   "/search": { windowSec: 60, maxRequests: 30 },
   "/forecast": { windowSec: 60, maxRequests: 30 },
   "/nowcast": { windowSec: 60, maxRequests: 30 },
+  // Tiles load in bursts (a single map view fetches many), so the budget is
+  // higher — but still bounded to stop enumeration floods against upstreams.
+  "/tile/nexrad": { windowSec: 60, maxRequests: 120 },
+  "/tile/satellite": { windowSec: 60, maxRequests: 120 },
+  "/tile/dwd": { windowSec: 60, maxRequests: 120 },
 };
 
 export async function checkRateLimit(ip: string, pathname: string): Promise<boolean> {
