@@ -142,7 +142,7 @@ async function fetchMETNorway(lat, lon) {
     const wind_speed = (d.wind_speed || 0) * 3.6;
     const wind_gusts = (d.wind_speed_of_gust || d.wind_speed || 0) * 3.6;
 
-    if (!current || Math.abs(tDate - now) < Math.abs(new Date(current.time) - now)) {
+    if (!current || Math.abs(tDate.getTime() - now.getTime()) < Math.abs(new Date(current.time).getTime() - now.getTime())) {
       current = {
         time,
         temperature_2m: d.air_temperature,
@@ -246,7 +246,7 @@ async function fetchBrightSky(lat, lon) {
     const weather_code = mapBrightSkyWMO(w.condition);
     const precip_prob = w.precipitation_probability || 0;
 
-    if (!current || Math.abs(tDate - now) < Math.abs(new Date(current.time) - now)) {
+    if (!current || Math.abs(tDate.getTime() - now.getTime()) < Math.abs(new Date(current.time).getTime() - now.getTime())) {
       current = {
         time,
         temperature_2m: w.temperature,
