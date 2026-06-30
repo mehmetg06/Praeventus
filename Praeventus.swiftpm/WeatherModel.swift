@@ -50,6 +50,11 @@ enum WeatherSettings {
     /// Compiled-in base URL of the Deno Deploy backend. All forecast, search,
     /// narrative and nowcast requests are routed here; no direct upstream API
     /// calls are made from the device.
+    ///
+    /// This is the stable production alias (`<app>.<org>.deno.net`), which always
+    /// tracks the latest deploy of `main`. Do NOT point this at a revision-pinned
+    /// preview URL (`<app>-<revision>.<org>.deno.net`) — those freeze on one build
+    /// and never receive backend fixes.
     static let backendBaseURL =
-        "https://praeventus-f0dzy0r4tm9w.praeventus.deno.net"
+        "https://praeventus.praeventus.deno.net"
 }
