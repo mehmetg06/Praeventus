@@ -511,6 +511,24 @@ function metarNum(v: Json): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+// `reportTime` decodes into a Swift `String?`. aviationweather.gov usually
+// supplies it as a string, but the `obsTime` fallback is a Unix epoch
+// *integer* — forwarding that number as-is would hit the same
+// type-mismatch decode failure as the unsanitized "VRB" wdir bug. Always
+// emit a string (or null).
+function metarTimeISO(reportTime: Json, obsTime: Json): string | null {
+  if (typeof reportTime === "string" && reportTime) return reportTime;
+  if (typeof obsTime === "number" && Number.isFinite(obsTime)) {
+    try {
+      return new Date(obsTime * 1000).toISOString();
+    } catch {
+      return null;
+    }
+  }
+  if (typeof obsTime === "string" && obsTime) return obsTime;
+  return null;
+}
+
 function overlayMETAR(forecast: ForecastModel, metar: Json): ForecastModel {
   if (!metar || !forecast?.current) return forecast;
   const c = forecast.current;
@@ -570,7 +588,13 @@ async function buildForecast(latR: number, lonR: number): Promise<Json> {
   const skyCoverLayers = (metar?.skyCondition || metar?.sky_condition || metar?.clouds || [])
     .map((layer: Json) => ({
       skyCover: layer.skyCover ?? layer.cover ?? null,
-      cloudBase: layer.cloudBase ?? layer.base ?? null,
+      // cloudBase decodes into a Swift `Int?` client-side — coerce the same way
+      // as the other numeric METAR fields so a non-numeric value here can't
+      // throw and fail the whole envelope decode (same failure mode as wdir).
+      cloudBase: (() => {
+        const n = metarNum(layer.cloudBase ?? layer.base ?? null);
+        return n != null ? Math.round(n) : null;
+      })(),
     }));
 
   const visibRaw = metar?.visib ?? null;
@@ -598,7 +622,7 @@ async function buildForecast(latR: number, lonR: number): Promise<Json> {
         wxString: metar.wxString ?? null,
         skyCondition: skyCoverLayers,
         rawOb: metar.rawOb ?? null,
-        reportTime: metar.reportTime ?? metar.obsTime ?? null,
+        reportTime: metarTimeISO(metar.reportTime, metar.obsTime),
       }
       : null,
     generated_at: new Date().toISOString(),
