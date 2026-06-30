@@ -64,6 +64,9 @@ final class WeatherStore: ObservableObject {
     /// HomeView to trigger narrative fetches: phase may stay .loaded and city
     /// may be empty for GPS, so neither is a reliable trigger.
     @Published private(set) var forecastID: UUID = UUID()
+    /// Current wall-clock time, refreshed every minute so time-dependent visuals
+    /// (atmosphere background, astronomical card) update without a full reload.
+    @Published private(set) var currentDate: Date = Date()
     /// Set when the device barometer detects a rapid pressure drop.
     /// Cleared to nil after 30 minutes so the UI doesn't show a stale alarm.
     @Published private(set) var stormAlert: StormAlert?
@@ -89,6 +92,7 @@ final class WeatherStore: ObservableObject {
     private let calibration   = SensorCalibration()
     private let stormSensor   = StormSensorEngine()
     private var stormTask: Task<Void, Never>?
+    private var clockTask: Task<Void, Never>?
     private static let locationKey = "praeventus.savedLocation"
 
     /// Seed snapshot used purely so the UI/background have something to render
@@ -114,6 +118,7 @@ final class WeatherStore: ObservableObject {
         self.weather = seed
         self.atmosphere = AtmosphericEngine.calculate(from: seed)
         self.location = Self.loadSavedLocation()
+        startClock()
     }
 
     /// Loads the most recent location on launch, if any.
@@ -270,6 +275,7 @@ final class WeatherStore: ObservableObject {
         // Guarded by isEmpty so repeated slider drags don't recompute every frame.
         if hourly.isEmpty { hourly = Self.syntheticHourly(from: next) }
         if daily.isEmpty { daily = Self.syntheticDaily(from: next) }
+        forecastID = UUID()
         publish(next)
     }
 
@@ -307,6 +313,7 @@ final class WeatherStore: ObservableObject {
         // every Quick Scenario preset.
         hourly = Self.syntheticHourly(from: next)
         daily = Self.syntheticDaily(from: next)
+        forecastID = UUID()
         publish(next)
     }
 
@@ -351,6 +358,7 @@ final class WeatherStore: ObservableObject {
         )
         hourly = Self.syntheticHourly(from: snapshot)
         daily = Self.syntheticDaily(from: snapshot)
+        forecastID = UUID()
         publish(snapshot)
     }
 
@@ -392,6 +400,18 @@ final class WeatherStore: ObservableObject {
                         stormAlert = nil
                     }
                 }
+            }
+        }
+    }
+
+    // MARK: - Clock
+
+    private func startClock() {
+        clockTask?.cancel()
+        clockTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                if !Task.isCancelled { currentDate = Date() }
             }
         }
     }
