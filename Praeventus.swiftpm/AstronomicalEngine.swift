@@ -116,33 +116,36 @@ enum AstronomicalEngine {
     // MARK: - Sun Calculations
 
     static func sunAltitude(at date: Date, latitude: Double, longitude: Double) -> Double {
-        let calendar = Calendar.current
-        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+        // Number of days since J2000 (2000-01-01 12:00:00 UTC)
+        let d = (date.timeIntervalSince1970 - 946728000.0) / 86400.0
 
-        guard let year = components.year, let month = components.month, let day = components.day else { return 0 }
-        guard let hour = components.hour, let minute = components.minute, let second = components.second else { return 0 }
+        let phi = latitude.toRadians()
 
-        let N = Double(dayOfYear(year: year, month: month, day: day)) + (Double(hour) + Double(minute) / 60.0 + Double(second) / 3600.0) / 24.0 - 1.0
+        // Solar Mean Anomaly
+        let M = (357.5291 + 0.98560028 * d).toRadians()
 
-        let J = N + 0.0008
-        let M = 357.52910 + 0.98560025 * J
-        let C = (1.914600 - 0.004817 * J / 36525.0 - 0.000014 * J / 36525.0 * J / 36525.0) * sin(M.toRadians())
-            + (0.019993 - 0.000101 * J / 36525.0) * sin(2 * M.toRadians())
-            + 0.000289 * sin(3 * M.toRadians())
+        // Equation of Center
+        let C = (1.9148 * sin(M) + 0.02 * sin(2 * M) + 0.0003 * sin(3 * M)).toRadians()
 
-        let sunLongitude = 280.46645 + 0.9856474 * J + C
-        let obliquity = 23.43929111 - 0.0130041667 * (J / 36525.0)
+        // Perihelion of the Earth and Ecliptic Longitude
+        let P = 102.9372.toRadians()
+        let L = M + C + P + .pi
 
-        let alpha = atan2(sin(sunLongitude.toRadians()) * cos(obliquity.toRadians()), cos(sunLongitude.toRadians())).toDegrees()
-        let delta = asin(sin(sunLongitude.toRadians()) * sin(obliquity.toRadians())).toDegrees()
+        // Obliquity of the Earth
+        let e = 23.4397.toRadians()
 
-        let H = getHourAngle(at: date, longitude: longitude, sunLongitude: alpha)
+        // Sun Declination & Right Ascension
+        let dec = asin(sin(e) * sin(L))
+        let ra = atan2(sin(L) * cos(e), cos(L))
 
-        let sinAlt = sin(latitude.toRadians()) * sin(delta.toRadians())
-            + cos(latitude.toRadians()) * cos(delta.toRadians()) * cos(H.toRadians())
-        let altitude = asin(max(-1, min(1, sinAlt))).toDegrees()
+        // Sidereal Time
+        let lw = -longitude.toRadians()
+        let H = (280.16 + 360.9856235 * d).toRadians() - lw - ra
 
-        return max(-90, min(90, altitude))
+        // Altitude
+        let altitude = asin(sin(phi) * sin(dec) + cos(phi) * cos(dec) * cos(H))
+
+        return max(-90, min(90, altitude.toDegrees()))
     }
 
     static func sunTiming(at date: Date, latitude: Double, longitude: Double) -> SunTiming {
@@ -220,25 +223,6 @@ enum AstronomicalEngine {
         }
         let utcSeconds = Double(utcDayOffset) * 86400.0 + UT * 3600.0
         return midnightUTC.addingTimeInterval(utcSeconds)
-    }
-
-    private static func getHourAngle(at date: Date, longitude: Double, sunLongitude: Double) -> Double {
-        let calendar = Calendar.current
-        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
-
-        guard let hour = components.hour, let minute = components.minute, let second = components.second else {
-            return 0
-        }
-
-        let localTime = Double(hour) + Double(minute) / 60.0 + Double(second) / 3600.0
-        // Convert the analyzed date's wall-clock to UTC via its zone offset, so
-        // altitude depends only on `date` — not on when the app happens to run.
-        let utcOffsetHours = Double(TimeZone.current.secondsFromGMT(for: date)) / 3600.0
-        var gha = 15 * (12 - (localTime - utcOffsetHours + longitude / 15.0))
-        gha = fmod(gha, 360)
-        if gha < 0 { gha += 360 }
-
-        return gha - sunLongitude
     }
 
     private static func dayOfYear(year: Int, month: Int, day: Int) -> Int {
