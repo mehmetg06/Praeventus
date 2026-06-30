@@ -104,6 +104,20 @@ enum TimeOfDay: String, Equatable {
         }
     }
 
+    /// Derives time-of-day from the sun's geometric altitude and whether the
+    /// sun is still rising (before solar noon) or already setting.
+    /// Thresholds follow standard twilight definitions:
+    ///   > 6°  → full daylight  |  -12°…6° → transitional  |  < -12° → night
+    init(sunAltitude: Double, isRising: Bool) {
+        if sunAltitude > 6 {
+            self = .day
+        } else if sunAltitude >= -12 {
+            self = isRising ? .dawn : .sunset
+        } else {
+            self = .night
+        }
+    }
+
     /// Localized display name (e.g. "Day" / "Gündüz").
     var displayName: String {
         switch self {

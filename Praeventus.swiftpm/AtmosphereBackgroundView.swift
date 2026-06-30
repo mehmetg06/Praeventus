@@ -3,11 +3,17 @@ import SwiftUI
 
 struct AtmosphereBackgroundView: View {
     let atmosphere: AtmosphericState
-    let hour: Double
+    /// Current solar altitude in degrees (-90…90). Drives time-of-day transitions
+    /// based on the sun's actual geometric position rather than a clock bucket.
+    let sunAltitude: Double
+    /// True while the sun is still climbing (before solar noon), false once it
+    /// has passed the meridian. Used to distinguish dawn from sunset during the
+    /// transitional twilight band (-12°…6°).
+    let isBeforeSolarNoon: Bool
     let windSpeed: Double
 
     private var mood: BackgroundMood { atmosphere.backgroundMood }
-    private var timeOfDay: TimeOfDay { TimeOfDay(hour: Int(hour.rounded())) }
+    private var timeOfDay: TimeOfDay { TimeOfDay(sunAltitude: sunAltitude, isRising: isBeforeSolarNoon) }
     private var windIntensity: Double { min(max(windSpeed / 90.0, 0.0), 1.0) }
     private var hotSunny: Bool {
         (mood == .clear || mood == .partlyCloudy) &&
@@ -48,7 +54,7 @@ struct AtmosphereBackgroundView: View {
         .layoutBounds()
         .animation(.easeInOut(duration: 22 / animSpeed).repeatForever(autoreverses: true), value: drift)
         .animation(.easeInOut(duration: 0.65), value: mood)
-        .animation(.easeInOut(duration: 0.65), value: Int(hour.rounded()))
+        .animation(.easeInOut(duration: 0.65), value: timeOfDay)
         .onAppear {
             drift = true
             breathe = true

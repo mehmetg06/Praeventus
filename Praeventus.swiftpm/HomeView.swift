@@ -26,9 +26,9 @@ struct HomeView: View {
     var body: some View {
         VStack(spacing: 0) {
             topBar
-            // Show only when the barometer and the displayed forecast are co-located:
-            // the sensor reads the user's physical surroundings, not a remote city.
-            if store.isGPSLocation, let alert = store.stormAlert {
+            // Show when the barometer is co-located (GPS) OR when the lab has
+            // injected a synthetic alert for visual testing (isSimulating).
+            if (store.isGPSLocation || store.isSimulating), let alert = store.stormAlert {
                 StormWarningBanner(alert: alert)
                     .padding(.horizontal, 22)
                     .padding(.top, 4)

@@ -55,9 +55,13 @@ struct PraeventusRootView: View {
     // through the SwiftUI content tree, bypassing UITabBarController's opaque
     // UIKit backing that would cover a shared ZStack background layer.
     private var atmosphereBackground: some View {
-        AtmosphereBackgroundView(
+        let astro = store.astronomicalAnalysis(at: store.currentDate)
+        let solarNoon = astro.sunriseSunset.sunrise
+            .addingTimeInterval(astro.sunriseSunset.duration / 2)
+        return AtmosphereBackgroundView(
             atmosphere: store.atmosphere,
-            hour: store.weather.hour,
+            sunAltitude: astro.sunAltitude,
+            isBeforeSolarNoon: store.currentDate < solarNoon,
             windSpeed: store.weather.windSpeed
         )
         .ignoresSafeArea()
