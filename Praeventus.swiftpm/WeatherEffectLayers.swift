@@ -244,7 +244,13 @@ struct LightningStormLayer: View {
                 .blur(radius: performanceMode ? 0 : 110)
                 .offset(x: 140, y: -120)
 
-            TimelineView(.animation) { timeline in
+            // Throttled to 30 Hz instead of `.animation` (native refresh rate,
+            // up to 120 Hz on ProMotion): the bolt only needs to look crisp for
+            // its ~0.4 s lifetime, and most of the time `flash` is near zero —
+            // redrawing the Canvas every display frame for that idle stretch
+            // was pure wasted CPU/GPU work (and a contributor to device heating
+            // during sustained storm conditions).
+            TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { timeline in
                 let now = timeline.date.timeIntervalSinceReferenceDate
                 let dt = now - strikeTime
                 let flash = flashEnvelope(dt)

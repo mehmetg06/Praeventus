@@ -38,7 +38,9 @@ struct AstronomicalAnalysis: Equatable {
     let daylightHours: Double
     let sunAltitude: Double
     let sunriseSunset: SunTiming
-    /// Approximate timezone of the observed location, derived from longitude.
+    /// Timezone of the observed location. DST-aware when the backend's real
+    /// IANA-derived UTC offset was supplied; otherwise a longitude-only
+    /// approximation (used for Lab/simulated locations with no live offset).
     let locationTimezone: TimeZone
 
     static func == (lhs: AstronomicalAnalysis, rhs: AstronomicalAnalysis) -> Bool {
@@ -62,13 +64,18 @@ struct SunTiming: Equatable {
 
 enum AstronomicalEngine {
 
-    static func analyze(at date: Date, latitude: Double, longitude: Double) -> AstronomicalAnalysis {
+    /// - Parameter utcOffsetSeconds: The location's real, DST-aware UTC offset
+    ///   (from the backend's IANA timezone lookup), when available. Falls back
+    ///   to a longitude/15° approximation — which ignores DST and political
+    ///   timezone boundaries — only when no live offset has been loaded yet
+    ///   (e.g. Lab/simulated locations).
+    static func analyze(at date: Date, latitude: Double, longitude: Double, utcOffsetSeconds: Int? = nil) -> AstronomicalAnalysis {
         let phase = moonPhase(at: date)
         let brightness = moonBrightness(at: date)
         let altitude = sunAltitude(at: date, latitude: latitude, longitude: longitude)
         let timing = sunTiming(at: date, latitude: latitude, longitude: longitude)
         let daylight = timing.duration / 3600
-        let tzOffset = Int(round(longitude / 15.0)) * 3600
+        let tzOffset = utcOffsetSeconds ?? Int(round(longitude / 15.0)) * 3600
         let locationTimezone = TimeZone(secondsFromGMT: tzOffset) ?? .current
 
         return AstronomicalAnalysis(

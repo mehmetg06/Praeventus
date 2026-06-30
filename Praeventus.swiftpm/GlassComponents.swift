@@ -54,9 +54,14 @@ struct VisionGlassCard<Content: View>: View {
                     cornerRadius: cornerRadius
                 )
             )
-            .scaleEffect(isBreathing ? 1.01 : 0.99)
+            // Opacity, not scaleEffect: scaling a view backed by `.ultraThinMaterial`
+            // forces the compositor to re-rasterize that blur every frame for the
+            // whole animation, whereas opacity is a single alpha-multiply on the
+            // already-cached texture (same reasoning as the background's "breathe"
+            // animation in AtmosphereBackgroundView).
+            .opacity(isBreathing ? 1.0 : 0.94)
             .onAppear {
-                // Skip the perpetual scale animation in performance mode.
+                // Skip the perpetual breathing animation in performance mode.
                 guard !performanceMode else { return }
                 withAnimation(.easeInOut(duration: 4.0 / animSpeed).repeatForever(autoreverses: true)) {
                     isBreathing = true

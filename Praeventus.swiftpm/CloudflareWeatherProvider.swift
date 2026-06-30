@@ -41,6 +41,7 @@ struct CloudflareWeatherProvider {
     ///   },
     ///   "metar_station": "LTAC",
     ///   "metar_raw": { ... },
+    ///   "utc_offset_seconds": 10800,
     ///   "generated_at": "2026-06-29T..."
     /// }
     /// ```
@@ -61,7 +62,8 @@ struct CloudflareWeatherProvider {
         return ForecastBundle(
             models: models,
             metarStation: envelope.metar_station,
-            metarRaw: envelope.metar_raw
+            metarRaw: envelope.metar_raw,
+            utcOffsetSeconds: envelope.utc_offset_seconds
         )
     }
 
@@ -193,6 +195,10 @@ struct ForecastBundle {
     let models: [WeatherModel: ForecastResponse]
     let metarStation: String?
     let metarRaw: MetarRaw?
+    /// DST-aware UTC offset (seconds) for the location's real IANA timezone,
+    /// computed server-side. Used instead of a longitude-only approximation
+    /// so the header clock and Astronomik card agree with the actual local time.
+    let utcOffsetSeconds: Int?
 }
 
 private struct NarrativeResponse: Decodable {
@@ -203,6 +209,7 @@ private struct WorkerEnvelope: Decodable {
     let models: [String: ForecastResponse]
     let metar_station: String?
     let metar_raw: MetarRaw?
+    let utc_offset_seconds: Int?
     let generated_at: String?
 }
 
