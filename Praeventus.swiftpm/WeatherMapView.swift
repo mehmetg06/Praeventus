@@ -261,7 +261,7 @@ struct RadarMapContainer: UIViewRepresentable {
 
 // MKMapViewDelegate conformance — @preconcurrency lets an @MainActor class
 // satisfy a pre-concurrency protocol without nonisolated boilerplate.
-extension RadarMapContainer.Coordinator: @preconcurrency MKMapViewDelegate {
+extension RadarMapContainer.Coordinator: MKMapViewDelegate {
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
         guard let tile = overlay as? WorkerTileOverlay else {
             return MKOverlayRenderer(overlay: overlay)
