@@ -37,6 +37,38 @@ function inHgToHPa(v) { return v ? Math.round(v * 33.8639 * 10) / 10 : null; }
 function ktsToKmh(v)  { return v ? Math.round(v * 1.852  * 10) / 10 : null; }
 function smToMetres(v){ return v ? Math.round(v * 1609.34)           : null; }
 
+// Canadian Wind Chill Index (T ≤ 10 °C, wind ≥ 5 km/h) and
+// NWS Rothfusz Heat Index (T ≥ 27 °C, humidity ≥ 40 %).
+// Falls back to actual temperature for the temperate middle range.
+function apparentTemp(tempC, humidity, windKmh) {
+  if (tempC <= 10 && windKmh >= 5) {
+    const v = Math.pow(windKmh, 0.16);
+    return Math.round((13.12 + 0.6215 * tempC - 11.37 * v + 0.3965 * tempC * v) * 10) / 10;
+  }
+  if (tempC >= 27 && humidity >= 40) {
+    const T = tempC * 9 / 5 + 32;
+    const R = humidity;
+    const hi = -42.379 + 2.04901523 * T + 10.14333127 * R
+               - 0.22475541 * T * R - 6.83783e-3 * T * T
+               - 5.481717e-2 * R * R + 1.22874e-3 * T * T * R
+               + 8.5282e-4 * T * R * R - 1.99e-6 * T * T * R * R;
+    return Math.round(((hi - 32) * 5 / 9) * 10) / 10;
+  }
+  return tempC;
+}
+
+// Circular (vector) mean of compass bearings — correct across the 0°/360° seam.
+function circularMeanDir(dirs) {
+  const valid = dirs.filter(d => d != null);
+  if (!valid.length) return null;
+  const rads = valid.map(d => d * Math.PI / 180);
+  const s = rads.reduce((sum, r) => sum + Math.sin(r), 0);
+  const c = rads.reduce((sum, r) => sum + Math.cos(r), 0);
+  if (s === 0 && c === 0) return valid[0];
+  const mean = Math.atan2(s, c) * 180 / Math.PI;
+  return Math.round(((mean % 360) + 360) % 360);
+}
+
 async function nearestICAO(lat, lon) {
   const delta = 2.0;
   const url = `${AIRPORT_BASE}?bbox=${lon-delta},${lat-delta},${lon+delta},${lat+delta}&format=json`;
@@ -110,7 +142,8 @@ async function fetchMETNorway(lat, lon) {
   const hourly = {
     time: [], temperature_2m: [], apparent_temperature: [], relative_humidity_2m: [],
     precipitation_probability: [], wind_speed_10m: [], wind_direction_10m: [],
-    wind_gusts_10m: [], uv_index: [], weather_code: []
+    wind_gusts_10m: [], uv_index: [], weather_code: [],
+    dew_point_2m: [], visibility: []
   };
 
   let current = null;
@@ -126,6 +159,7 @@ async function fetchMETNorway(lat, lon) {
 
     let precip_prob = 0;
     let weather_symbol = "";
+    let precip_amount = 0;
 
     const next1 = w.data.next_1_hours;
     const next6 = w.data.next_6_hours;
@@ -133,71 +167,100 @@ async function fetchMETNorway(lat, lon) {
     if (next1) {
       precip_prob = next1.details?.probability_of_precipitation ?? 0;
       weather_symbol = next1.summary?.symbol_code ?? "";
+      precip_amount = next1.details?.precipitation_amount ?? 0;
     } else if (next6) {
       precip_prob = next6.details?.probability_of_precipitation ?? 0;
       weather_symbol = next6.summary?.symbol_code ?? "";
+      precip_amount = next6.details?.precipitation_amount ?? 0;
     }
 
     const weather_code = mapMetNoWMO(weather_symbol);
-    const wind_speed = (d.wind_speed || 0) * 3.6;
-    const wind_gusts = (d.wind_speed_of_gust || d.wind_speed || 0) * 3.6;
+    const wind_speed  = (d.wind_speed || 0) * 3.6;
+    const wind_gusts  = (d.wind_speed_of_gust ?? d.wind_speed ?? 0) * 3.6;
+    const uv          = d.ultraviolet_index_clear_sky ?? 0;
+    const humidity    = d.relative_humidity ?? 60;
+    const dew_point   = d.dew_point_temperature ?? d.air_temperature;
+    const visibility  = d.visibility ?? 10000;
+    const wind_dir    = d.wind_from_direction != null ? Math.round(d.wind_from_direction) : null;
 
     if (!current || Math.abs(tDate.getTime() - now.getTime()) < Math.abs(new Date(current.time).getTime() - now.getTime())) {
       current = {
         time,
-        temperature_2m: d.air_temperature,
-        apparent_temperature: d.air_temperature,
-        relative_humidity_2m: d.relative_humidity,
-        surface_pressure: d.air_pressure_at_sea_level,
-        pressure_msl: d.air_pressure_at_sea_level,
-        wind_speed_10m: wind_speed,
-        wind_direction_10m: d.wind_from_direction != null ? Math.round(d.wind_from_direction) : null,
-        wind_gusts_10m: wind_gusts,
-        uv_index: d.ultraviolet_index_clear_sky || 0,
-        dew_point_2m: d.dew_point_temperature || d.air_temperature,
-        visibility: d.visibility || 10000,
+        temperature_2m:           d.air_temperature,
+        apparent_temperature:     apparentTemp(d.air_temperature, humidity, wind_speed),
+        relative_humidity_2m:     humidity,
+        surface_pressure:         d.air_pressure_at_sea_level,
+        pressure_msl:             d.air_pressure_at_sea_level,
+        wind_speed_10m:           wind_speed,
+        wind_direction_10m:       wind_dir,
+        wind_gusts_10m:           wind_gusts,
+        uv_index:                 uv,
+        dew_point_2m:             dew_point,
+        visibility:               visibility,
         precipitation_probability: precip_prob,
-        weather_code: weather_code
+        weather_code:             weather_code
       };
     }
 
     hourly.time.push(time);
     hourly.temperature_2m.push(d.air_temperature);
-    hourly.apparent_temperature.push(d.air_temperature);
-    hourly.relative_humidity_2m.push(d.relative_humidity);
+    hourly.apparent_temperature.push(apparentTemp(d.air_temperature, humidity, wind_speed));
+    hourly.relative_humidity_2m.push(humidity);
     hourly.precipitation_probability.push(precip_prob);
     hourly.wind_speed_10m.push(wind_speed);
-    hourly.wind_direction_10m.push(d.wind_from_direction != null ? Math.round(d.wind_from_direction) : null);
+    hourly.wind_direction_10m.push(wind_dir);
     hourly.wind_gusts_10m.push(wind_gusts);
-    hourly.uv_index.push(d.ultraviolet_index_clear_sky || 0);
+    hourly.uv_index.push(uv);
     hourly.weather_code.push(weather_code);
+    hourly.dew_point_2m.push(dew_point);
+    hourly.visibility.push(visibility);
 
     const dayKey = time.split('T')[0];
     if (!dailyMap[dayKey]) {
       dailyMap[dayKey] = {
         minT: d.air_temperature, maxT: d.air_temperature,
-        maxPrecipProb: precip_prob, codes: [weather_code]
+        maxPrecipProb: precip_prob, codes: [weather_code],
+        maxUV: uv, maxWind: wind_speed, maxGust: wind_gusts,
+        windDirs: wind_dir != null ? [wind_dir] : [],
+        precipSum: precip_amount
       };
     } else {
       if (d.air_temperature < dailyMap[dayKey].minT) dailyMap[dayKey].minT = d.air_temperature;
       if (d.air_temperature > dailyMap[dayKey].maxT) dailyMap[dayKey].maxT = d.air_temperature;
       if (precip_prob > dailyMap[dayKey].maxPrecipProb) dailyMap[dayKey].maxPrecipProb = precip_prob;
       dailyMap[dayKey].codes.push(weather_code);
+      if (uv > dailyMap[dayKey].maxUV) dailyMap[dayKey].maxUV = uv;
+      if (wind_speed > dailyMap[dayKey].maxWind) dailyMap[dayKey].maxWind = wind_speed;
+      if (wind_gusts > dailyMap[dayKey].maxGust) dailyMap[dayKey].maxGust = wind_gusts;
+      if (wind_dir != null) dailyMap[dayKey].windDirs.push(wind_dir);
+      dailyMap[dayKey].precipSum += precip_amount;
     }
   }
 
   const daily = {
     time: [], temperature_2m_max: [], temperature_2m_min: [],
-    precipitation_probability_max: [], weather_code: [], sunrise: [], sunset: []
+    apparent_temperature_max: [], apparent_temperature_min: [],
+    precipitation_probability_max: [], precipitation_sum: [],
+    weather_code: [], sunrise: [], sunset: [],
+    uv_index_max: [], wind_speed_10m_max: [],
+    wind_direction_10m_dominant: [], wind_gusts_10m_max: []
   };
 
   for (const day of Object.keys(dailyMap)) {
+    const dm = dailyMap[day];
     daily.time.push(day);
-    daily.temperature_2m_max.push(dailyMap[day].maxT);
-    daily.temperature_2m_min.push(dailyMap[day].minT);
-    daily.precipitation_probability_max.push(dailyMap[day].maxPrecipProb);
+    daily.temperature_2m_max.push(dm.maxT);
+    daily.temperature_2m_min.push(dm.minT);
+    daily.apparent_temperature_max.push(apparentTemp(dm.maxT, 60, dm.maxWind));
+    daily.apparent_temperature_min.push(apparentTemp(dm.minT, 70, dm.maxWind));
+    daily.precipitation_probability_max.push(dm.maxPrecipProb);
+    daily.precipitation_sum.push(Math.round(dm.precipSum * 10) / 10);
+    daily.uv_index_max.push(dm.maxUV);
+    daily.wind_speed_10m_max.push(dm.maxWind);
+    daily.wind_direction_10m_dominant.push(circularMeanDir(dm.windDirs));
+    daily.wind_gusts_10m_max.push(dm.maxGust);
 
-    const codes = dailyMap[day].codes;
+    const codes = dm.codes;
     const counts = {};
     let maxCode = codes[0]; let maxCount = 0;
     for (const c of codes) {
@@ -232,7 +295,8 @@ async function fetchBrightSky(lat, lon) {
   const hourly = {
     time: [], temperature_2m: [], apparent_temperature: [], relative_humidity_2m: [],
     precipitation_probability: [], wind_speed_10m: [], wind_direction_10m: [],
-    wind_gusts_10m: [], uv_index: [], weather_code: []
+    wind_gusts_10m: [], uv_index: [], weather_code: [],
+    dew_point_2m: [], visibility: []
   };
   const dailyMap = {};
 
@@ -243,65 +307,93 @@ async function fetchBrightSky(lat, lon) {
     const time = w.timestamp;
     const tDate = new Date(time);
 
-    const weather_code = mapBrightSkyWMO(w.condition);
-    const precip_prob = w.precipitation_probability || 0;
+    const weather_code   = mapBrightSkyWMO(w.condition);
+    const precip_prob    = w.precipitation_probability ?? 0;
+    const precip_amount  = w.precipitation ?? 0;
+    const humidity       = w.relative_humidity ?? 60;
+    const wind_speed     = w.wind_speed ?? 0;
+    const wind_gusts     = w.wind_gust_speed ?? wind_speed;
+    const wind_dir       = w.wind_direction != null ? Math.round(w.wind_direction) : null;
+    const dew_point      = w.dew_point ?? null;
+    const visibility     = w.visibility ?? null;
 
     if (!current || Math.abs(tDate.getTime() - now.getTime()) < Math.abs(new Date(current.time).getTime() - now.getTime())) {
       current = {
         time,
-        temperature_2m: w.temperature,
-        apparent_temperature: w.temperature,
-        relative_humidity_2m: w.relative_humidity,
-        surface_pressure: w.pressure_msl,
-        pressure_msl: w.pressure_msl,
-        wind_speed_10m: w.wind_speed,
-        wind_direction_10m: w.wind_direction != null ? Math.round(w.wind_direction) : null,
-        wind_gusts_10m: w.wind_gust_speed || w.wind_speed,
-        uv_index: 0,
-        dew_point_2m: w.dew_point,
-        visibility: w.visibility,
+        temperature_2m:            w.temperature,
+        apparent_temperature:      apparentTemp(w.temperature, humidity, wind_speed),
+        relative_humidity_2m:      humidity,
+        surface_pressure:          w.pressure_msl,
+        pressure_msl:              w.pressure_msl,
+        wind_speed_10m:            wind_speed,
+        wind_direction_10m:        wind_dir,
+        wind_gusts_10m:            wind_gusts,
+        uv_index:                  0,
+        dew_point_2m:              dew_point,
+        visibility:                visibility,
         precipitation_probability: precip_prob,
-        weather_code: weather_code
+        weather_code:              weather_code
       };
     }
 
     hourly.time.push(time);
     hourly.temperature_2m.push(w.temperature);
-    hourly.apparent_temperature.push(w.temperature);
-    hourly.relative_humidity_2m.push(w.relative_humidity);
+    hourly.apparent_temperature.push(apparentTemp(w.temperature, humidity, wind_speed));
+    hourly.relative_humidity_2m.push(humidity);
     hourly.precipitation_probability.push(precip_prob);
-    hourly.wind_speed_10m.push(w.wind_speed);
-    hourly.wind_direction_10m.push(w.wind_direction != null ? Math.round(w.wind_direction) : null);
-    hourly.wind_gusts_10m.push(w.wind_gust_speed || w.wind_speed);
+    hourly.wind_speed_10m.push(wind_speed);
+    hourly.wind_direction_10m.push(wind_dir);
+    hourly.wind_gusts_10m.push(wind_gusts);
     hourly.uv_index.push(0);
     hourly.weather_code.push(weather_code);
+    hourly.dew_point_2m.push(dew_point);
+    hourly.visibility.push(visibility);
 
     const dayKey = time.split('T')[0];
     if (!dailyMap[dayKey]) {
       dailyMap[dayKey] = {
         minT: w.temperature, maxT: w.temperature,
-        maxPrecipProb: precip_prob, codes: [weather_code]
+        maxPrecipProb: precip_prob, codes: [weather_code],
+        maxWind: wind_speed, maxGust: wind_gusts,
+        windDirs: wind_dir != null ? [wind_dir] : [],
+        precipSum: precip_amount
       };
     } else {
       if (w.temperature < dailyMap[dayKey].minT) dailyMap[dayKey].minT = w.temperature;
       if (w.temperature > dailyMap[dayKey].maxT) dailyMap[dayKey].maxT = w.temperature;
       if (precip_prob > dailyMap[dayKey].maxPrecipProb) dailyMap[dayKey].maxPrecipProb = precip_prob;
       dailyMap[dayKey].codes.push(weather_code);
+      if (wind_speed > dailyMap[dayKey].maxWind) dailyMap[dayKey].maxWind = wind_speed;
+      if (wind_gusts > dailyMap[dayKey].maxGust) dailyMap[dayKey].maxGust = wind_gusts;
+      if (wind_dir != null) dailyMap[dayKey].windDirs.push(wind_dir);
+      dailyMap[dayKey].precipSum += precip_amount;
     }
   }
 
   const daily = {
     time: [], temperature_2m_max: [], temperature_2m_min: [],
-    precipitation_probability_max: [], weather_code: [], sunrise: [], sunset: []
+    apparent_temperature_max: [], apparent_temperature_min: [],
+    precipitation_probability_max: [], precipitation_sum: [],
+    weather_code: [], sunrise: [], sunset: [],
+    uv_index_max: [], wind_speed_10m_max: [],
+    wind_direction_10m_dominant: [], wind_gusts_10m_max: []
   };
 
   for (const day of Object.keys(dailyMap)) {
+    const dm = dailyMap[day];
     daily.time.push(day);
-    daily.temperature_2m_max.push(dailyMap[day].maxT);
-    daily.temperature_2m_min.push(dailyMap[day].minT);
-    daily.precipitation_probability_max.push(dailyMap[day].maxPrecipProb);
+    daily.temperature_2m_max.push(dm.maxT);
+    daily.temperature_2m_min.push(dm.minT);
+    daily.apparent_temperature_max.push(apparentTemp(dm.maxT, 60, dm.maxWind));
+    daily.apparent_temperature_min.push(apparentTemp(dm.minT, 70, dm.maxWind));
+    daily.precipitation_probability_max.push(dm.maxPrecipProb);
+    daily.precipitation_sum.push(Math.round(dm.precipSum * 10) / 10);
+    daily.uv_index_max.push(0);
+    daily.wind_speed_10m_max.push(dm.maxWind);
+    daily.wind_direction_10m_dominant.push(circularMeanDir(dm.windDirs));
+    daily.wind_gusts_10m_max.push(dm.maxGust);
 
-    const codes = dailyMap[day].codes;
+    const codes = dm.codes;
     const counts = {};
     let maxCode = codes[0]; let maxCount = 0;
     for (const c of codes) {
@@ -380,7 +472,7 @@ async function handleForecast(url, env) {
 
   const latR = Math.round(lat * 10000) / 10000;
   const lonR = Math.round(lon * 10000) / 10000;
-  const cacheKey = `forecast_v2_${latR}_${lonR}`;
+  const cacheKey = `forecast_v3_${latR}_${lonR}`;
 
   const cached = await cacheGet(env, cacheKey);
   if (cached) return jsonResponse({ ...cached, _cached: true });
