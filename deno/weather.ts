@@ -45,7 +45,6 @@ const BRIGHTSKY_BASE = "https://api.brightsky.dev/weather";
 // Policy: https://operations.osmfoundation.org/policies/nominatim/
 const NOMINATIM_GEO = "https://nominatim.openstreetmap.org/search";
 const METAR_BASE = "https://aviationweather.gov/api/data/metar";
-const AIRPORT_BASE = "https://aviationweather.gov/api/data/airport";
 
 // deno-lint-ignore no-explicit-any
 type Json = any;
@@ -110,39 +109,49 @@ function utcOffsetSeconds(tz: string | null): number | null {
 
 async function nearestICAO(lat: number, lon: number): Promise<string | null> {
   const delta = 2.0;
+  // Query the METAR endpoint by bbox instead of the airport endpoint: the
+  // airport endpoint returns HTTP 204 (empty) for bbox queries, and the METAR
+  // endpoint also guarantees the station is actively publishing observations.
   // aviationweather.gov expects bbox as minLat,minLon,maxLat,maxLon (lat first).
-  const url = `${AIRPORT_BASE}?bbox=${lat - delta},${lon - delta},${lat + delta},${
+  const url = `${METAR_BASE}?bbox=${lat - delta},${lon - delta},${lat + delta},${
     lon + delta
-  }&format=json`;
+  }&format=json&taf=false`;
+  console.warn(`nearestICAO: querying ${url}`);
   try {
     const res = await fetch(url, {
       signal: AbortSignal.timeout(4000),
       headers: { "User-Agent": USER_AGENT },
     });
     if (!res.ok) {
-      console.warn(`nearestICAO airport query failed: HTTP ${res.status} for ${url}`);
+      console.warn(`nearestICAO station query failed: HTTP ${res.status} for ${url}`);
       return null;
     }
-    const airports = await res.json();
-    if (!airports?.length) {
-      console.warn(`nearestICAO: no airports in bbox for lat=${lat} lon=${lon}`);
+    const stations = await res.json();
+    if (!Array.isArray(stations) || stations.length === 0) {
+      console.warn(`nearestICAO: no reporting stations in bbox for lat=${lat} lon=${lon}`);
       return null;
     }
     let best: Json = null;
     let bestDist = Infinity;
-    for (const ap of airports) {
+    for (const st of stations) {
       const d = Math.hypot(
-        parseFloat(ap.latitude || ap.lat || 0) - lat,
-        parseFloat(ap.longitude || ap.lon || 0) - lon,
+        parseFloat(st.lat ?? st.latitude ?? 0) - lat,
+        parseFloat(st.lon ?? st.longitude ?? 0) - lon,
       );
       if (d < bestDist) {
         bestDist = d;
-        best = ap;
+        best = st;
       }
     }
     const icao = best ? (best.icaoId || best.stationIdentifier || best.id || null) : null;
     if (!icao) {
-      console.warn(`nearestICAO: nearest airport had no ICAO id (${JSON.stringify(best)})`);
+      console.warn(`nearestICAO: nearest station had no ICAO id (${JSON.stringify(best)})`);
+    } else {
+      console.warn(
+        `nearestICAO: selected ${icao} at lat=${best.lat} lon=${best.lon} (dist=${
+          bestDist.toFixed(3)
+        }) from ${stations.length} stations`,
+      );
     }
     return icao;
   } catch (err) {
