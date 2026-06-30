@@ -14,6 +14,7 @@ struct HomeView: View {
     @State private var weatherNarrative: String = ""
     @State private var isFetchingNarrative = false
     @State private var minutecastPoints: [MinutePoint] = []
+    @State private var minutecastTask: Task<Void, Never>?
 
     private var severity: WeatherSeverity {
         StorySentiment.severity(
@@ -327,9 +328,14 @@ struct HomeView: View {
 
     private func refreshMinutecast() {
         guard store.hourly.count >= 2 else {
+            minutecastTask?.cancel()
+            minutecastTask = nil
             minutecastPoints = []
             return
         }
+
+        minutecastTask?.cancel()
+        minutecastTask = nil
 
         let anchors = Array(store.hourly.prefix(4))
         let temperatures = anchors.map(\.temperature)
@@ -341,7 +347,7 @@ struct HomeView: View {
         let dailyMaxUV = Double(store.daily.first?.uvIndexMax ?? weather.uvIndex)
         let cloudCoverPercent = atmosphere.cloudCover * 100
 
-        Task.detached(priority: .userInitiated) {
+        let task = Task.detached(priority: .userInitiated) {
             let all = MinutecastEngine.interpolate(
                 temperatures: temperatures,
                 humidities: humidities,
@@ -352,11 +358,15 @@ struct HomeView: View {
                 dailyMaxUV: dailyMaxUV,
                 cloudCoverPercent: cloudCoverPercent
             )
+            guard !Task.isCancelled else { return }
             let pts = Array(all.prefix(61))
+            guard !Task.isCancelled else { return }
             await MainActor.run {
+                guard !Task.isCancelled else { return }
                 minutecastPoints = pts
             }
         }
+        minutecastTask = task
     }
 
     private func startNarrativeFetch() {

@@ -158,8 +158,8 @@ final class WeatherStore: ObservableObject {
         location = place
         Self.persist(place)
 
-        if WeatherSettings.sensorCalibrationEnabled { calibration.start() }
         if place.isCurrentLocation {
+            if WeatherSettings.sensorCalibrationEnabled { calibration.start() }
             startStormMonitoring()
         }
 
