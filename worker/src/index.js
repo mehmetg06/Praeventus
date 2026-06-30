@@ -1,5 +1,5 @@
 // Praeventus Weather Worker v4
-// Routes: /forecast (ECMWF + GFS + ICON + METAR), /search, /narrative, /nowcast
+// Routes: /forecast (ECMWF + ICON + METAR), /search, /narrative, /nowcast
 
 const METNORWAY_BASE  = "https://api.met.no/weatherapi/locationforecast/2.0/complete";
 const NOWCAST_BASE    = "https://api.met.no/weatherapi/nowcast/2.0/complete";

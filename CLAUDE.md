@@ -8,13 +8,13 @@
 
 ### Direct Aggregator (Doğrudan Toplayıcı) Yapısı
 Proje, aracı ve kısıtlayıcı hava durumu API'lerini (ör. Open-Meteo) tamamen terk ederek **"Direct Aggregator"** mimarisine geçmiştir.
-Tüm dış veri talepleri, Cloudflare Worker üzerinden doğrudan global ve kurumsal veri merkezlerine yönlendirilir. Worker, bu heterojen verileri toplayıp, Swift uygulamasının beklediği standart "üçlü model" (ECMWF, GFS, ICON) yapısına dönüştürerek (mapping) cihaza tek bir JSON paketi halinde iletir. Bu sayede cihazdaki `WeatherFusion` motoru hiçbir kod değişikliği gerektirmeden çalışmaya devam eder.
+Tüm dış veri talepleri, Cloudflare Worker üzerinden doğrudan global ve kurumsal veri merkezlerine yönlendirilir. Worker, bu heterojen verileri toplayıp, Swift uygulamasının beklediği standart "ikili model" (ECMWF, ICON) yapısına dönüştürerek (mapping) cihaza tek bir JSON paketi halinde iletir. Bu sayede cihazdaki `WeatherFusion` motoru hiçbir kod değişikliği gerektirmeden çalışmaya devam eder.
 
 Sistem, aşağıdaki bağımsız kaynakları eşzamanlı olarak sorgular ve birleştirir:
 
 | Model / Veri | Veri Kaynağı | Lisans ve Ticari Uyum | Görevi ve Güçlü Yönü |
 |--------------|--------------|-----------------------|----------------------|
-| **ECMWF & GFS** | **MET Norway** (`api.met.no`) | CC-BY-4.0 / Public Domain | Global tahmin liderleri. `User-Agent: Praeventus/1.0` başlığı zorunludur. |
+| **ECMWF IFS 0.25°** | **MET Norway** (`api.met.no`) | CC-BY-4.0 / Public Domain | Global tahmin lideri. `User-Agent: Praeventus/1.0` başlığı zorunludur. |
 | **ICON Global** | **Bright Sky** (`api.brightsky.dev`) | Open Data (DWD) | Yüksek çözünürlüklü Avrupa ve global kapsam. |
 | **Nowcast (Radar)** | **MET Norway** (`api.met.no/weatherapi/nowcast`) | CC-BY-4.0 | Radar tabanlı anlık yağış tahmini (5 dk güncelleme). Sadece Kuzey Avrupa kapsama alanında aktiftir; dışında `radarCoverage: false` döner. |
 | **METAR** | **aviationweather.gov** (NOAA) | Public Domain | İstasyon bazlı, yerel anlık gözlem verisi (yer doğrulaması). |
@@ -46,7 +46,7 @@ Sistemin veri akışı, birbirinden tamamen izole edilmiş üç katmanda gerçek
   │
   ├─ 2. Tahmin (Forecast) ──→ CloudflareWorker.forecast()
   │                             │
-  │                             ├─→ MET Norway (locationforecast) ──→ ECMWF & GFS Verisi
+  │                             ├─→ MET Norway (locationforecast) ──→ ECMWF IFS 0.25° Verisi
   │                             ├─→ Bright Sky (api.brightsky.dev) ──→ ICON Verisi
   │                             └─→ NOAA (aviationweather.gov)     ──→ METAR (ground-truth overlay)
   │                             │

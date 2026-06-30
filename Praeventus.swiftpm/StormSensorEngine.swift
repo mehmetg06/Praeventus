@@ -72,7 +72,7 @@ import CoreMotion
 ///
 /// Usage (from `@MainActor` WeatherStore):
 /// ```swift
-/// for await alert in await stormSensor.startMonitoring() {
+/// for await alert in await stormSensor.startMonitoring(session: 1) {
 ///     stormAlert = alert
 /// }
 /// ```
@@ -121,6 +121,10 @@ actor StormSensorEngine {
     private var readings  = [PressureReading]()
     private var continuation: AsyncStream<StormAlert>.Continuation?
     private var isMonitoring = false
+    /// Identifies the active monitoring session. A `stopMonitoring(session:)`
+    /// call only takes effect when it targets the current session, so a stop
+    /// issued for an older session can't tear down a newer one.
+    private var session = 0
 
     /// Maximum readings kept in the ring buffer (≈ one sample per 30 s over 4 h).
     private static let bufferLimit = 480
@@ -135,7 +139,11 @@ actor StormSensorEngine {
     ///
     /// Calling this a second time while already monitoring restarts the sensor
     /// cleanly and returns a fresh stream (the previous stream is finished).
-    func startMonitoring() -> AsyncStream<StormAlert> {
+    ///
+    /// `session` is a caller-supplied token that scopes a later
+    /// `stopMonitoring(session:)` to this exact session.
+    func startMonitoring(session: Int) -> AsyncStream<StormAlert> {
+        self.session = session
         if isMonitoring {
             altimeter.stopRelativeAltitudeUpdates()
             isMonitoring = false
@@ -164,8 +172,12 @@ actor StormSensorEngine {
         return stream
     }
 
-    /// Stops monitoring and finishes the active stream.
-    func stopMonitoring() {
+    /// Stops monitoring and finishes the active stream, but only if `session`
+    /// still matches the active session — a stale stop (e.g. one issued during
+    /// suspension that arrives after a resume has already started a new
+    /// session) is ignored so it can't silently kill live monitoring.
+    func stopMonitoring(session: Int) {
+        guard session == self.session else { return }
         guard isMonitoring else { return }
         altimeter.stopRelativeAltitudeUpdates()
         isMonitoring = false
@@ -232,13 +244,13 @@ actor StormSensorEngine {
 actor StormSensorEngine {
     nonisolated var isAvailable: Bool { false }
 
-    func startMonitoring() -> AsyncStream<StormAlert> {
+    func startMonitoring(session: Int) -> AsyncStream<StormAlert> {
         let (stream, continuation) = AsyncStream.makeStream(of: StormAlert.self)
         continuation.finish()
         return stream
     }
 
-    func stopMonitoring() {}
+    func stopMonitoring(session: Int) {}
 }
 
 #endif
