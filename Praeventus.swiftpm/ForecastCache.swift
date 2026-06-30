@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(os)
+import os
+#endif
 
 /// A persisted forecast snapshot, written after each successful (optionally
 /// fused) fetch so the app can paint instantly on launch and survive being
@@ -26,14 +29,35 @@ enum ForecastCache {
 
     static func save(_ entry: CachedForecast, latitude: Double, longitude: Double) {
         guard let url = fileURL(latitude: latitude, longitude: longitude) else { return }
-        guard let data = try? encoder.encode(entry) else { return }
-        try? data.write(to: url, options: .atomic)
+        let data: Data
+        do {
+            data = try encoder.encode(entry)
+        } catch {
+            log("encode failed during save: \(error)")
+            return
+        }
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            log("disk write failed: \(error)")
+        }
     }
 
     static func load(latitude: Double, longitude: Double) -> CachedForecast? {
-        guard let url = fileURL(latitude: latitude, longitude: longitude),
-              let data = try? Data(contentsOf: url) else { return nil }
-        return try? decoder.decode(CachedForecast.self, from: data)
+        guard let url = fileURL(latitude: latitude, longitude: longitude) else { return nil }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            // File doesn't exist yet — normal on first launch.
+            return nil
+        }
+        do {
+            return try decoder.decode(CachedForecast.self, from: data)
+        } catch {
+            log("decode failed (corrupt cache will be overwritten on next save): \(error)")
+            return nil
+        }
     }
 
     // MARK: - Storage
@@ -46,6 +70,18 @@ enum ForecastCache {
         let key = String(format: "forecast_%.2f_%.2f.json", latitude, longitude)
         return dir.appendingPathComponent(key)
     }
+
+    private static func log(_ message: String) {
+        #if canImport(os)
+        logger.warning("\(message)")
+        #else
+        print("[ForecastCache] \(message)")
+        #endif
+    }
+
+    #if canImport(os)
+    private static let logger = Logger(subsystem: "com.mehmetg06.praeventus", category: "ForecastCache")
+    #endif
 
     private static let encoder: JSONEncoder = {
         let e = JSONEncoder()

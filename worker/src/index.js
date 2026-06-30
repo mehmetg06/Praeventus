@@ -89,7 +89,7 @@ async function nearestICAO(lat, lon) {
       if (d < bestDist) { bestDist = d; best = ap; }
     }
     return best ? (best.icaoId || best.stationIdentifier || best.id || null) : null;
-  } catch { return null; }
+  } catch (err) { console.warn("nearestICAO failed:", err); return null; }
 }
 
 async function fetchMETAR(icao) {
@@ -103,7 +103,7 @@ async function fetchMETAR(icao) {
     if (!res.ok) return null;
     const data = await res.json();
     return Array.isArray(data) && data.length > 0 ? data[0] : null;
-  } catch { return null; }
+  } catch (err) { console.warn("fetchMETAR failed:", err); return null; }
 }
 
 async function fetchMETARForCoord(lat, lon) {
@@ -444,7 +444,7 @@ async function cacheGet(env, key) {
     if (!env?.PRAEVENTUS_CACHE) return null;
     const val = await env.PRAEVENTUS_CACHE.get(key);
     return val ? JSON.parse(val) : null;
-  } catch { return null; }
+  } catch (err) { console.warn("cacheGet failed:", key, err); return null; }
 }
 
 async function cachePut(env, key, value, ttl) {
@@ -453,7 +453,7 @@ async function cachePut(env, key, value, ttl) {
     await env.PRAEVENTUS_CACHE.put(key, JSON.stringify(value), {
       expirationTtl: ttl
     });
-  } catch {}
+  } catch (err) { console.warn("cachePut failed:", key, err); }
 }
 
 function corsHeaders() {
@@ -501,6 +501,10 @@ async function handleForecast(url, env) {
 
   if (Object.keys(models).length === 0)
     return jsonResponse({ error: "tüm modeller başarısız" }, 503);
+
+  if (ecmwf.status === "rejected") console.warn("MET Norway fetch rejected:", ecmwf.reason);
+  if (brightsky.status === "rejected") console.warn("Bright Sky fetch rejected:", brightsky.reason);
+  if (metarFetch.status === "rejected") console.warn("METAR fetch rejected:", metarFetch.reason);
 
   const mr     = metarFetch.status === "fulfilled" ? metarFetch.value : { icao: null, metar: null };
   const metar  = mr.metar;
@@ -642,7 +646,10 @@ async function handleNarrative(url, env) {
                || aiResp?.response
                || "").trim();
     if (text) narrative = text;
-  } catch (err) { narrative = String(err); }
+  } catch (err) {
+    console.error("AI narrative generation failed:", err);
+    // Keep the localised fallback — never expose raw error text to the user.
+  }
 
   const result = { narrative, cached: false, lang };
   if (narrative !== fallback)
@@ -756,7 +763,8 @@ async function handleSearch(url, env) {
     await cachePut(env, cacheKey, response, 2592000);
     return jsonResponse(response);
   } catch (e) {
-    return jsonResponse({ error: "geocoding başarısız" }, 503);
+    console.error("handleSearch geocoding failed:", e);
+    return jsonResponse({ error: "geocoding başarısız", detail: String(e) }, 503);
   }
 }
 
@@ -788,14 +796,14 @@ async function tileCacheGet(env, key) {
   try {
     if (!env?.PRAEVENTUS_CACHE) return null;
     return await env.PRAEVENTUS_CACHE.get(key, { type: "arrayBuffer" });
-  } catch { return null; }
+  } catch (err) { console.warn("tileCacheGet failed:", key, err); return null; }
 }
 
 async function tileCachePut(env, key, buffer, ttl) {
   try {
     if (!env?.PRAEVENTUS_CACHE) return;
     await env.PRAEVENTUS_CACHE.put(key, buffer, { expirationTtl: ttl });
-  } catch {}
+  } catch (err) { console.warn("tileCachePut failed:", key, err); }
 }
 
 function tileResponse(buffer, contentType) {
@@ -840,7 +848,8 @@ async function handleTileNexrad(url, env) {
     const buffer = await res.arrayBuffer();
     await tileCachePut(env, cacheKey, buffer, 300);
     return tileResponse(buffer, "image/png");
-  } catch {
+  } catch (err) {
+    console.warn("handleTileNexrad failed:", err);
     return new Response(null, { status: 503, headers: corsHeaders() });
   }
 }
@@ -875,7 +884,8 @@ async function handleTileSatellite(url, env) {
     const buffer = await res.arrayBuffer();
     await tileCachePut(env, cacheKey, buffer, 300);
     return tileResponse(buffer, "image/png");
-  } catch {
+  } catch (err) {
+    console.warn("handleTileSatellite failed:", err);
     return new Response(null, { status: 503, headers: corsHeaders() });
   }
 }
@@ -911,7 +921,8 @@ async function handleTileDwd(url, env) {
     const buffer = await res.arrayBuffer();
     await tileCachePut(env, cacheKey, buffer, 300);
     return tileResponse(buffer, "image/png");
-  } catch {
+  } catch (err) {
+    console.warn("handleTileDwd failed:", err);
     return new Response(null, { status: 503, headers: corsHeaders() });
   }
 }

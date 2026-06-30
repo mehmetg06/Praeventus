@@ -36,6 +36,7 @@
 "error.noResults" = "No results found.";
 "error.searchFailed" = "Search failed.";
 "error.transport" = "Connection problem: %@";
+"error.decodingFailed" = "Could not read the weather data.";
 "health.bestHours" = "Best hours outside";
 "health.foehn" = "Foehn";
 "health.heading" = "HEALTH INSIGHTS";

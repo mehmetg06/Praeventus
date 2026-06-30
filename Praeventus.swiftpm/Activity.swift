@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(os)
+import os
+#endif
 
 enum ActivityType: String, CaseIterable, Codable {
     case hiking
@@ -257,12 +260,20 @@ struct ActivitySuitability: Equatable, Identifiable {
 enum ActivityStorage {
     private static let userActivitiesKey = "praeventus_user_activities"
 
+    #if canImport(os)
+    private static let logger = Logger(subsystem: "com.mehmetg06.praeventus", category: "ActivityStorage")
+    #endif
+
     static func saveActivities(_ activities: [Activity]) {
         do {
             let encoded = try JSONEncoder().encode(activities)
             UserDefaults.standard.set(encoded, forKey: userActivitiesKey)
         } catch {
-            print("Error saving activities: \(error)")
+            #if canImport(os)
+            logger.error("Failed to encode activities: \(error)")
+            #else
+            print("[ActivityStorage] Failed to encode activities: \(error)")
+            #endif
         }
     }
 
@@ -273,7 +284,11 @@ enum ActivityStorage {
         do {
             return try JSONDecoder().decode([Activity].self, from: data)
         } catch {
-            print("Error loading activities: \(error)")
+            #if canImport(os)
+            logger.error("Failed to decode activities, resetting to defaults: \(error)")
+            #else
+            print("[ActivityStorage] Failed to decode activities, resetting to defaults: \(error)")
+            #endif
             return Activity.defaults
         }
     }

@@ -36,6 +36,7 @@
 "error.noResults" = "Sonuç bulunamadı.";
 "error.searchFailed" = "Arama başarısız.";
 "error.transport" = "Bağlantı sorunu: %@";
+"error.decodingFailed" = "Hava durumu verisi okunamadı.";
 "health.bestHours" = "Dışarı için en iyi saatler";
 "health.foehn" = "Föhn";
 "health.heading" = "SAĞLIK UYARILARI";
