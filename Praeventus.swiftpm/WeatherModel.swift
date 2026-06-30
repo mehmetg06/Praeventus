@@ -51,5 +51,5 @@ enum WeatherSettings {
     /// narrative and nowcast requests are routed here; no direct upstream API
     /// calls are made from the device.
     static let backendBaseURL =
-        "https://praeventus.deno.dev"
+        "https://praeventus-f0dzy0r4tm9w.praeventus.deno.net"
 }
