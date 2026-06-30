@@ -10,6 +10,28 @@ export function inHgToHPa(v: number | null | undefined): number | null {
   return v ? Math.round(v * 33.8639 * 10) / 10 : null;
 }
 
+// Resolve a METAR altimeter setting to hPa, regardless of the reporting unit.
+// METAR encodes pressure two ways: "Q1007" is already hPa, while "A3012" is
+// inches of mercury (30.12 inHg). The raw observation is authoritative, so we
+// parse it first; the numeric `altim` field (aviationweather.gov already
+// normalises it to hPa) is only a fallback, with a guard for any inHg-style
+// (~26–32) value that slips through.
+export function metarAltimToHPa(
+  altim: number | string | null | undefined,
+  rawOb: string | null | undefined,
+): number | null {
+  if (rawOb) {
+    const q = rawOb.match(/\bQ(\d{3,4})\b/);
+    if (q) return Math.round(parseInt(q[1], 10) * 10) / 10;
+    const a = rawOb.match(/\bA(\d{4})\b/);
+    if (a) return inHgToHPa(parseInt(a[1], 10) / 100);
+  }
+  if (altim == null) return null;
+  const n = typeof altim === "number" ? altim : parseFloat(altim);
+  if (isNaN(n) || n === 0) return null;
+  return n < 100 ? inHgToHPa(n) : Math.round(n * 10) / 10;
+}
+
 export function ktsToKmh(v: number | null | undefined): number | null {
   return v ? Math.round(v * 1.852 * 10) / 10 : null;
 }

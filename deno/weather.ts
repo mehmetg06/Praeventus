@@ -11,10 +11,10 @@ import {
   apparentTemp,
   buildWeatherSummary,
   circularMeanDir,
-  inHgToHPa,
   ktsToKmh,
   mapBrightSkyWMO,
   mapMetNoWMO,
+  metarAltimToHPa,
   metarWMO,
   narrativeSystemPrompt,
   normalizeLang,
@@ -516,7 +516,7 @@ function overlayMETAR(forecast: ForecastModel, metar: Json): ForecastModel {
       Math.max(0, Math.round(100 * (magnus(Td) / magnus(T)))),
     );
   }
-  const hpa = inHgToHPa(metar.altim);
+  const hpa = metarAltimToHPa(metar.altim, metar.rawOb);
   if (hpa) {
     c.surface_pressure = hpa;
     c.pressure_msl = hpa;
