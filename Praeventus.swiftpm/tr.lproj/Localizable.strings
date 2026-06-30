@@ -223,3 +223,34 @@
 "narrative.advice.cold" = "Birkaç dakikadan uzun süre dışarıda kalacaksanız sıcak tutan bir katman faydalı olur.";
 "narrative.advice.calm" = "Genel olarak normal dış mekân planları uygun görünüyor; kıyafetinizi yerel esinti ve günün saatine göre ayarlayın.";
 "narrative.fetching" = "Hava yorumu yükleniyor…";
+
+/* Havacılık METAR kartı */
+"metar.heading"    = "CANLI METAR";
+"metar.station"    = "İSTASYON";
+"metar.wind"       = "RÜZGÂR";
+"metar.altimeter"  = "ALTİMETRE";
+"metar.visibility" = "GÖRÜŞ";
+"metar.wx"         = "MEVCUT HAVA";
+"metar.ceiling"    = "TAVAN";
+"metar.raw"        = "HAM METAR";
+
+/* Hava haritası sekmesi */
+"tab.map"              = "Harita";
+"map.layer.nexrad"     = "NEXRAD Radar";
+"map.layer.satellite"  = "KK Uydu";
+"map.layer.dwd"        = "DWD Radar";
+"map.live"             = "Canlı";
+"map.updating"         = "Güncelleniyor…";
+"map.justNow"          = "şimdi";
+"map.unavailable"      = "Harita iOS/iPadOS gerektirir";
+
+/* Veri kaynağı atıfları */
+"settings.attribution.title"       = "Veri Kaynakları";
+"settings.attribution.footer"      = "Hava verisi: Alman Meteoroloji Servisi (DWD), CC BY 4.0 lisansı · NOAA/aviationweather.gov: Kamu Malı · IEM NEXRAD: akademik açık veri, SLA yok · NASA GIBS (GOES-East KK): Kamu Malı";
+"settings.attribution.noaa.desc"   = "Havacılık METAR ve havalimanı verileri";
+"settings.attribution.dwd.desc"    = "DWD WMS üzerinden radar yağış karoları";
+"settings.attribution.iem.desc"    = "Iowa Mesonet WMS ile NEXRAD radar bileşiği";
+"settings.attribution.gibs.desc"   = "NASA GIBS ile GOES-East kızılötesi uydu karoları";
+"settings.attribution.publicDomain" = "Kamu Malı";
+"settings.attribution.academic"    = "Akademik";
+"common.reset"         = "Sıfırla";

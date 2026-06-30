@@ -47,6 +47,37 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    dataSourceRow(
+                        name: "NOAA / aviationweather.gov",
+                        description: "settings.attribution.noaa.desc",
+                        license: "settings.attribution.publicDomain",
+                        url: "https://aviationweather.gov"
+                    )
+                    dataSourceRow(
+                        name: "Deutscher Wetterdienst (DWD)",
+                        description: "settings.attribution.dwd.desc",
+                        license: "CC BY 4.0",
+                        url: "https://www.dwd.de/EN/service/copyright/copyright_artikel.html"
+                    )
+                    dataSourceRow(
+                        name: "IEM / NEXRAD (Iowa Mesonet)",
+                        description: "settings.attribution.iem.desc",
+                        license: "settings.attribution.academic",
+                        url: "https://mesonet.agron.iastate.edu"
+                    )
+                    dataSourceRow(
+                        name: "NASA GIBS (GOES-East IR)",
+                        description: "settings.attribution.gibs.desc",
+                        license: "settings.attribution.publicDomain",
+                        url: "https://nasa.github.io/gibs/"
+                    )
+                } header: {
+                    Text("settings.attribution.title")
+                } footer: {
+                    Text("settings.attribution.footer")
+                }
+
+                Section {
                     Text("Praeventus tarafından sunulan UV indeksi, fırtına riski, sıcak çarpması veya hipotermi uyarıları açık veri kaynaklarına dayalıdır. Tıbbi veya hayati kararlar almak için kullanılamaz.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -63,6 +94,45 @@ struct SettingsView: View {
         let info = Bundle.main.infoDictionary
         let version = info?["CFBundleShortVersionString"] as? String ?? "0.1"
         return version
+    }
+
+    @ViewBuilder
+    private func dataSourceRow(name: String, description: String, license: String, url: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text(name)
+                    .font(.subheadline.weight(.medium))
+                Spacer()
+                licenseTag(license, url: url)
+            }
+            Text(String(localized: String.LocalizationValue(description)))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 3)
+    }
+
+    @ViewBuilder
+    private func licenseTag(_ key: String, url: String) -> some View {
+        let resolvedLabel: String = {
+            switch key {
+            case "settings.attribution.publicDomain":
+                return "Public Domain"
+            case "settings.attribution.academic":
+                return "Academic"
+            default:
+                return key
+            }
+        }()
+        if let dest = URL(string: url) {
+            Link(resolvedLabel, destination: dest)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.blue)
+        } else {
+            Text(resolvedLabel)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
     }
 }
 
