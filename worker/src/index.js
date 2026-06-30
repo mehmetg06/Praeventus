@@ -1,4 +1,4 @@
-// Praeventus Weather Worker v3
+// Praeventus Weather Worker v4
 // Routes: /forecast (ECMWF + GFS + ICON + METAR), /search, /narrative, /nowcast
 
 const METNORWAY_BASE  = "https://api.met.no/weatherapi/locationforecast/2.0/complete";
@@ -35,7 +35,7 @@ function metarWMO(wxString, skyCover) {
 
 function inHgToHPa(v) { return v ? Math.round(v * 33.8639 * 10) / 10 : null; }
 function ktsToKmh(v)  { return v ? Math.round(v * 1.852  * 10) / 10 : null; }
-function smToMetres(v){ return v ? Math.round(v * 1609.34)           : null; }
+function smToMetres(v){ if (v == null) return null; const n = parseFloat(v); return isNaN(n) ? null : Math.round(n * 1609.34); }
 
 // Canadian Wind Chill Index (T ≤ 10 °C, wind ≥ 5 km/h) and
 // NWS Rothfusz Heat Index (T ≥ 27 °C, humidity ≥ 40 %).
@@ -74,7 +74,7 @@ async function nearestICAO(lat, lon) {
   const url = `${AIRPORT_BASE}?bbox=${lon-delta},${lat-delta},${lon+delta},${lat+delta}&format=json`;
   try {
     const res = await fetch(url, {
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(4000),
       headers: { "User-Agent": USER_AGENT }
     });
     if (!res.ok) return null;
@@ -97,13 +97,20 @@ async function fetchMETAR(icao) {
   try {
     const res = await fetch(
       `${METAR_BASE}?ids=${icao}&format=json&taf=false`,
-      { signal: AbortSignal.timeout(8000),
+      { signal: AbortSignal.timeout(4000),
         headers: { "User-Agent": USER_AGENT } }
     );
     if (!res.ok) return null;
     const data = await res.json();
     return Array.isArray(data) && data.length > 0 ? data[0] : null;
   } catch { return null; }
+}
+
+async function fetchMETARForCoord(lat, lon) {
+  const icao = await nearestICAO(lat, lon);
+  if (!icao) return { icao: null, metar: null };
+  const metar = await fetchMETAR(icao);
+  return { icao, metar };
 }
 
 function mapMetNoWMO(symbol) {
@@ -427,7 +434,7 @@ function overlayMETAR(forecast, metar) {
   if (wgst != null) c.wind_gusts_10m = wgst;
   const vis = smToMetres(metar.visib);
   if (vis != null) c.visibility = vis;
-  const wmo = metarWMO(metar.wxString, metar.skyCondition || metar.sky_condition);
+  const wmo = metarWMO(metar.wxString, metar.skyCondition || metar.sky_condition || metar.clouds);
   if (wmo > 0) c.weather_code = wmo;
   return forecast;
 }
@@ -472,15 +479,15 @@ async function handleForecast(url, env) {
 
   const latR = Math.round(lat * 10000) / 10000;
   const lonR = Math.round(lon * 10000) / 10000;
-  const cacheKey = `forecast_v3_${latR}_${lonR}`;
+  const cacheKey = `forecast_v4_${latR}_${lonR}`;
 
   const cached = await cacheGet(env, cacheKey);
   if (cached) return jsonResponse({ ...cached, _cached: true });
 
-  const [ecmwf, brightsky, icao] = await Promise.allSettled([
+  const [ecmwf, brightsky, metarFetch] = await Promise.allSettled([
     fetchMETNorway(latR, lonR),
     fetchBrightSky(latR, lonR),
-    nearestICAO(latR, lonR),
+    fetchMETARForCoord(latR, lonR),
   ]);
 
   const models = {};
@@ -495,28 +502,37 @@ async function handleForecast(url, env) {
   if (Object.keys(models).length === 0)
     return jsonResponse({ error: "tüm modeller başarısız" }, 503);
 
-  let metar = null;
-  if (icao.status === "fulfilled" && icao.value)
-    metar = await fetchMETAR(icao.value);
+  const mr     = metarFetch.status === "fulfilled" ? metarFetch.value : { icao: null, metar: null };
+  const metar  = mr.metar;
+  const icaoId = mr.icao;
 
   for (const key of Object.keys(models))
     models[key] = overlayMETAR(models[key], metar);
 
+  const skyCoverLayers = (metar?.skyCondition || metar?.sky_condition || metar?.clouds || [])
+    .map(layer => ({
+      skyCover:  layer.skyCover  ?? layer.cover ?? null,
+      cloudBase: layer.cloudBase ?? layer.base  ?? null,
+    }));
+
+  const visibRaw = metar?.visib ?? null;
+  const visibNum = visibRaw != null ? parseFloat(visibRaw) : null;
+
   const result = {
     models,
-    metar_station: icao.status === "fulfilled" ? icao.value : null,
+    metar_station: icaoId,
     metar_raw: metar ? {
-      temp: metar.temp,
-      dewp: metar.dewp,
-      wspd: metar.wspd,
-      wgst: metar.wgst ?? null,
-      wdir: metar.wdir,
-      altim: metar.altim,
-      visib: metar.visib,
-      wxString: metar.wxString ?? null,
-      skyCondition: metar.skyCondition || metar.sky_condition || [],
-      rawOb: metar.rawOb ?? null,
-      reportTime: metar.reportTime ?? metar.obsTime ?? null,
+      temp:         metar.temp,
+      dewp:         metar.dewp,
+      wspd:         metar.wspd,
+      wgst:         metar.wgst ?? null,
+      wdir:         metar.wdir,
+      altim:        metar.altim,
+      visib:        isNaN(visibNum) ? null : visibNum,
+      wxString:     metar.wxString ?? null,
+      skyCondition: skyCoverLayers,
+      rawOb:        metar.rawOb ?? null,
+      reportTime:   metar.reportTime ?? metar.obsTime ?? null,
     } : null,
     generated_at: new Date().toISOString(),
   };
@@ -913,7 +929,7 @@ export default {
     if (url.pathname === "/tile/satellite") return handleTileSatellite(url, env);
     if (url.pathname === "/tile/dwd")       return handleTileDwd(url, env);
     return jsonResponse({
-      status: "Praeventus Weather Worker v3",
+      status: "Praeventus Weather Worker v4",
       routes: [
         "/forecast?lat=&lon=",
         "/search?q=&lang=",

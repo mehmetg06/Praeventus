@@ -249,11 +249,12 @@ enum WeatherMapping {
     }
 
     private static func date(fromISO iso: String) -> Date? {
-        // Open-Meteo returns local wall-clock without a zone offset; parse as-is.
-        let formatter = isoFormatter
-        if let d = formatter.date(from: iso) { return d }
-        // Daily entries are date-only ("yyyy-MM-dd").
-        let dayFormatter = dayFormatter
+        // 1. Open-Meteo: "yyyy-MM-dd'T'HH:mm" (no seconds, no timezone)
+        if let d = isoFormatter.date(from: iso) { return d }
+        // 2. MET Norway: "2026-06-30T12:00:00Z"
+        //    BrightSky:  "2026-06-30T14:00:00+02:00"
+        if let d = iso8601Formatter.date(from: iso) { return d }
+        // 3. Daily date-only: "yyyy-MM-dd"
         return dayFormatter.date(from: iso)
     }
 
@@ -268,6 +269,14 @@ enum WeatherMapping {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        return f
+    }()
+
+    // Handles full ISO 8601 with explicit timezone: "2026-06-30T12:00:00Z"
+    // and "2026-06-30T14:00:00+02:00" (MET Norway / BrightSky formats).
+    private static let iso8601Formatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
         return f
     }()
 
