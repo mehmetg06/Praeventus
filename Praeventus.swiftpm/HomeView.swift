@@ -56,7 +56,7 @@ struct HomeView: View {
         // refresh, or location switch) regardless of whether phase stays .loaded
         // or city is empty (GPS location).
         .onChange(of: store.forecastID) { _, _ in
-            minutecastPoints = computeMinutecastPoints()
+            refreshMinutecast()
             startNarrativeFetch()
         }
         .onAppear {
@@ -64,7 +64,7 @@ struct HomeView: View {
             if case .loaded = store.phase, weatherNarrative.isEmpty, !isFetchingNarrative {
                 startNarrativeFetch()
             }
-            minutecastPoints = computeMinutecastPoints()
+            refreshMinutecast()
         }
     }
 
@@ -325,20 +325,38 @@ struct HomeView: View {
             .background(ThinGlassShape(cornerRadius: 28))
     }
 
-    private func computeMinutecastPoints() -> [MinutePoint] {
-        guard store.hourly.count >= 2 else { return [] }
+    private func refreshMinutecast() {
+        guard store.hourly.count >= 2 else {
+            minutecastPoints = []
+            return
+        }
+
         let anchors = Array(store.hourly.prefix(4))
-        let all = MinutecastEngine.interpolate(
-            temperatures:      anchors.map(\.temperature),
-            humidities:        anchors.map(\.humidity),
-            windSpeeds:        anchors.map(\.windSpeed),
-            anchorDate:        anchors[0].date,
-            latitude:          store.location?.latitude  ?? 0,
-            longitude:         store.location?.longitude ?? 0,
-            dailyMaxUV:        Double(store.daily.first?.uvIndexMax ?? weather.uvIndex),
-            cloudCoverPercent: atmosphere.cloudCover * 100
-        )
-        return Array(all.prefix(61))
+        let temperatures = anchors.map(\.temperature)
+        let humidities = anchors.map(\.humidity)
+        let windSpeeds = anchors.map(\.windSpeed)
+        let anchorDate = anchors[0].date
+        let latitude = store.location?.latitude ?? 0
+        let longitude = store.location?.longitude ?? 0
+        let dailyMaxUV = Double(store.daily.first?.uvIndexMax ?? weather.uvIndex)
+        let cloudCoverPercent = atmosphere.cloudCover * 100
+
+        Task.detached(priority: .userInitiated) {
+            let all = MinutecastEngine.interpolate(
+                temperatures: temperatures,
+                humidities: humidities,
+                windSpeeds: windSpeeds,
+                anchorDate: anchorDate,
+                latitude: latitude,
+                longitude: longitude,
+                dailyMaxUV: dailyMaxUV,
+                cloudCoverPercent: cloudCoverPercent
+            )
+            let pts = Array(all.prefix(61))
+            await MainActor.run {
+                minutecastPoints = pts
+            }
+        }
     }
 
     private func startNarrativeFetch() {

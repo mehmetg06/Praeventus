@@ -95,6 +95,7 @@ final class WeatherStore: ObservableObject {
     private let calibration   = SensorCalibration()
     private let stormSensor   = StormSensorEngine()
     private var stormTask: Task<Void, Never>?
+    private var autoClearTask: Task<Void, Never>?
     private var clockTask: Task<Void, Never>?
     private static let locationKey = "praeventus.savedLocation"
     private static let logger = Logger(subsystem: "com.mehmetg06.praeventus", category: "WeatherStore")
@@ -131,6 +132,21 @@ final class WeatherStore: ObservableObject {
         await load(saved)
     }
 
+    func suspendSensors() {
+        stormTask?.cancel()
+        stormTask = nil
+        autoClearTask?.cancel()
+        autoClearTask = nil
+        Task { await stormSensor.stopMonitoring() }
+        calibration.stop()
+    }
+
+    func resumeSensors() {
+        guard location?.isCurrentLocation == true else { return }
+        if WeatherSettings.sensorCalibrationEnabled { calibration.start() }
+        startStormMonitoring()
+    }
+
     func load(_ place: SavedLocation) async {
         isSimulating = false
         forcedHealthInsights = nil
@@ -143,7 +159,9 @@ final class WeatherStore: ObservableObject {
         Self.persist(place)
 
         if WeatherSettings.sensorCalibrationEnabled { calibration.start() }
-        startStormMonitoring()
+        if place.isCurrentLocation {
+            startStormMonitoring()
+        }
 
         // Paint cached data instantly (offline-friendly) before the network call.
         if let cached = ForecastCache.load(latitude: place.latitude, longitude: place.longitude) {
@@ -396,6 +414,8 @@ final class WeatherStore: ObservableObject {
     // MARK: - Storm monitoring
 
     private func startStormMonitoring() {
+        autoClearTask?.cancel()
+        autoClearTask = nil
         stormTask?.cancel()
         stormTask = Task {
             // Each call to startMonitoring() restarts the sensor and returns a
@@ -404,7 +424,8 @@ final class WeatherStore: ObservableObject {
                 stormAlert = alert
                 // Auto-clear after 30 minutes so a resolved storm doesn't
                 // keep the UI in alarm state indefinitely.
-                Task {
+                autoClearTask?.cancel()
+                autoClearTask = Task {
                     try? await Task.sleep(for: .seconds(1800))
                     if stormAlert?.triggeredAt == alert.triggeredAt {
                         stormAlert = nil
