@@ -54,7 +54,10 @@ function parseZXY(url: URL, maxZoom: number): { z: number; x: number; y: number 
   const z = parseInt(url.searchParams.get("z") || "");
   const x = parseInt(url.searchParams.get("x") || "");
   const y = parseInt(url.searchParams.get("y") || "");
-  if (isNaN(z) || isNaN(x) || isNaN(y) || z > maxZoom) return null;
+  if (isNaN(z) || isNaN(x) || isNaN(y)) return null;
+  if (z < 0 || z > maxZoom) return null;
+  const max = (1 << z) - 1; // tiles per axis at this zoom
+  if (x < 0 || y < 0 || x > max || y > max) return null;
   return { z, x, y };
 }
 

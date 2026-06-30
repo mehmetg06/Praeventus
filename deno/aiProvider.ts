@@ -102,11 +102,11 @@ class GeminiProvider implements AIProvider {
     if (!key) throw new AIProviderError(this.name, null, "GEMINI_API_KEY not set");
 
     const res = await fetch(
-      `${GEMINI_BASE}/${GEMINI_MODEL}:generateContent?key=${key}`,
+      `${GEMINI_BASE}/${GEMINI_MODEL}:generateContent`,
       {
         method: "POST",
         signal: AbortSignal.timeout(TIMEOUT_MS),
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: system }] },
           contents: [{ role: "user", parts: [{ text: user }] }],

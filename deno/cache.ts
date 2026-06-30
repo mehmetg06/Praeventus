@@ -171,11 +171,22 @@ export async function checkRateLimit(ip: string, pathname: string): Promise<bool
   if (!config) return false;
   const key: KvKey = ["rl", pathname, ip];
   try {
-    const res = await kv.get<number>(key);
-    const count = res.value ?? 0;
-    if (count >= config.maxRequests) return true;
-    await kv.set(key, count + 1, { expireIn: config.windowSec * 1000 });
-    return false;
+    // Atomic compare-and-set so concurrent requests from the same IP can't read
+    // the same count and each slip a write past the limit. On contention we
+    // retry against the freshly-read value a bounded number of times.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const res = await kv.get<number>(key);
+      const count = res.value ?? 0;
+      if (count >= config.maxRequests) return true;
+      const commit = await kv.atomic()
+        .check(res)
+        .set(key, count + 1, { expireIn: config.windowSec * 1000 })
+        .commit();
+      if (commit.ok) return false;
+    }
+    // Persistent contention: fail closed (treat as limited) rather than letting
+    // unbounded requests through.
+    return true;
   } catch (err) {
     console.warn("checkRateLimit failed:", err);
     return false;
