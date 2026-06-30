@@ -1,14 +1,14 @@
 import Foundation
 
-/// NWP models the Cloudflare Worker fetches and returns in its JSON envelope.
-/// The `apiValue` strings match the keys in the Worker's `models` dictionary.
+/// NWP models the backend fetches and returns in its JSON envelope.
+/// The `apiValue` strings match the keys in the backend's `models` dictionary.
 enum WeatherModel: String, CaseIterable, Equatable, Codable {
     case bestMatch
     case ecmwf
     case icon
 
-    /// Value sent to Open-Meteo's `models=` parameter.
-    /// Key used in the Worker envelope's `models` dictionary.
+    /// Stable model identifier; also the key used in the backend envelope's
+    /// `models` dictionary.
     var apiValue: String {
         switch self {
         case .bestMatch: return "best_match"
@@ -47,8 +47,9 @@ enum WeatherSettings {
         UserDefaults.standard.object(forKey: sensorCalibrationKey) as? Bool ?? false
     }
 
-    /// Compiled-in base URL of the Cloudflare Worker. All forecast and search
-    /// requests are routed here; no direct upstream API calls are made.
-    static let cloudflareWorkerURL =
-        "https://praeventus-weather.mehmetgezoglu.workers.dev"
+    /// Compiled-in base URL of the Deno Deploy backend. All forecast, search,
+    /// narrative and nowcast requests are routed here; no direct upstream API
+    /// calls are made from the device.
+    static let backendBaseURL =
+        "https://praeventus.deno.dev"
 }

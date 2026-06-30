@@ -20,7 +20,7 @@ struct MinutePoint: Equatable, Sendable {
 
 // MARK: - Nowcast API Types
 
-/// One 5-minute radar data point returned by the Worker's /nowcast endpoint.
+/// One 5-minute radar data point returned by the backend's /nowcast endpoint.
 struct NowcastPoint: Equatable, Codable, Sendable {
     let time: String
     /// Instantaneous radar-derived rain rate (mm/h).

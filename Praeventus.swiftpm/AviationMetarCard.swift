@@ -2,7 +2,7 @@
 import SwiftUI
 
 /// Live aeronautical observation card rendered in aviation monospaced style.
-/// Data source: NOAA aviationweather.gov (Public Domain) via Cloudflare Worker.
+/// Data source: NOAA aviationweather.gov (Public Domain) via the backend.
 struct AviationMetarCard: View {
     let metar: MetarSnapshot
 

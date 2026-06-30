@@ -2,9 +2,10 @@ import Foundation
 
 // MARK: - Forecast
 
-/// Decoded shape of an Open-Meteo `/v1/forecast` response.
+/// Decoded shape of a forecast response. The backend emits an Open-Meteo-
+/// compatible envelope, so this contract is unchanged from the previous design.
 ///
-/// Only the fields the app requests are modelled. Open-Meteo returns parallel
+/// Only the fields the app requests are modelled. The response uses parallel
 /// arrays under `hourly` / `daily` (a `time` array plus one array per variable),
 /// which `WeatherMapping` zips into point structs.
 struct ForecastResponse: Codable, Equatable {
@@ -114,9 +115,9 @@ struct ForecastResponse: Codable, Equatable {
     }
 }
 
-// MARK: - METAR (aviation ground observation from Worker /forecast envelope)
+// MARK: - METAR (aviation ground observation from backend /forecast envelope)
 
-/// Raw METAR fields forwarded by the Cloudflare Worker from aviationweather.gov.
+/// Raw METAR fields forwarded by the backend from aviationweather.gov.
 /// Values retain aviation units (knots, inHg, statute miles) so the UI can
 /// present genuine aviation notation without lossy conversion.
 struct MetarRaw: Codable, Equatable {

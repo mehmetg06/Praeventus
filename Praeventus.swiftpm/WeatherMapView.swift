@@ -58,7 +58,7 @@ struct WeatherMapView: View {
     @State private var overlayAlpha: Double = 1.0
     @State private var lastRefresh: Date = Date()
 
-    private var workerURL: String { WeatherSettings.cloudflareWorkerURL }
+    private var workerURL: String { WeatherSettings.backendBaseURL }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -274,7 +274,7 @@ extension RadarMapContainer.Coordinator: MKMapViewDelegate {
 
 // MARK: - WorkerTileOverlay
 
-/// Routes tile requests through the Cloudflare Worker so upstream tile servers
+/// Routes tile requests through the backend so upstream tile servers
 /// never see the device IP, and KV caching throttles request volume.
 final class WorkerTileOverlay: MKTileOverlay, @unchecked Sendable {
     let layer: MapOverlayLayer
