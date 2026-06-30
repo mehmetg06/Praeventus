@@ -59,6 +59,8 @@
 "home.daily.heading" = "7-DAY FORECAST";
 "home.empty.cta" = "Choose a location";
 "home.fusion.agreement" = "consensus";
+"home.fusion.anomaly" = "%@ reading looks off — down-weighted";
+"home.fusion.anomalyGeneric" = "One data source looks inconsistent";
 "home.instability" = "Instability";
 "home.rainSignal" = "Rain Signal";
 "home.stale" = "Cached data";

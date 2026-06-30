@@ -606,10 +606,27 @@ struct HomeView: View {
                         .foregroundStyle(.white.opacity(0.50))
                 }
                 .padding(.top, 4)
+
+                if confidence.hasAnomaly {
+                    Label(anomalyLabel(source: confidence.anomalySource), systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundStyle(.yellow.opacity(0.85))
+                        .padding(.top, 3)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.top, 24)
+    }
+
+    /// "ICON reading looks off — down-weighted" style label for a flagged
+    /// cross-source pressure outlier, or a source-less fallback when the
+    /// backend didn't name one.
+    private func anomalyLabel(source: String?) -> String {
+        guard let source, !source.isEmpty else {
+            return String(localized: "home.fusion.anomalyGeneric", defaultValue: "One data source looks inconsistent")
+        }
+        return String(format: String(localized: "home.fusion.anomaly", defaultValue: "%@ reading looks off — down-weighted"), source)
     }
 
     private var storyCard: some View {

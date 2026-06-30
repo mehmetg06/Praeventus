@@ -59,6 +59,8 @@
 "home.daily.heading" = "7 GÜNLÜK TAHMİN";
 "home.empty.cta" = "Konum seç";
 "home.fusion.agreement" = "uyum";
+"home.fusion.anomaly" = "%@ verisi tutarsız — ağırlığı düşürüldü";
+"home.fusion.anomalyGeneric" = "Bir veri kaynağı tutarsız görünüyor";
 "home.instability" = "İstikrarsızlık";
 "home.rainSignal" = "Yağış Sinyali";
 "home.stale" = "Önbellek";
