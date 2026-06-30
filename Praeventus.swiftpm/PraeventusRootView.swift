@@ -26,12 +26,14 @@ struct PraeventusRootView: View {
                     Label("tab.atmosphere", systemImage: "cloud.sun")
                 }
 
-            NavigationStack {
-                WeatherMapView(store: store)
-                    .background { atmosphereBackground }
-            }
-            .tabItem {
-                Label("tab.map", systemImage: "map.fill")
+            if WeatherSettings.mapTabEnabled {
+                NavigationStack {
+                    WeatherMapView(store: store)
+                        .background { atmosphereBackground }
+                }
+                .tabItem {
+                    Label("tab.map", systemImage: "map.fill")
+                }
             }
 
             WeatherLabView(store: store)

@@ -63,6 +63,10 @@ final class WeatherStore: ObservableObject {
     @Published private(set) var isStale = false
     /// Latest aviation METAR from the nearest airport. Nil when no station is nearby.
     @Published private(set) var metarSnapshot: MetarSnapshot?
+    /// Latest short-term radar nowcast, if the location is inside MET Norway's
+    /// coverage area. Best-effort: nil on any fetch failure or out-of-coverage
+    /// response — never blocks or fails the main forecast load.
+    @Published private(set) var nowcast: NowcastResponse?
     /// Changes on every applyForecast call (cache or network). Observe this in
     /// HomeView to trigger narrative fetches: phase may stay .loaded and city
     /// may be empty for GPS, so neither is a reliable trigger.
@@ -151,6 +155,7 @@ final class WeatherStore: ObservableObject {
         isSimulating = false
         forcedHealthInsights = nil
         metarSnapshot = nil
+        nowcast = nil
         // Single source of truth for whether the storm banner is eligible to
         // show — restored from the persisted flag so a relaunch doesn't reset
         // a GPS-loaded location back to "remote city" and hide the banner.
@@ -172,6 +177,13 @@ final class WeatherStore: ObservableObject {
         } else {
             phase = .loading
         }
+
+        // Best-effort, non-throwing — runs alongside the forecast fetch but its
+        // outcome (including any timeout/503/out-of-coverage failure) never
+        // affects forecast loading or error state. Result is collected after
+        // the do/catch below regardless of how the forecast fetch went.
+        async let nowcastFetch = CloudflareWeatherProvider(baseURL: WeatherSettings.backendBaseURL)
+            .nowcast(latitude: place.latitude, longitude: place.longitude)
 
         do {
             let (response, confidence, metar) = try await fetchForecast(place)
@@ -195,6 +207,8 @@ final class WeatherStore: ObservableObject {
                 phase = .failed(Self.message(for: error))
             }
         }
+
+        nowcast = await nowcastFetch
     }
 
     private func fetchForecast(_ place: SavedLocation) async throws -> (ForecastResponse, FusionConfidence, MetarSnapshot?) {

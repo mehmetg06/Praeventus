@@ -21,6 +21,7 @@ let sources = [
     "AtmosphericEngine.swift",
     "AstronomicalEngine.swift",
     "MinutecastEngine.swift",
+    "NowcastSummaryEngine.swift",
     "StormSensorEngine.swift",
     "WeatherNarrativeEngine.swift",
     "MeteorologicalExpertSystem.swift",

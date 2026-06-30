@@ -71,6 +71,8 @@
 "home.hourly.heading" = "LIVE OUTLOOK";
 "home.loading" = "Loading the latest forecast…";
 "home.now" = "Now";
+"home.precipSummary.label" = "Precipitation chance";
+"home.precipSummary.metarPrefix" = "METAR station";
 "home.rainShort" = "Rain";
 "home.story.heading" = "ATMOSPHERE STORY";
 "home.tagline" = "Privacy-first weather, anywhere";
@@ -223,6 +225,11 @@
 "narrative.advice.cold" = "A warm layer will help, especially if you will be outside for more than a few minutes.";
 "narrative.advice.calm" = "Overall, normal outdoor plans look reasonable; just adjust clothing for the local breeze and time of day.";
 "narrative.fetching" = "Fetching weather insight…";
+"nowcast.ongoing" = "Rain is currently falling.";
+"nowcast.ongoing.remaining" = "Rain continuing — at least %lld more min.";
+"nowcast.startingSoon" = "Rain starts in about %lld min.";
+"nowcast.startingSoon.duration" = "Rain starts in %lld min and lasts about %lld min.";
+"nowcast.stoppingSoon" = "Rain stops in about %lld min.";
 
 /* Aviation METAR card */
 "metar.heading"    = "LIVE METAR";
