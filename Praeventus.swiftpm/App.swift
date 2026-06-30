@@ -13,7 +13,7 @@ struct PraeventusApp: App {
 import Foundation
 
 /// CLI entry point used on non-Apple platforms (e.g. Linux CI). It exercises the
-/// pure-Foundation data layer end-to-end against the Cloudflare Worker so the
+/// pure-Foundation data layer end-to-end against the backend so the
 /// networking, decoding, fusion and WMO→condition mapping can be verified
 /// without an iPad.
 ///
@@ -22,7 +22,7 @@ import Foundation
 struct PraeventusCLI {
     static func main() async {
         print("Praeventus data-layer check — the UI runs in Swift Playgrounds on iPad.")
-        let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
+        let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.backendBaseURL)
 
         do {
             let query = "Tokyo"
@@ -34,7 +34,7 @@ struct PraeventusCLI {
             }
             print("→ \(place.name), \(place.subtitle) (\(place.latitude), \(place.longitude))")
 
-            print("\nFetching forecast via Cloudflare Worker…")
+            print("\nFetching forecast via backend…")
             let keyed = try await cf.forecast(latitude: place.latitude, longitude: place.longitude)
             let fused = WeatherFusion.fuse(keyed)
             let mapped = WeatherMapping.map(fused.response, city: place.name, country: place.country ?? "")

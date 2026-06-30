@@ -85,7 +85,7 @@ final class SearchViewModel: ObservableObject {
         defer { isSearching = false }
 
         do {
-            let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
+            let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.backendBaseURL)
             let results = try await cf.search(query)
             guard !Task.isCancelled else { return }
             if cache.count >= Self.cacheLimit { cache.removeAll() }

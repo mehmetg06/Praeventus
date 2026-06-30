@@ -91,7 +91,7 @@ struct LocationSearchView: View {
         errorText = nil
         defer { searching = false }
         do {
-            let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
+            let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.backendBaseURL)
             results = try await cf.search(trimmed)
         } catch {
             if !Task.isCancelled { errorText = String(localized: "error.searchFailed", defaultValue: "Search failed.") }

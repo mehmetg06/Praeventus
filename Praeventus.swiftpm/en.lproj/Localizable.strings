@@ -147,7 +147,7 @@
 "model.ecmwf" = "ECMWF";
 "model.icon" = "ICON";
 "settings.proxy.footer" = "Optional. Route all requests through your Cloudflare Worker so the weather servers never see your IP.";
-"settings.proxy.placeholder" = "https://…workers.dev";
+"settings.proxy.placeholder" = "https://….deno.dev";
 "settings.proxy.save" = "Save";
 "settings.proxy.title" = "Data Source / Privacy Proxy";
 "status.clear" = "Beautiful Weather";

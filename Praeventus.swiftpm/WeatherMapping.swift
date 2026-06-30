@@ -86,7 +86,7 @@ enum WeatherMapping {
         }
     }
 
-    /// Maps an Open-Meteo response + a chosen place name into the app model.
+    /// Maps a forecast response + a chosen place name into the app model.
     static func map(_ response: ForecastResponse, city: String, country: String) -> MappedForecast {
         let current = response.current
 
