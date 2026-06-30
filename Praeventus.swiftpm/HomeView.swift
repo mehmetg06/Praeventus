@@ -289,6 +289,7 @@ struct HomeView: View {
             && weatherNarrative.count < 600 {
             narrativeCard
         }
+        precipitationSummaryRow
         if !minutecastPoints.isEmpty {
             MinutecastGraphCard(minutePoints: minutecastPoints, paletteTint: paletteTint)
         }
@@ -332,6 +333,32 @@ struct HomeView: View {
             .padding(22)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(ThinGlassShape(cornerRadius: 28))
+    }
+
+    /// Always-visible structural readout, independent of the AI narrative —
+    /// stays on screen even when the narrative fetch fails or falls back.
+    private var precipitationSummaryRow: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "umbrella.fill")
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.5))
+            Text(precipitationSummaryText)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.white.opacity(0.62))
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private var precipitationSummaryText: String {
+        let percent = Int(weather.rainProbability.rounded())
+        let label = String(localized: "home.precipSummary.label", defaultValue: "Precipitation chance")
+        var text = "\(label): %\(percent)"
+        if let station = store.metarSnapshot?.station {
+            let metarLabel = String(localized: "home.precipSummary.metarPrefix", defaultValue: "METAR station")
+            text += " · \(metarLabel): \(station)"
+        }
+        return text
     }
 
     private func refreshMinutecast() {
@@ -958,6 +985,18 @@ struct HomeView: View {
                     .foregroundStyle(.white.opacity(0.60))
             }
 
+            if let nowcastSummaryText {
+                HStack(spacing: 6) {
+                    Image(systemName: "cloud.rain.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.cyan.opacity(0.85))
+                    Text(nowcastSummaryText)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.82))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             HStack(spacing: 0) {
                 ForEach(hourlyStrip) { point in
                     VStack(spacing: 7) {
@@ -995,6 +1034,47 @@ struct HomeView: View {
             }
         }
         return HourlyStripPoint.synthetic(from: weather, atmosphere: atmosphere)
+    }
+
+    /// Short, radar-derived rain transition sentence, or nil when the location
+    /// is outside MET Norway's nowcast coverage / no notable transition is
+    /// coming up — in which case the strip silently relies on the forecast's
+    /// own hourly precipitation probability shown above it.
+    private var nowcastSummaryText: String? {
+        guard let nowcast = store.nowcast, nowcast.radarCoverage,
+              let event = NowcastSummaryEngine.summarize(points: nowcast.minutecast) else {
+            return nil
+        }
+        switch event {
+        case .startingSoon(let minutesUntil, let durationMinutes):
+            if let durationMinutes {
+                return String(
+                    format: String(localized: "nowcast.startingSoon.duration",
+                                   defaultValue: "Rain starts in %lld min and lasts about %lld min."),
+                    minutesUntil, durationMinutes
+                )
+            }
+            return String(
+                format: String(localized: "nowcast.startingSoon",
+                               defaultValue: "Rain starts in about %lld min."),
+                minutesUntil
+            )
+        case .stoppingSoon(let minutesUntil):
+            return String(
+                format: String(localized: "nowcast.stoppingSoon",
+                               defaultValue: "Rain stops in about %lld min."),
+                minutesUntil
+            )
+        case .ongoing(let remainingMinutes):
+            if let remainingMinutes {
+                return String(
+                    format: String(localized: "nowcast.ongoing.remaining",
+                                   defaultValue: "Rain continuing — at least %lld more min."),
+                    remainingMinutes
+                )
+            }
+            return String(localized: "nowcast.ongoing", defaultValue: "Rain is currently falling.")
+        }
     }
 
     private var uvIndexLabel: String {

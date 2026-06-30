@@ -47,6 +47,11 @@ enum WeatherSettings {
         UserDefaults.standard.object(forKey: sensorCalibrationKey) as? Bool ?? false
     }
 
+    /// Compile-time switch for the MKMapView-based radar/satellite/DWD tile tab.
+    /// Off for now — flip to `true` to restore the Map tab and its tile-loading
+    /// code path without touching any other call site.
+    static let mapTabEnabled = false
+
     /// Compiled-in base URL of the Deno Deploy backend. All forecast, search,
     /// narrative and nowcast requests are routed here; no direct upstream API
     /// calls are made from the device.

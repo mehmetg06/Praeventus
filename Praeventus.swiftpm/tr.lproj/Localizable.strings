@@ -71,6 +71,8 @@
 "home.hourly.heading" = "CANLI ÖNGÖRÜ";
 "home.loading" = "En güncel tahmin yükleniyor…";
 "home.now" = "Şimdi";
+"home.precipSummary.label" = "Yağış ihtimali";
+"home.precipSummary.metarPrefix" = "METAR istasyonu";
 "home.rainShort" = "Yağmur";
 "home.story.heading" = "ATMOSFER HİKÂYESİ";
 "home.tagline" = "Gizlilik öncelikli hava durumu, her yerde";
@@ -223,6 +225,11 @@
 "narrative.advice.cold" = "Birkaç dakikadan uzun süre dışarıda kalacaksanız sıcak tutan bir katman faydalı olur.";
 "narrative.advice.calm" = "Genel olarak normal dış mekân planları uygun görünüyor; kıyafetinizi yerel esinti ve günün saatine göre ayarlayın.";
 "narrative.fetching" = "Hava yorumu yükleniyor…";
+"nowcast.ongoing" = "Şu anda yağmur yağıyor.";
+"nowcast.ongoing.remaining" = "Yağmur sürüyor — en az %lld dakika daha sürecek.";
+"nowcast.startingSoon" = "Yağmur yaklaşık %lld dakika içinde başlıyor.";
+"nowcast.startingSoon.duration" = "Yağmur %lld dakika içinde başlıyor, yaklaşık %lld dakika sürecek.";
+"nowcast.stoppingSoon" = "Yağmur yaklaşık %lld dakika içinde duracak.";
 
 /* Havacılık METAR kartı */
 "metar.heading"    = "CANLI METAR";
