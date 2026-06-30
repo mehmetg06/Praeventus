@@ -1,6 +1,16 @@
 #if canImport(SwiftUI)
 import SwiftUI
 
+/// Shared HH:mm formatter for the header clock and the Astronomik card's
+/// sunrise/sunset labels. Reused (with `timeZone` swapped per call) instead of
+/// allocating a fresh `DateFormatter` on every body re-evaluation — DateFormatter
+/// construction is comparatively expensive and these labels redraw often.
+private nonisolated(unsafe) let hourMinuteFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "HH:mm"
+    return f
+}()
+
 struct HomeView: View {
     @ObservedObject var store: WeatherStore
     @StateObject private var searchVM = SearchViewModel()
@@ -190,10 +200,8 @@ struct HomeView: View {
         }
         let country = weather.country.isEmpty ? "" : "\(weather.country) · "
         let analysis = store.astronomicalAnalysis(at: Date())
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        formatter.timeZone = analysis.locationTimezone
-        let timeLabel = formatter.string(from: Date())
+        hourMinuteFormatter.timeZone = analysis.locationTimezone
+        let timeLabel = hourMinuteFormatter.string(from: Date())
         let solarNoon = analysis.sunriseSunset.sunrise.addingTimeInterval(analysis.sunriseSunset.duration / 2)
         let timeOfDay = TimeOfDay(sunAltitude: analysis.sunAltitude, isRising: Date() < solarNoon)
         return "\(country)\(timeLabel) · \(timeOfDay.displayName)"
@@ -1642,10 +1650,8 @@ private struct SunArcView: View {
 
     private func timeStr(_ date: Date) -> String {
         guard abs(date.timeIntervalSinceNow) < 365 * 24 * 3600 else { return "--:--" }
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm"
-        f.timeZone = analysis.locationTimezone
-        return f.string(from: date)
+        hourMinuteFormatter.timeZone = analysis.locationTimezone
+        return hourMinuteFormatter.string(from: date)
     }
 
     private var daylightLabel: String {

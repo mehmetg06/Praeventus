@@ -63,6 +63,10 @@ final class WeatherStore: ObservableObject {
     @Published private(set) var isStale = false
     /// Latest aviation METAR from the nearest airport. Nil when no station is nearby.
     @Published private(set) var metarSnapshot: MetarSnapshot?
+    /// DST-aware UTC offset (seconds) for the loaded location's real IANA
+    /// timezone, from the backend. Nil for Lab/simulated locations, in which
+    /// case `astronomicalAnalysis` falls back to a longitude-only approximation.
+    @Published private(set) var utcOffsetSeconds: Int?
     /// Latest short-term radar nowcast, if the location is inside MET Norway's
     /// coverage area. Best-effort: nil on any fetch failure or out-of-coverage
     /// response — never blocks or fails the main forecast load.
@@ -156,6 +160,7 @@ final class WeatherStore: ObservableObject {
         forcedHealthInsights = nil
         metarSnapshot = nil
         nowcast = nil
+        utcOffsetSeconds = nil
         // Single source of truth for whether the storm banner is eligible to
         // show — restored from the persisted flag so a relaunch doesn't reset
         // a GPS-loaded location back to "remote city" and hide the banner.
@@ -170,7 +175,7 @@ final class WeatherStore: ObservableObject {
 
         // Paint cached data instantly (offline-friendly) before the network call.
         if let cached = ForecastCache.load(latitude: place.latitude, longitude: place.longitude) {
-            applyForecast(cached.response, city: cached.city, country: cached.country)
+            await applyForecast(cached.response, city: cached.city, country: cached.country)
             fusionConfidence = cached.confidence
             isStale = !ForecastCache.isFresh(cached)
             phase = .loaded
@@ -186,10 +191,11 @@ final class WeatherStore: ObservableObject {
             .nowcast(latitude: place.latitude, longitude: place.longitude)
 
         do {
-            let (response, confidence, metar) = try await fetchForecast(place)
-            applyForecast(response, city: place.name, country: place.country)
+            let (response, confidence, metar, offsetSeconds) = try await fetchForecast(place)
+            await applyForecast(response, city: place.name, country: place.country)
             fusionConfidence = confidence
             metarSnapshot = metar
+            utcOffsetSeconds = offsetSeconds
             isStale = false
             phase = .loaded
             ForecastCache.save(
@@ -211,7 +217,13 @@ final class WeatherStore: ObservableObject {
         nowcast = await nowcastFetch
     }
 
-    private func fetchForecast(_ place: SavedLocation) async throws -> (ForecastResponse, FusionConfidence, MetarSnapshot?) {
+    /// `nonisolated` so the network round-trip *and* the CPU-bound model fusion
+    /// run on the cooperative thread pool instead of the main actor — fusing
+    /// ~168 hourly points across two models was previously blocking the main
+    /// thread on every load, causing visible stutter.
+    private nonisolated func fetchForecast(
+        _ place: SavedLocation
+    ) async throws -> (ForecastResponse, FusionConfidence, MetarSnapshot?, Int?) {
         let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.backendBaseURL)
         let bundle = try await cf.forecast(latitude: place.latitude, longitude: place.longitude)
         let fused = WeatherFusion.fuse(bundle.models)
@@ -219,12 +231,12 @@ final class WeatherStore: ObservableObject {
             guard let raw = bundle.metarRaw, let station = bundle.metarStation else { return nil }
             return MetarSnapshot.from(raw: raw, station: station)
         }()
-        return (fused.response, fused.confidence, metar)
+        return (fused.response, fused.confidence, metar, bundle.utcOffsetSeconds)
     }
 
     /// Maps a response into the app model, applies opt-in sensor calibration, and publishes.
-    private func applyForecast(_ response: ForecastResponse, city: String, country: String) {
-        let mapped = WeatherMapping.map(response, city: city, country: country)
+    private func applyForecast(_ response: ForecastResponse, city: String, country: String) async {
+        let mapped = await mapForecast(response, city: city, country: country)
         hourly = mapped.hourly
         daily = mapped.daily
         var snapshot = mapped.weather
@@ -233,6 +245,12 @@ final class WeatherStore: ObservableObject {
         }
         forecastID = UUID()
         publish(snapshot)
+    }
+
+    /// `nonisolated` so the WeatherMapping pass (zipping/parsing the hourly and
+    /// daily parallel arrays) runs off the main actor instead of blocking it.
+    private nonisolated func mapForecast(_ response: ForecastResponse, city: String, country: String) async -> MappedForecast {
+        WeatherMapping.map(response, city: city, country: country)
     }
 
     /// Loads forecast for a searched / saved remote city.
@@ -274,7 +292,8 @@ final class WeatherStore: ObservableObject {
         let base = AstronomicalEngine.analyze(
             at: date,
             latitude: location?.latitude ?? 0,
-            longitude: location?.longitude ?? 0
+            longitude: location?.longitude ?? 0,
+            utcOffsetSeconds: utcOffsetSeconds
         )
         guard let phase = moonPhaseOverride else { return base }
         return AstronomicalAnalysis(

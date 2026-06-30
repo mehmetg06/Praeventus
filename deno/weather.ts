@@ -502,6 +502,15 @@ function buildDaily(dailyMap: Json, withUV: boolean, lat: number, lon: number): 
   return daily;
 }
 
+// aviationweather.gov's METAR JSON fields are usually numeric but can carry
+// non-numeric strings (e.g. wdir: "VRB" for variable wind) — coerce to a
+// finite number or null so downstream Double? decoding never throws.
+function metarNum(v: Json): number | null {
+  if (v == null) return null;
+  const n = typeof v === "number" ? v : parseFloat(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 function overlayMETAR(forecast: ForecastModel, metar: Json): ForecastModel {
   if (!metar || !forecast?.current) return forecast;
   const c = forecast.current;
@@ -576,12 +585,15 @@ async function buildForecast(latR: number, lonR: number): Promise<Json> {
     metar_station: icaoId,
     metar_raw: metar
       ? {
-        temp: metar.temp,
-        dewp: metar.dewp,
-        wspd: metar.wspd,
-        wgst: metar.wgst ?? null,
-        wdir: metar.wdir,
-        altim: metar.altim,
+        temp: metarNum(metar.temp),
+        dewp: metarNum(metar.dewp),
+        wspd: metarNum(metar.wspd),
+        wgst: metarNum(metar.wgst),
+        // wdir is "VRB" (string) from aviationweather.gov when wind is
+        // variable — must be sanitized or the Swift Double? decode throws
+        // and the whole envelope decode fails, silently hiding the METAR card.
+        wdir: metarNum(metar.wdir),
+        altim: metarNum(metar.altim),
         visib: visibNum != null && isNaN(visibNum) ? null : visibNum,
         wxString: metar.wxString ?? null,
         skyCondition: skyCoverLayers,
