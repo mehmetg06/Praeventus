@@ -6,6 +6,7 @@ import UIKit
 
 struct PraeventusRootView: View {
     @StateObject private var store = WeatherStore()
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         #if canImport(UIKit)
@@ -53,6 +54,13 @@ struct PraeventusRootView: View {
         .environment(\.showLayoutBounds, store.showLayoutBounds)
         .environment(\.sandboxAnimationSpeed, store.animationSpeed)
         .environment(\.moonCycleOverride, store.moonPhaseOverride?.cyclePosition ?? -1)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                store.resumeSensors()
+            } else {
+                store.suspendSensors()
+            }
+        }
         .task {
             // Restore the last location (if any) on launch.
             await store.restoreOrPrompt()

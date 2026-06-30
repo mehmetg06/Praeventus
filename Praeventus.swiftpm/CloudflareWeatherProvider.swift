@@ -6,7 +6,7 @@ import FoundationNetworking // Linux: URLSession async lives here
 
 /// Networking layer that fetches pre-blended forecast data from the Cloudflare
 /// Worker endpoint in one round-trip instead of querying Open-Meteo's three
-/// model URLs separately. The Worker returns all NWP model responses inside a
+/// model URLs separately. The Worker returns the two genuine NWP model responses inside a
 /// single JSON envelope, which maps directly into the shape `WeatherFusion`
 /// already expects — no changes needed there.
 ///
@@ -29,7 +29,7 @@ struct CloudflareWeatherProvider {
 
     // MARK: - Forecast
 
-    /// Fetches all three NWP model forecasts plus the nearest-airport METAR
+    /// Fetches the two genuine NWP model forecasts plus the nearest-airport METAR
     /// from the Worker in one request and returns a `ForecastBundle`.
     ///
     /// Worker JSON shape:
@@ -37,7 +37,6 @@ struct CloudflareWeatherProvider {
     /// {
     ///   "models": {
     ///     "ecmwf_ifs025": <ForecastResponse>,
-    ///     "gfs_global":   <ForecastResponse>,
     ///     "icon_global":  <ForecastResponse>
     ///   },
     ///   "metar_station": "LTAC",
@@ -55,7 +54,6 @@ struct CloudflareWeatherProvider {
 
         var models: [WeatherModel: ForecastResponse] = [:]
         if let r = envelope.models["ecmwf_ifs025"] { models[.ecmwf] = r }
-        if let r = envelope.models["gfs_global"]   { models[.gfs]   = r }
         if let r = envelope.models["icon_global"]  { models[.icon]  = r }
 
         if models.isEmpty { throw WeatherClientError.noResults }

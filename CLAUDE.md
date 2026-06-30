@@ -123,7 +123,7 @@ Sistemin dış dünya ile iletişim kuran yegane bileşeni (Direct Aggregator). 
 **Önemli Worker detayları:**
 - `PRAEVENTUS_CACHE` KV binding'i opsiyoneldir; yoksa önbelleksiz çalışır.
 - Tüm isteklerde `User-Agent: Praeventus/1.0 (Contact: mehmetgezoglu@icloud.com)` başlığı gönderilir.
-- `handleForecast`: Yanıtları `ecmwf_ifs025`, `gfs_global`, `icon_global` anahtarlı `models` nesnesi içinde döner. MET Norway hem ECMWF hem GFS olarak eşlenir.
+- `handleForecast`: Yanıtları `ecmwf_ifs025` (MET Norway) ve `icon_global` (Bright Sky) anahtarlı `models` nesnesi içinde döner.
 - `overlayMETAR`: En yakın ICAO istasyonu bulunursa METAR okumaları anlık (current) verinin üzerine yazılır.
 - Nominatim için max 1 req/sn politikası; KV önbellek bu limiti karşılamak için zorunludur, **asla kaldırılmamalı**.
 
@@ -235,7 +235,6 @@ StormSeverity             // .watch / .warning / .extreme (WMO kriterleri)
 {
   "models": {
     "ecmwf_ifs025": <ForecastResponse>,
-    "gfs_global":   <ForecastResponse>,
     "icon_global":  <ForecastResponse>
   },
   "metar_station": "LTAC",

@@ -275,8 +275,8 @@ async function fetchMETNorway(lat, lon) {
       if (counts[c] > maxCount) { maxCount = counts[c]; maxCode = c; }
     }
     daily.weather_code.push(maxCode);
-    daily.sunrise.push(day + "T06:00:00Z");
-    daily.sunset.push(day + "T18:00:00Z");
+    daily.sunrise.push(null);
+    daily.sunset.push(null);
   }
 
   if (!current) return null;
@@ -408,8 +408,8 @@ async function fetchBrightSky(lat, lon) {
       if (counts[c] > maxCount) { maxCount = counts[c]; maxCode = c; }
     }
     daily.weather_code.push(maxCode);
-    daily.sunrise.push(day + "T06:00:00Z");
-    daily.sunset.push(day + "T18:00:00Z");
+    daily.sunrise.push(null);
+    daily.sunset.push(null);
   }
 
   return { latitude: lat, longitude: lon, current, hourly, daily };
@@ -500,7 +500,6 @@ async function handleForecast(url, env) {
   const models = {};
   if (ecmwf.status === "fulfilled" && ecmwf.value) {
     models.ecmwf_ifs025 = ecmwf.value;
-    models.gfs_global   = ecmwf.value;
   }
   if (brightsky.status === "fulfilled" && brightsky.value) {
     models.icon_global  = brightsky.value;

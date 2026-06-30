@@ -5,7 +5,6 @@ import Foundation
 enum WeatherModel: String, CaseIterable, Equatable, Codable {
     case bestMatch
     case ecmwf
-    case gfs
     case icon
 
     /// Value sent to Open-Meteo's `models=` parameter.
@@ -14,7 +13,6 @@ enum WeatherModel: String, CaseIterable, Equatable, Codable {
         switch self {
         case .bestMatch: return "best_match"
         case .ecmwf: return "ecmwf_ifs025"
-        case .gfs: return "gfs_global"
         case .icon: return "icon_global"
         }
     }
@@ -24,14 +22,13 @@ enum WeatherModel: String, CaseIterable, Equatable, Codable {
         switch self {
         case .bestMatch: return String(localized: "model.bestMatch", defaultValue: "Best Match")
         case .ecmwf: return String(localized: "model.ecmwf", defaultValue: "ECMWF")
-        case .gfs: return String(localized: "model.gfs", defaultValue: "GFS")
         case .icon: return String(localized: "model.icon", defaultValue: "ICON")
         }
     }
 
-    /// Models blended when multi-model fusion is enabled. ECMWF, GFS and ICON
+    /// Models blended when multi-model fusion is enabled. ECMWF and ICON
     /// are independent global models with open commercial licenses.
-    static let fusionSet: [WeatherModel] = [.ecmwf, .gfs, .icon]
+    static let fusionSet: [WeatherModel] = [.ecmwf, .icon]
 }
 
 /// UserDefaults-backed feature flags, shared by `SettingsView` (via `@AppStorage`
@@ -40,7 +37,7 @@ enum WeatherSettings {
     static let multiModelKey = "praeventus.multiModelEnabled"
     static let sensorCalibrationKey = "praeventus.sensorCalibrationEnabled"
 
-    /// Blend ECMWF/GFS/ICON on-device. On by default.
+    /// Blend ECMWF/ICON on-device. On by default.
     static var multiModelEnabled: Bool {
         UserDefaults.standard.object(forKey: multiModelKey) as? Bool ?? true
     }
