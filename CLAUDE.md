@@ -8,7 +8,7 @@
 
 ### Direct Aggregator (Doğrudan Toplayıcı) Yapısı
 Proje, aracı ve kısıtlayıcı hava durumu API'lerini (ör. Open-Meteo) tamamen terk ederek **"Direct Aggregator"** mimarisine geçmiştir.
-Tüm dış veri talepleri, Cloudflare Worker üzerinden doğrudan global ve kurumsal veri merkezlerine yönlendirilir. Worker, bu heterojen verileri toplayıp, Swift uygulamasının beklediği standart "ikili model" (ECMWF, ICON) yapısına dönüştürerek (mapping) cihaza tek bir JSON paketi halinde iletir. Bu sayede cihazdaki `WeatherFusion` motoru hiçbir kod değişikliği gerektirmeden çalışmaya devam eder.
+Tüm dış veri talepleri, Deno Deploy backend üzerinden doğrudan global ve kurumsal veri merkezlerine yönlendirilir. Backend, bu heterojen verileri toplayıp, Swift uygulamasının beklediği standart "ikili model" (ECMWF, ICON) yapısına dönüştürerek (mapping) cihaza tek bir JSON paketi halinde iletir. Bu sayede cihazdaki `WeatherFusion` motoru hiçbir kod değişikliği gerektirmeden çalışmaya devam eder.
 
 Sistem, aşağıdaki bağımsız kaynakları eşzamanlı olarak sorgular ve birleştirir:
 
@@ -19,14 +19,14 @@ Sistem, aşağıdaki bağımsız kaynakları eşzamanlı olarak sorgular ve birl
 | **Nowcast (Radar)** | **MET Norway** (`api.met.no/weatherapi/nowcast`) | CC-BY-4.0 | Radar tabanlı anlık yağış tahmini (5 dk güncelleme). Sadece Kuzey Avrupa kapsama alanında aktiftir; dışında `radarCoverage: false` döner. |
 | **METAR** | **aviationweather.gov** (NOAA) | Public Domain | İstasyon bazlı, yerel anlık gözlem verisi (yer doğrulaması). |
 | **Geocoding** | **Nominatim** (OpenStreetMap) | ODbL / Open Data | Arama sorgularını koordinatlara çeviren açık veri servisi. |
-| **AI Narrative** | **Cloudflare Workers AI** | Commercial-compliant (Free Tier) | `llama-3.3-70b-instruct-fp8-fast` ile uçta meteorolojik metin üretimi. |
+| **AI Narrative** | **Groq** (primary) / **Google Gemini** (fallback) | API-key (env var) | Groq `llama-3.3-70b-versatile`; 429/404'te Gemini `gemini-2.5-flash-lite`'a düşer. Bkz. `deno/aiProvider.ts`. |
 
 ### Privacy by Architecture (Mimari Seviyede Gizlilik)
 Kullanıcıya ait hiçbir veri, işlenmek veya satılmak üzere dışarı çıkarılmaz:
-- **Konum Truncation:** Lokasyon verisi cihazda `kCLLocationAccuracyReduced` ile alınır, `LocationProvider` tarafından 2 ondalık basamağa (~1.1 km) kırpılır ve Worker'a 4 ondalık basamak olarak gönderilir.
-- **Anonim Ağ:** Cihaz IP'si hiçbir zaman veri sağlayıcılara ulaşmaz; tüm trafik Cloudflare Worker arkasında maskelenir.
+- **Konum Truncation:** Lokasyon verisi cihazda `kCLLocationAccuracyReduced` ile alınır, `LocationProvider` tarafından 2 ondalık basamağa (~1.1 km) kırpılır ve backend'e 4 ondalık basamak olarak gönderilir (backend ayrıca ~0.1° grid'e yuvarlar).
+- **Anonim Ağ:** Cihaz IP'si hiçbir zaman veri sağlayıcılara ulaşmaz; tüm trafik Deno Deploy backend arkasında maskelenir.
 - **On-Device NLP:** Hava durumu metninin duygu analizi, Apple'ın yerel `NaturalLanguage` framework'ü (NLTagger) ile cihaz üzerinde yapılır.
-- **AI Narrative Mahremiyeti:** Cloudflare AI'a sadece anonim hava değerleri (sıcaklık, rüzgar vb.) gönderilir; koordinat veya kullanıcı tanımı asla iletilmez.
+- **AI Narrative Mahremiyeti:** AI sağlayıcısına (Groq/Gemini) SADECE anonim hava değerleri (sıcaklık, rüzgar, nem, basınç vb. soyut sayısal değerler) gönderilir; koordinat, IP veya kullanıcı/cihaz tanımı asla iletilmez.
 - **Baro Verileri:** `SensorCalibration` ve `StormSensorEngine` cihazın barometre okumasını tamamen cihaz üzerinde işler; hiçbir şey dışarı çıkmaz.
 
 ### Zero Lock-In (Sıfır Bağımlılık)
@@ -36,7 +36,7 @@ Kod tabanında hiçbir API anahtarı, gizli token veya bağımlı SDK bulunmaz. 
 
 ## 2. Mimari Veri Akışı (Data Flow)
 
-Sistemin veri akışı, birbirinden tamamen izole edilmiş üç katmanda gerçekleşir: İstemci (Swift), Aggregator (Worker), ve Kurumsal Kaynaklar.
+Sistemin veri akışı, birbirinden tamamen izole edilmiş üç katmanda gerçekleşir: İstemci (Swift), Aggregator (Deno Deploy backend), ve Kurumsal Kaynaklar.
 
 ```text
 [ iOS / Swift İstemcisi ]
@@ -50,13 +50,13 @@ Sistemin veri akışı, birbirinden tamamen izole edilmiş üç katmanda gerçek
   │                             ├─→ Bright Sky (api.brightsky.dev) ──→ ICON Verisi
   │                             └─→ NOAA (aviationweather.gov)     ──→ METAR (ground-truth overlay)
   │                             │
-  │                             ▼  [Worker, verileri normalize edip tek JSON paketine çevirir]
+  │                             ▼  [Backend, verileri normalize edip tek JSON paketine çevirir]
   │
   ├─ 3. Nowcast (Radar) ────→ CloudflareWorker.nowcast()
   │                             └─→ MET Norway Nowcast API ──→ NowcastResponse (5 dk radar)
   │
   └─ 4. Narrative (AI) ─────→ CloudflareWorker.narrative()
-                                └─→ Workers AI (llama-3.3-70b) ──→ 3 cümlelik meteoroloji metni
+                                └─→ Groq→Gemini (aiProvider.ts) ──→ 3 cümlelik meteoroloji metni
 
 [ Cihaz İçi İşleme (On-Device) ]
   │
@@ -77,7 +77,7 @@ Sistemin veri akışı, birbirinden tamamen izole edilmiş üç katmanda gerçek
   ▼
  MeteorologicalExpertSystem ──→ Sayısal verilerden Türkçe Uzman Sistem Metni (On-Device)
   │  (WeatherNarrativeEngine adapter üzerinden)
-  └─→ (Opsiyonel) CloudflareWorker.narrative() ──→ Llama-3.3 70B üzerinden AI Meteorolojik Yorum
+  └─→ (Opsiyonel) CloudflareWorker.narrative() ──→ Groq (Llama 3.3 70B) → Gemini fallback ile AI Meteorolojik Yorum
   │
   ▼
  WeatherStore (@MainActor) ──→ SwiftUI Arayüzüne Canlı Yayın
@@ -91,9 +91,14 @@ Sistemin veri akışı, birbirinden tamamen izole edilmiş üç katmanda gerçek
 Praeventus/
 ├── CLAUDE.md                          # Bu dosya
 ├── README.md
-├── worker/
-│   ├── src/index.js                   # Cloudflare Worker v3 (Direct Aggregator)
-│   └── wrangler.toml                  # Worker config (AI binding, deploy)
+├── deno/                              # Deno Deploy backend (Direct Aggregator)
+│   ├── main.ts                        # Deno.serve entrypoint: routing, CORS, rate limit
+│   ├── cache.ts                       # Deno KV: grid rounding, TTL, write-dedup, SWR
+│   ├── aiProvider.ts                  # Groq (primary) → Gemini (fallback) zinciri
+│   ├── weather.ts                     # MET Norway + Bright Sky + METAR fusion + handlers
+│   ├── tiles.ts                       # radar/uydu tile proxy (binary KV cache)
+│   ├── util.ts                        # birim çevrimleri, WMO map, CORS, AI summary
+│   └── deno.json                      # task + fmt/lint config
 └── Praeventus.swiftpm/
     ├── Package.swift                  # Swift 6.0, iOS 17+, iPad only
     ├── en.lproj/Localizable.strings   # İngilizce lokalizasyon
@@ -107,21 +112,22 @@ Praeventus/
 
 Proje, katı bir `Domain-Driven Design` (DDD) mantığıyla şekillendirilmiştir. Veri, Etki Alanı (Domain) ve Arayüz (UI) katmanları birbirine sıkı sıkıya bağlı değildir.
 
-### 4.1 Cloudflare Worker (`worker/src/index.js`)
+### 4.1 Deno Deploy Backend (`deno/`)
 
-Sistemin dış dünya ile iletişim kuran yegane bileşeni (Direct Aggregator). Mevcut sürüm: **v3**.
+Sistemin dış dünya ile iletişim kuran yegane bileşeni (Direct Aggregator). Deno Deploy üzerinde `Deno.serve` ile çalışır.
 
 **Endpoint'ler:**
 
 | Rota | İşlev |
 |------|-------|
-| `GET /forecast?lat=&lon=` | MET Norway + Bright Sky'ı paralel sorgular, METAR ile günceller. KV'de 45 dk. TTL ile önbellek. |
-| `GET /search?q=&lang=&count=` | Nominatim'e yönlendirir. KV'de 30 gün TTL ile agresif önbellek (OSM politikası). |
-| `GET /narrative?lang=&temp=&...` | Anonim parametre grubuyla Workers AI çağırır. KV'de 30 dk. TTL. |
-| `GET /nowcast?lat=&lon=` | MET Norway Nowcast API. Kapsama dışında `radarCoverage: false` döner. KV'de 5 dk. TTL. |
+| `GET /forecast?lat=&lon=` | MET Norway + Bright Sky'ı paralel sorgular, METAR ile günceller. Deno KV'de 12 dk. TTL + stale-while-revalidate. |
+| `GET /search?q=&lang=&count=` | Nominatim'e yönlendirir. Deno KV'de 30 gün TTL ile agresif önbellek (OSM politikası). |
+| `GET /narrative?lang=&temp=&...` | Anonim parametre grubuyla Groq→Gemini AI zincirini çağırır. Deno KV'de 30 dk. TTL. |
+| `GET /nowcast?lat=&lon=` | MET Norway Nowcast API. Kapsama dışında `radarCoverage: false` döner. Deno KV'de 5 dk. TTL. |
 
-**Önemli Worker detayları:**
-- `PRAEVENTUS_CACHE` KV binding'i opsiyoneldir; yoksa önbelleksiz çalışır.
+**Önemli backend detayları:**
+- Deno KV (`Deno.openKv()`) Deno Deploy'da otomatik provision edilir; binding gerekmez. Koordinat key'leri ~0.1° grid'e yuvarlanır (`CACHE_GRID`).
+- AI key'leri env var: `GROQ_API_KEY`, `GEMINI_API_KEY`. Hiçbiri yoksa narrative statik fallback string döner.
 - Tüm isteklerde `User-Agent: Praeventus/1.0 (Contact: mehmetgezoglu@icloud.com)` başlığı gönderilir.
 - `handleForecast`: Yanıtları `ecmwf_ifs025` (MET Norway) ve `icon_global` (Bright Sky) anahtarlı `models` nesnesi içinde döner.
 - `overlayMETAR`: En yakın ICAO istasyonu bulunursa METAR okumaları anlık (current) verinin üzerine yazılır.
@@ -129,10 +135,11 @@ Sistemin dış dünya ile iletişim kuran yegane bileşeni (Direct Aggregator). 
 
 **Dağıtım:**
 ```bash
-npx wrangler deploy        # Production
-npx wrangler dev           # Yerel geliştirme (http://localhost:8787)
+cd deno
+deno task dev              # Yerel geliştirme (http://localhost:8000)
+deployctl deploy --project=praeventus --entrypoint=deno/main.ts   # Production
 ```
-Deploy sonrası `wrangler.toml`'a KV namespace eklenmeli. Worker URL'si (`WeatherSettings.cloudflareWorkerURL`) `WeatherModel.swift`'te sabit kodludur.
+Backend URL'si (`WeatherSettings.backendBaseURL`) `WeatherModel.swift`'te sabit kodludur. Detaylı deploy/env için `deno/README.md`.
 
 ### 4.2 Data Layer (Swift Foundation)
 
@@ -203,7 +210,7 @@ Deploy sonrası `wrangler.toml`'a KV namespace eklenmeli. Worker URL'si (`Weathe
 
 ```swift
 // Ağ katmanı veri sözleşmesi (OpenMeteoModels.swift)
-ForecastResponse          // Worker'dan gelen JSON şekli (Open-Meteo formatı)
+ForecastResponse          // Backend'den gelen JSON şekli (Open-Meteo uyumlu format)
   └── Current             // Anlık veri noktası
   └── Hourly              // Paralel diziler (time[], temperature_2m[], ...)
   └── Daily               // Günlük min/max dizileri
@@ -297,7 +304,7 @@ Projeye dahil edilecek her yeni API veya servis mutlaka Open Data, Public Domain
 ### 8.6 Gizlilik Katmanları (Değiştirilemez)
 1. `LocationProvider`: `kCLLocationAccuracyReduced` + 2 ondalık yuvarlama (~1.1 km)
 2. `CloudflareWeatherProvider.trimmed()`: 4 ondalık kesinlik (~11 m) — asla artırılmamalı
-3. Worker: koordinatları upstream sağlayıcılara iletmez, sadece tahmini alır
+3. Backend: koordinatları upstream sağlayıcılara iletmez, sadece tahmini alır; AI sağlayıcısına yalnızca anonim hava değerleri gönderir
 4. `narrative()` endpoint'i: hiçbir zaman koordinat veya kimlik bilgisi almaz
 
 ---
@@ -315,14 +322,14 @@ Projeye dahil edilecek her yeni API veya servis mutlaka Open Data, Public Domain
 3. `WeatherLabView`'da test edilebilirlik için sandbox override noktası düşün
 4. `WeatherStore.swift`'te gerekirse yeni `@Published` property ekle
 
-### Worker Değişiklikleri
-1. `worker/src/index.js` düzenle
-2. Yerel test: `npx wrangler dev`
-3. Production deploy: `npx wrangler deploy`
-4. KV binding (`PRAEVENTUS_CACHE`) mevcut değilse `wrangler.toml`'a ekle ve KV namespace oluştur
+### Backend Değişiklikleri
+1. `deno/` altındaki ilgili modülü düzenle (`weather.ts`, `cache.ts`, `aiProvider.ts`, `tiles.ts`, `main.ts`)
+2. `deno check`, `deno lint`, `deno fmt` çalıştır
+3. Yerel test: `cd deno && deno task dev` (http://localhost:8000)
+4. Production deploy: `deployctl deploy --project=praeventus --entrypoint=deno/main.ts`. AI key'leri (`GROQ_API_KEY`, `GEMINI_API_KEY`) Deno Deploy env var olarak ayarla.
 
 ### Nominatim Rate Limit Uyumu (Kritik)
-Worker'ın tüm istekleri tek bir outbound IP'den çıkar. Nominatim politikası max 1 req/sn. KV önbellek bu limiti karşılamak için zorunludur, `handleSearch`'ten **asla kaldırılmamalı** ve birden fazla eşzamanlı Nominatim isteği **asla gönderilmemeli**.
+Backend'in tüm istekleri tek bir outbound IP'den çıkar. Nominatim politikası max 1 req/sn. Deno KV önbellek bu limiti karşılamak için zorunludur, `handleSearch`'ten **asla kaldırılmamalı** ve birden fazla eşzamanlı Nominatim isteği **asla gönderilmemeli**.
 
 ---
 

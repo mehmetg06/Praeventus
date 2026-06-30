@@ -146,8 +146,8 @@
 "model.bestMatch" = "En İyi Eşleşme";
 "model.ecmwf" = "ECMWF";
 "model.icon" = "ICON";
-"settings.proxy.footer" = "İsteğe bağlı. Tüm istekleri Cloudflare Worker'ınız üzerinden yönlendirin; böylece hava sunucuları IP'nizi asla görmez.";
-"settings.proxy.placeholder" = "https://…workers.dev";
+"settings.proxy.footer" = "İsteğe bağlı. Tüm istekleri kendi backend'iniz üzerinden yönlendirin; böylece hava sunucuları IP'nizi asla görmez.";
+"settings.proxy.placeholder" = "https://….deno.dev";
 "settings.proxy.save" = "Kaydet";
 "settings.proxy.title" = "Veri Kaynağı / Gizlilik Proxy'si";
 "status.clear" = "Hava Çok Güzel";

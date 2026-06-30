@@ -374,7 +374,7 @@ struct HomeView: View {
         isFetchingNarrative = true
         let w = weather
         let firstDaily = store.daily.first
-        let provider = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
+        let provider = CloudflareWeatherProvider(baseURL: WeatherSettings.backendBaseURL)
         let lang = Locale.current.language.languageCode?.identifier ?? "en"
         Task {
             let text = await provider.narrative(
@@ -1016,7 +1016,7 @@ struct HomeView: View {
     }
 
     private var visibilityKmDisplay: String {
-        // Open-Meteo returns visibility in meters; convert to km for display.
+        // The backend returns visibility in meters; convert to km for display.
         let km = weather.visibility > 200 ? weather.visibility / 1000 : weather.visibility
         return "\(Int(km.rounded()))"
     }

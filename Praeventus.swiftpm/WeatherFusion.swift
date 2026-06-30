@@ -19,7 +19,7 @@ struct FusionConfidence: Codable, Equatable {
     static let unknown = FusionConfidence(agreement: 1, temperatureSpreadC: 0, models: [])
 }
 
-/// Blends several Open-Meteo model responses into one synthetic response using
+/// Blends several NWP model responses into one synthetic response using
 /// inverse-spread weighting (outliers are down-weighted) so the rest of the app
 /// keeps consuming a single `ForecastResponse` unchanged.
 enum WeatherFusion {

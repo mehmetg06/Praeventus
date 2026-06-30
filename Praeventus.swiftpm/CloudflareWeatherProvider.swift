@@ -4,13 +4,13 @@ import Foundation
 import FoundationNetworking // Linux: URLSession async lives here
 #endif
 
-/// Networking layer that fetches pre-blended forecast data from the Cloudflare
-/// Worker endpoint in one round-trip instead of querying Open-Meteo's three
-/// model URLs separately. The Worker returns the two genuine NWP model responses inside a
-/// single JSON envelope, which maps directly into the shape `WeatherFusion`
-/// already expects — no changes needed there.
+/// Networking layer that fetches pre-blended forecast data from the backend
+/// (Deno Deploy) in one round-trip instead of querying each NWP model source
+/// separately. The backend returns the genuine NWP model responses (ECMWF
+/// via MET Norway, ICON via Bright Sky) inside a single JSON envelope, which
+/// maps directly into the shape `WeatherFusion` already expects.
 ///
-/// The search path proxies Open-Meteo Geocoding through the same Worker so the
+/// The search path proxies Nominatim geocoding through the same backend so the
 /// device IP is never exposed to the upstream service.
 struct CloudflareWeatherProvider {
 

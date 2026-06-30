@@ -208,7 +208,7 @@ final class WeatherStore: ObservableObject {
     }
 
     private func fetchForecast(_ place: SavedLocation) async throws -> (ForecastResponse, FusionConfidence, MetarSnapshot?) {
-        let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.cloudflareWorkerURL)
+        let cf = CloudflareWeatherProvider(baseURL: WeatherSettings.backendBaseURL)
         let bundle = try await cf.forecast(latitude: place.latitude, longitude: place.longitude)
         let fused = WeatherFusion.fuse(bundle.models)
         let metar: MetarSnapshot? = {
