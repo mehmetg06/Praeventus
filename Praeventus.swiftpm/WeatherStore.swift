@@ -111,6 +111,19 @@ final class WeatherStore: ObservableObject {
     private static let locationKey = "praeventus.savedLocation"
     private static let logger = Logger(subsystem: "com.mehmetg06.praeventus", category: "WeatherStore")
 
+    // MARK: - Manual refresh throttling
+
+    /// Minimum interval between consecutive manual-refresh triggers (pull-to-refresh,
+    /// the location arrow button, the error screen's Retry button). Prevents repeated
+    /// yanking/tapping from spamming CoreLocation or the backend. Picking a brand-new
+    /// location via search is never subject to this — only re-running the same load.
+    private static let manualRefreshCooldown: TimeInterval = 8
+    /// Timestamp of the last manual-refresh trigger that was allowed to proceed.
+    private var lastManualRefreshAt: Date?
+    /// True while `load(_:)` is running. `load(_:)` had no reentrancy guard before —
+    /// two concurrent calls could race on the `@Published` properties it publishes to.
+    private var isLoadInFlight = false
+
     /// Seed snapshot used purely so the UI/background have something to render
     /// before the first load. Not a real location — `phase` stays `.idle`.
     init() {
@@ -159,6 +172,10 @@ final class WeatherStore: ObservableObject {
     }
 
     func load(_ place: SavedLocation) async {
+        guard !isLoadInFlight else { return }
+        isLoadInFlight = true
+        defer { isLoadInFlight = false }
+
         isSimulating = false
         forcedHealthInsights = nil
         metarSnapshot = nil
@@ -280,6 +297,32 @@ final class WeatherStore: ObservableObject {
 
     func retry() async {
         if let location { await load(location) }
+    }
+
+    /// Cooldown-gated `retry()` for manual-refresh triggers that don't involve GPS
+    /// (pull-to-refresh on a searched city, the error screen's Retry button, resuming
+    /// live data from the Lab). Silently no-ops if `manualRefreshCooldown` hasn't
+    /// elapsed since the last manual refresh.
+    @discardableResult
+    func retryIfCooledDown() async -> Bool {
+        guard canStartManualRefresh() else { return false }
+        await retry()
+        return true
+    }
+
+    /// Cooldown check for manual-refresh triggers that fetch a fresh GPS coordinate
+    /// (the location arrow button, pull-to-refresh on a GPS-sourced forecast). Callers
+    /// must check this *before* starting a CoreLocation request, so a throttled refresh
+    /// doesn't burn a location round-trip. Updates the cooldown timestamp when it
+    /// allows the refresh to proceed, so this and `retryIfCooledDown()` share one clock.
+    @discardableResult
+    func canStartManualRefresh() -> Bool {
+        if let last = lastManualRefreshAt,
+           Date().timeIntervalSince(last) < Self.manualRefreshCooldown {
+            return false
+        }
+        lastManualRefreshAt = Date()
+        return true
     }
 
     // MARK: - Health insights
@@ -451,7 +494,7 @@ final class WeatherStore: ObservableObject {
     func resumeLiveData() {
         forcedHealthInsights = nil
         moonPhaseOverride = nil
-        Task { await retry() }
+        Task { await retryIfCooledDown() }
     }
 
     // MARK: - Storm monitoring

@@ -142,6 +142,9 @@ struct HomeView: View {
             .padding(.bottom, 40)
         }
         .scrollContentBackground(.hidden)
+        .refreshable {
+            await handlePullToRefresh()
+        }
     }
 
     /// Invisible full-screen layer that catches taps outside the suggestions panel.
@@ -263,7 +266,7 @@ struct HomeView: View {
                 .foregroundStyle(.white.opacity(0.75))
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 12) {
-                Button(action: { Task { await store.retry() } }) {
+                Button(action: { Task { await store.retryIfCooledDown() } }) {
                     Label("common.retry", systemImage: "arrow.clockwise")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
@@ -1254,6 +1257,7 @@ struct HomeView: View {
 
     private func handleLocationTap() async {
         #if canImport(CoreLocation)
+        guard store.canStartManualRefresh() else { return }
         searchFocused = false
         searchVM.dismissSuggestions()
         guard let loc = await searchVM.requestCurrentLocation() else { return }
@@ -1266,6 +1270,18 @@ struct HomeView: View {
             country: loc.country
         )
         #endif
+    }
+
+    /// Pull-to-refresh entry point. Branches on the displayed forecast's source:
+    /// GPS-sourced forecasts get a fresh coordinate fetch (same pipeline as the
+    /// location arrow button); manually-searched cities just reload the same
+    /// coordinate. Both paths share WeatherStore's manual-refresh cooldown guard.
+    private func handlePullToRefresh() async {
+        if store.isGPSLocation {
+            await handleLocationTap()
+        } else {
+            await store.retryIfCooledDown()
+        }
     }
 
     private func dismissSearch() {
