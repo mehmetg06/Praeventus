@@ -662,6 +662,9 @@ export async function handleForecast(url: URL): Promise<Response> {
   if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
     return jsonResponse({ error: "lat/lon aralık dışı" }, 400);
   }
+  if (Math.abs(lat) < 1e-6 && Math.abs(lon) < 1e-6) {
+    return jsonResponse({ error: "0,0 (null island) geçerli bir konum değil" }, 400);
+  }
 
   // Snap to the cache grid (~0.1 deg) so neighbouring requests share an entry.
   const latR = snapGrid(lat);
@@ -777,6 +780,9 @@ export async function handleNowcast(url: URL): Promise<Response> {
   if (isNaN(lat) || isNaN(lon)) return jsonResponse({ error: "lat ve lon gerekli" }, 400);
   if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
     return jsonResponse({ error: "lat/lon aralık dışı" }, 400);
+  }
+  if (Math.abs(lat) < 1e-6 && Math.abs(lon) < 1e-6) {
+    return jsonResponse({ error: "0,0 (null island) geçerli bir konum değil" }, 400);
   }
 
   const latR = snapGrid(lat);

@@ -114,13 +114,14 @@ struct FusionGroundTruth: Equatable {
     }
 
     /// Builds a ground-truth anchor from a raw METAR observation, converting
-    /// aviation units (knots, inHg) into the app's working units (km/h, hPa).
+    /// aviation wind units (knots) into the app's working units (km/h) while
+    /// preserving pressure as hPa.
     init?(metar raw: MetarRaw, now: Date = Date()) {
         let temp = raw.temp
         let windKmh = raw.wspd.map { $0 * 1.852 }
         // wdir == 0 encodes calm / variable, not a true northerly bearing.
         let windDir = raw.wdir.flatMap { $0 > 0 ? $0 : nil }
-        let pressure = raw.altim.map { $0 * 33.8639 }
+        let pressure = raw.altim
 
         guard temp != nil || windKmh != nil || pressure != nil else { return nil }
 
@@ -402,13 +403,18 @@ enum WeatherFusion {
     /// inject a freshness-weighted observation as an extra value.
     private static func fusedDouble(_ values: [Double?], modelWeights: [Double]? = nil) -> Double? {
         var pairs: [(value: Double, weight: Double)] = []
+        var finiteValues: [Double] = []
         for (i, v) in values.enumerated() {
             guard let v, v.isFinite else { continue }
+            finiteValues.append(v)
             let external = modelWeights.flatMap { i < $0.count ? $0[i] : nil } ?? 1.0
             guard external > 0 else { continue }
             pairs.append((v, external))
         }
-        guard !pairs.isEmpty else { return nil }
+        if pairs.isEmpty {
+            guard !finiteValues.isEmpty else { return nil }
+            pairs = finiteValues.map { (value: $0, weight: 1.0) }
+        }
         if pairs.count == 1 { return pairs[0].value }
 
         let mean = pairs.reduce(0) { $0 + $1.value } / Double(pairs.count)
