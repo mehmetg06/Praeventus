@@ -9,11 +9,12 @@
 //   GET /search?q=&lang=&count=    Nominatim geocoding
 //   GET /narrative?lang=&temp=&... AI weather commentary (anonymous values only)
 //   GET /nowcast?lat=&lon=         MET Norway radar nowcast
+//   GET /alerts                    NWS + MeteoAlarm + GDACS alerts (single global cache entry)
 //   GET /tile/{nexrad,satellite,dwd}?z=&x=&y=   radar/satellite tile proxy
 
 import { corsHeaders, jsonResponse } from "./util.ts";
 import { checkRateLimit } from "./cache.ts";
-import { handleForecast, handleNarrative, handleNowcast, handleSearch } from "./weather.ts";
+import { handleAlerts, handleForecast, handleNarrative, handleNowcast, handleSearch } from "./weather.ts";
 import { handleTileDwd, handleTileNexrad, handleTileSatellite } from "./tiles.ts";
 
 function clientIP(request: Request): string {
@@ -45,6 +46,8 @@ export async function handler(request: Request): Promise<Response> {
       return handleNarrative(url);
     case "/nowcast":
       return handleNowcast(url);
+    case "/alerts":
+      return handleAlerts(url);
     case "/tile/nexrad":
       return handleTileNexrad(url);
     case "/tile/satellite":

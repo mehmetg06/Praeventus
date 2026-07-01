@@ -266,3 +266,15 @@
 "settings.attribution.publicDomain" = "Kamu Malı";
 "settings.attribution.academic"    = "Akademik";
 "common.reset"         = "Sıfırla";
+
+/* Uyarılar sekmesi */
+"tab.alerts"               = "Uyarılar";
+"alerts.title"              = "Uyarılar";
+"alerts.subtitle"           = "Resmi NWS, MeteoAlarm ve GDACS uyarıları";
+"alerts.empty"               = "Aktif uyarı yok";
+"alerts.loadFailed"          = "Uyarılar yüklenemedi";
+"alerts.severity.extreme"    = "Aşırı";
+"alerts.severity.severe"     = "Şiddetli";
+"alerts.severity.moderate"   = "Orta";
+"alerts.severity.minor"      = "Hafif";
+"alerts.severity.unknown"    = "Bilinmiyor";

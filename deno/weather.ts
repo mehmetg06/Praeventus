@@ -800,6 +800,283 @@ export async function handleNowcast(url: URL): Promise<Response> {
   }
 }
 
+// --- Alerts (NWS + MeteoAlarm + GDACS) --------------------------------------
+//
+// Combined, coordinate-bearing official weather/disaster alert feed. This is
+// deliberately a SINGLE global cache entry (see handleAlerts) rather than a
+// per-coordinate one: every client shares the same upstream fetch, so the
+// request volume against NWS/MeteoAlarm/GDACS stays constant regardless of
+// how many devices are polling the backend.
+//
+// Only alerts a coordinate could be extracted for are returned — anything
+// without a resolvable lat/lon is dropped so the client never has to fall
+// back to Nominatim (which would blow the 1 req/sec quota, see handleSearch).
+
+const NWS_ALERTS_URL = "https://api.weather.gov/alerts/active";
+const GDACS_RSS_URL = "https://www.gdacs.org/xml/rss.xml";
+// Aggregated pan-European CAP feed (all countries in one document).
+const METEOALARM_ATOM_URL = "https://feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom-europe";
+
+type AlertSource = "NWS" | "MeteoAlarm" | "GDACS";
+
+interface NormalizedAlert {
+  id: string;
+  title: string;
+  severity: string; // "extreme" | "severe" | "moderate" | "minor" | "unknown"
+  area: string;
+  country: string | null;
+  latitude: number;
+  longitude: number;
+  source: AlertSource;
+  onset: string | null;
+  expires: string | null;
+}
+
+function normalizeSeverity(raw: string | null | undefined, source: AlertSource): string {
+  const s = (raw || "").toLowerCase();
+  if (source === "GDACS") {
+    // GDACS uses a traffic-light alert level rather than CAP severity words.
+    if (s === "red") return "extreme";
+    if (s === "orange") return "severe";
+    if (s === "green") return "minor";
+    return "unknown";
+  }
+  if (s === "extreme" || s === "severe" || s === "moderate" || s === "minor") return s;
+  return "unknown";
+}
+
+function polygonCentroid(ring: Json): { lat: number; lon: number } | null {
+  if (!Array.isArray(ring) || ring.length === 0) return null;
+  let sumLat = 0, sumLon = 0, n = 0;
+  for (const pt of ring) {
+    if (!Array.isArray(pt) || pt.length < 2) continue;
+    const lon = pt[0], lat = pt[1]; // GeoJSON order is [lon, lat]
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    sumLon += lon;
+    sumLat += lat;
+    n++;
+  }
+  if (n === 0) return null;
+  return { lat: sumLat / n, lon: sumLon / n };
+}
+
+// Extracts a representative point from a GeoJSON geometry. NWS alerts carry
+// Point/Polygon/MultiPolygon geometries directly; county-wide alerts often
+// have `geometry: null`, which we treat as "no coordinates" per the filtering
+// rule rather than resolving it via an extra per-zone lookup request.
+function geometryCentroid(geometry: Json): { lat: number; lon: number } | null {
+  if (!geometry || !geometry.type) return null;
+  try {
+    if (geometry.type === "Point") {
+      const [lon, lat] = geometry.coordinates ?? [];
+      if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+      return { lat, lon };
+    }
+    if (geometry.type === "Polygon") {
+      return polygonCentroid(geometry.coordinates?.[0]);
+    }
+    if (geometry.type === "MultiPolygon") {
+      return polygonCentroid(geometry.coordinates?.[0]?.[0]);
+    }
+  } catch (err) {
+    console.warn("geometryCentroid failed:", err);
+    return null;
+  }
+  return null;
+}
+
+async function fetchNWSAlerts(): Promise<NormalizedAlert[]> {
+  const res = await fetch(NWS_ALERTS_URL, {
+    signal: AbortSignal.timeout(10000),
+    headers: { "User-Agent": USER_AGENT, "Accept": "application/geo+json" },
+  });
+  if (!res.ok) throw new Error(`NWS ${res.status}`);
+  const data = await res.json();
+
+  const out: NormalizedAlert[] = [];
+  for (const feature of data.features ?? []) {
+    try {
+      const p = feature.properties ?? {};
+      const center = geometryCentroid(feature.geometry);
+      if (!center) continue; // KRİTİK: koordinatsız uyarı -> at
+      out.push({
+        id: `nws:${p.id ?? feature.id ?? crypto.randomUUID()}`,
+        title: p.headline || p.event || "Weather Alert",
+        severity: normalizeSeverity(p.severity, "NWS"),
+        area: p.areaDesc || "",
+        country: "US",
+        latitude: center.lat,
+        longitude: center.lon,
+        source: "NWS",
+        onset: p.onset ?? null,
+        expires: p.expires ?? p.ends ?? null,
+      });
+    } catch (err) {
+      console.warn("NWS alert parse failed:", err);
+    }
+  }
+  return out;
+}
+
+// Minimal, dependency-free XML tag extractor for the RSS/Atom feeds below —
+// Deno Deploy has no DOMParser, and pulling in a full XML parser for two
+// well-known, stable feed shapes isn't worth the dependency.
+function xmlTag(block: string, tag: string): string | null {
+  const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`<${escaped}[^>]*>([\\s\\S]*?)<\\/${escaped}>`, "i");
+  const m = block.match(re);
+  if (!m) return null;
+  return m[1].replace(/^<!\[CDATA\[/, "").replace(/\]\]>$/, "").trim();
+}
+
+async function fetchGDACSAlerts(): Promise<NormalizedAlert[]> {
+  const res = await fetch(GDACS_RSS_URL, {
+    signal: AbortSignal.timeout(10000),
+    headers: { "User-Agent": USER_AGENT },
+  });
+  if (!res.ok) throw new Error(`GDACS ${res.status}`);
+  const xml = await res.text();
+
+  const out: NormalizedAlert[] = [];
+  const items = xml.match(/<item>[\s\S]*?<\/item>/g) ?? [];
+  for (const item of items) {
+    try {
+      const title = xmlTag(item, "title");
+      if (!title) continue;
+      const geoBlock = item.match(/<geo:Point>[\s\S]*?<\/geo:Point>/i)?.[0] ?? item;
+      const lat = parseFloat(xmlTag(geoBlock, "geo:lat") ?? "");
+      const lon = parseFloat(xmlTag(geoBlock, "geo:long") ?? "");
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue; // no coords -> drop
+      const guid = xmlTag(item, "guid") || title;
+      const country = xmlTag(item, "gdacs:country");
+      const pubDate = xmlTag(item, "pubDate");
+      let onset: string | null = null;
+      if (pubDate) {
+        const d = new Date(pubDate);
+        onset = isNaN(d.getTime()) ? null : d.toISOString();
+      }
+      out.push({
+        id: `gdacs:${guid}`,
+        title,
+        severity: normalizeSeverity(xmlTag(item, "gdacs:alertlevel"), "GDACS"),
+        area: country || "",
+        country,
+        latitude: lat,
+        longitude: lon,
+        source: "GDACS",
+        onset,
+        expires: null,
+      });
+    } catch (err) {
+      console.warn("GDACS item parse failed:", err);
+    }
+  }
+  return out;
+}
+
+// CAP polygon strings are whitespace-separated "lat,lon" pairs.
+function centroidFromCapPolygon(s: string): { lat: number; lon: number } | null {
+  const pairs = s.trim().split(/\s+/).map((pair) => pair.split(",").map(Number));
+  const valid = pairs.filter((p) => p.length === 2 && p.every(Number.isFinite));
+  if (valid.length === 0) return null;
+  const sumLat = valid.reduce((acc, p) => acc + p[0], 0);
+  const sumLon = valid.reduce((acc, p) => acc + p[1], 0);
+  return { lat: sumLat / valid.length, lon: sumLon / valid.length };
+}
+
+async function fetchMeteoAlarmAlerts(): Promise<NormalizedAlert[]> {
+  const res = await fetch(METEOALARM_ATOM_URL, {
+    signal: AbortSignal.timeout(10000),
+    headers: { "User-Agent": USER_AGENT },
+  });
+  if (!res.ok) throw new Error(`MeteoAlarm ${res.status}`);
+  const xml = await res.text();
+
+  const out: NormalizedAlert[] = [];
+  const entries = xml.match(/<entry>[\s\S]*?<\/entry>/g) ?? [];
+  for (const entry of entries) {
+    try {
+      const title = xmlTag(entry, "title");
+      if (!title) continue;
+
+      // The legacy Atom feed mostly carries country/region geocodes rather
+      // than lat/lon. Only entries that happen to inline a georss:point or
+      // cap:polygon resolve to coordinates; everything else is dropped per
+      // the coordinates-only rule instead of issuing a follow-up fetch to
+      // the full per-alert CAP document (which would multiply upstream
+      // requests for a feed that's supposed to cost one fetch per refresh).
+      let center: { lat: number; lon: number } | null = null;
+      const point = xmlTag(entry, "georss:point");
+      if (point) {
+        const parts = point.split(/\s+/).map(Number);
+        if (parts.length === 2 && parts.every(Number.isFinite)) {
+          center = { lat: parts[0], lon: parts[1] };
+        }
+      }
+      if (!center) {
+        const polygon = xmlTag(entry, "cap:polygon") || xmlTag(entry, "georss:polygon");
+        if (polygon) center = centroidFromCapPolygon(polygon);
+      }
+      if (!center) continue;
+
+      const id = xmlTag(entry, "id") || title;
+      const summary = xmlTag(entry, "summary") || xmlTag(entry, "cap:event") || title;
+      out.push({
+        id: `meteoalarm:${id}`,
+        title: summary,
+        severity: normalizeSeverity(xmlTag(entry, "cap:severity"), "MeteoAlarm"),
+        area: xmlTag(entry, "cap:areaDesc") || "",
+        country: xmlTag(entry, "cap:country"),
+        latitude: center.lat,
+        longitude: center.lon,
+        source: "MeteoAlarm",
+        onset: xmlTag(entry, "updated"),
+        expires: xmlTag(entry, "cap:expires"),
+      });
+    } catch (err) {
+      console.warn("MeteoAlarm entry parse failed:", err);
+    }
+  }
+  return out;
+}
+
+async function buildAlerts(): Promise<Json> {
+  const [nws, meteoAlarm, gdacs] = await Promise.allSettled([
+    fetchNWSAlerts(),
+    fetchMeteoAlarmAlerts(),
+    fetchGDACSAlerts(),
+  ]);
+
+  const alerts: NormalizedAlert[] = [];
+  if (nws.status === "fulfilled") alerts.push(...nws.value);
+  else console.warn("NWS alerts fetch failed:", nws.reason);
+  if (meteoAlarm.status === "fulfilled") alerts.push(...meteoAlarm.value);
+  else console.warn("MeteoAlarm alerts fetch failed:", meteoAlarm.reason);
+  if (gdacs.status === "fulfilled") alerts.push(...gdacs.value);
+  else console.warn("GDACS alerts fetch failed:", gdacs.reason);
+
+  return { alerts, generated_at: new Date().toISOString() };
+}
+
+export async function handleAlerts(_url: URL): Promise<Response> {
+  // Single global key — deliberately NOT per-coordinate, so every client
+  // shares one cached payload (see file header comment above).
+  const key: Deno.KvKey = ["alerts", "v1"];
+
+  try {
+    const { value, cached } = await withSWR(
+      key,
+      SOFT_TTL.alerts,
+      TTL.alerts,
+      () => buildAlerts(),
+    );
+    return jsonResponseWithCache(value, cached);
+  } catch (err) {
+    console.error("handleAlerts failed:", err);
+    return jsonResponse({ error: "alerts unavailable", alerts: [] }, 503);
+  }
+}
+
 export async function handleSearch(url: URL): Promise<Response> {
   const q = (url.searchParams.get("q") || "").slice(0, 200);
   const countRaw = parseInt(url.searchParams.get("count") || "5", 10);

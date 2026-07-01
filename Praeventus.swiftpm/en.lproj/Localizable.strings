@@ -266,3 +266,15 @@
 "settings.attribution.publicDomain" = "Public Domain";
 "settings.attribution.academic"    = "Academic";
 "common.reset"         = "Reset";
+
+/* Alerts tab */
+"tab.alerts"               = "Alerts";
+"alerts.title"              = "Alerts";
+"alerts.subtitle"           = "Official NWS, MeteoAlarm & GDACS warnings";
+"alerts.empty"               = "No active alerts";
+"alerts.loadFailed"          = "Couldn't load alerts";
+"alerts.severity.extreme"    = "Extreme";
+"alerts.severity.severe"     = "Severe";
+"alerts.severity.moderate"   = "Moderate";
+"alerts.severity.minor"      = "Minor";
+"alerts.severity.unknown"    = "Unknown";

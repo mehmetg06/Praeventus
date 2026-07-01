@@ -4,9 +4,16 @@ import SwiftUI
 import UIKit
 #endif
 
+/// Identifies each tab so `WeatherAlertsView` can switch the selection back to
+/// Atmosphere/Home after loading a tapped alert's location.
+enum RootTab: Hashable {
+    case atmosphere, map, alerts, lab, settings
+}
+
 struct PraeventusRootView: View {
     @StateObject private var store = WeatherStore()
     @Environment(\.scenePhase) private var scenePhase
+    @State private var selectedTab: RootTab = .atmosphere
 
     init() {
         #if canImport(UIKit)
@@ -19,12 +26,13 @@ struct PraeventusRootView: View {
     }
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             HomeView(store: store)
                 .background { atmosphereBackground }
                 .tabItem {
                     Label("tab.atmosphere", systemImage: "cloud.sun")
                 }
+                .tag(RootTab.atmosphere)
 
             if WeatherSettings.mapTabEnabled {
                 NavigationStack {
@@ -34,6 +42,16 @@ struct PraeventusRootView: View {
                 .tabItem {
                     Label("tab.map", systemImage: "map.fill")
                 }
+                .tag(RootTab.map)
+            }
+
+            if WeatherSettings.alertsTabEnabled {
+                WeatherAlertsView(store: store, selectedTab: $selectedTab)
+                    .background { atmosphereBackground }
+                    .tabItem {
+                        Label("tab.alerts", systemImage: "exclamationmark.triangle")
+                    }
+                    .tag(RootTab.alerts)
             }
 
             WeatherLabView(store: store)
@@ -41,12 +59,14 @@ struct PraeventusRootView: View {
                 .tabItem {
                     Label("tab.lab", systemImage: "flask")
                 }
+                .tag(RootTab.lab)
 
             SettingsView()
                 .background { atmosphereBackground }
                 .tabItem {
                     Label("tab.settings", systemImage: "gearshape")
                 }
+                .tag(RootTab.settings)
         }
         .toolbarBackground(.hidden, for: .tabBar)
         .preferredColorScheme(.dark)
