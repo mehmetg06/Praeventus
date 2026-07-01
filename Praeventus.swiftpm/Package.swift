@@ -13,6 +13,7 @@ let sources = [
     "WeatherModel.swift",
     "WeatherMapping.swift",
     "WeatherFusion.swift",
+    "SkillTracker.swift",
     "ForecastCache.swift",
     "WeatherData.swift",
     "LocalizedStringCompat.swift",
@@ -75,9 +76,42 @@ let packageProducts: [Product] = [
         supportedInterfaceOrientations: [.portrait, .landscapeLeft, .landscapeRight]
     )
 ]
+let packageTargets: [Target] = [
+    .executableTarget(
+        name: "AppModule",
+        path: ".",
+        sources: sources,
+        resources: [
+            // Legacy .strings catalogs (en/tr). Swift Playgrounds on iPad
+            // cannot run xcstringstool, so a String Catalog (.xcstrings)
+            // fails to build there ("stat(/xcstringstool): No such file").
+            .process("en.lproj/Localizable.strings"),
+            .process("tr.lproj/Localizable.strings")
+        ]
+    )
+]
 #else
 let supportedPlatforms: [SupportedPlatform] = [.macOS("14.0")]
 let packageProducts: [Product] = [.executable(name: "Praeventus", targets: ["AppModule"])]
+let packageTargets: [Target] = [
+    .executableTarget(
+        name: "AppModule",
+        path: ".",
+        sources: sources,
+        resources: [
+            .process("en.lproj/Localizable.strings"),
+            .process("tr.lproj/Localizable.strings")
+        ]
+    ),
+    // Headless XCTest target — macOS/Linux CI only (see CLAUDE.md §7). Never
+    // built by Swift Playgrounds, which only resolves the iOSApplication
+    // product's "AppModule" target above.
+    .testTarget(
+        name: "AppModuleTests",
+        dependencies: ["AppModule"],
+        path: "Tests"
+    )
+]
 #endif
 
 let package = Package(
@@ -85,19 +119,6 @@ let package = Package(
     defaultLocalization: "en",
     platforms: supportedPlatforms,
     products: packageProducts,
-    targets: [
-        .executableTarget(
-            name: "AppModule",
-            path: ".",
-            sources: sources,
-            resources: [
-                // Legacy .strings catalogs (en/tr). Swift Playgrounds on iPad
-                // cannot run xcstringstool, so a String Catalog (.xcstrings)
-                // fails to build there ("stat(/xcstringstool): No such file").
-                .process("en.lproj/Localizable.strings"),
-                .process("tr.lproj/Localizable.strings")
-            ]
-        )
-    ],
+    targets: packageTargets,
     swiftLanguageModes: [.v6]
 )

@@ -23,6 +23,7 @@ struct WeatherLabView: View {
             .listRowBackground(Color.white.opacity(0.03))
 
             fusionSection
+            skillScorecardSection
             timeAstronomySection
             biomeSection
             medicalSection
@@ -143,6 +144,21 @@ struct WeatherLabView: View {
         if v < 0.5 { return .red }
         if v < 0.8 { return .orange }
         return .green
+    }
+
+    // MARK: - Model Skill Scorecard (SkillTracker, Phase A)
+
+    private var skillScorecardSection: some View {
+        Section {
+            SkillScorecardPanel()
+        } header: {
+            sectionLabel("MODEL KARNESİ", "chart.bar.doc.horizontal")
+        } footer: {
+            Text("Faz A: sadece gözlem. Skorlar füzyon ağırlıklarını henüz etkilemiyor (β=0, sabit kodlu).")
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.4))
+        }
+        .listRowBackground(Color.white.opacity(0.03))
     }
 
     // MARK: - Time & Astronomy
@@ -731,6 +747,77 @@ struct AtmosphericPanel: View {
         case .reduced: return .orange
         case .poor:    return .red
         }
+    }
+}
+
+// MARK: - Model Skill Scorecard Panel
+
+/// Debug-only readout of `SkillTracker`'s EWMA skill table — one row per
+/// (model, variable, lead-time bucket) that has at least one verification.
+/// Purely observational: nothing on this screen writes back into fusion.
+struct SkillScorecardPanel: View {
+    @State private var snapshot: [SkillKey: SkillRecord] = [:]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if rows.isEmpty {
+                Text("Henüz doğrulama yok — METAR verisi geldikçe burada dolacak.")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.4))
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(rows, id: \.label) { row in
+                        AtmoRow(label: row.label, value: row.value, accent: row.accent)
+                    }
+                }
+            }
+            Button {
+                Task { snapshot = await SkillTracker.shared.snapshot() }
+            } label: {
+                Label("Yenile", systemImage: "arrow.clockwise")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.cyan)
+            }
+        }
+        .padding(12)
+        .background(.white.opacity(0.04))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(.white.opacity(0.07), lineWidth: 0.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .task {
+            snapshot = await SkillTracker.shared.snapshot()
+        }
+    }
+
+    private struct Row {
+        let label: String
+        let value: String
+        let accent: Color
+    }
+
+    private var rows: [Row] {
+        snapshot.keys
+            .sorted {
+                ($0.model, $0.variable.rawValue, $0.leadBucket.sortIndex) <
+                ($1.model, $1.variable.rawValue, $1.leadBucket.sortIndex)
+            }
+            .compactMap { key -> Row? in
+                guard let record = snapshot[key] else { return nil }
+                let unit: String
+                let thresholds: (good: Double, ok: Double)
+                switch key.variable {
+                case .temperature: unit = "°C";   thresholds = (1.0, 2.5)
+                case .wind:        unit = "km/h"; thresholds = (5.0, 12.0)
+                case .pressure:    unit = "hPa";  thresholds = (1.5, 4.0)
+                }
+                let label = "\(key.model.uppercased()) · \(key.variable.rawValue.uppercased()) · \(key.leadBucket.displayLabel)"
+                let value = String(format: "%.2f %@ (n=%d)", record.ewmaError, unit, record.verificationCount)
+                let accent: Color = record.ewmaError <= thresholds.good ? .green
+                    : (record.ewmaError <= thresholds.ok ? .orange : .red)
+                return Row(label: label, value: value, accent: accent)
+            }
     }
 }
 

@@ -253,6 +253,20 @@ final class WeatherStore: ObservableObject {
         let bundle = try await cf.forecast(latitude: place.latitude, longitude: place.longitude)
         let groundTruth = bundle.metarRaw.flatMap { FusionGroundTruth(metar: $0) }
         let fused = WeatherFusion.fuse(bundle.models, groundTruth: groundTruth)
+
+        // Phase A skill tracking (SkillTracker.swift): fire-and-forget
+        // observability only — deliberately detached so it never delays or
+        // can be cancelled alongside the forecast this function returns, and
+        // never influences `fused` above in any way.
+        let issuedAt = Date()
+        let modelsForSkillTracking = bundle.models
+        Task.detached(priority: .utility) {
+            await SkillTracker.shared.deposit(WeatherFusion.receipts(from: modelsForSkillTracking, issuedAt: issuedAt))
+            if let groundTruth {
+                await SkillTracker.shared.verify(against: groundTruth, at: issuedAt)
+            }
+        }
+
         let metar: MetarSnapshot? = {
             guard let raw = bundle.metarRaw, let station = bundle.metarStation else { return nil }
             return MetarSnapshot.from(raw: raw, station: station)
