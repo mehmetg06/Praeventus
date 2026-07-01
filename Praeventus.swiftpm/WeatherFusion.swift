@@ -137,6 +137,17 @@ struct FusionGroundTruth: Equatable {
         }
     }
 
+    /// Memberwise convenience init for synthetic ground truth (Lab overrides,
+    /// tests) that bypasses METAR unit conversion. The primary
+    /// `init?(metar:now:)` above is unaffected.
+    init(temperatureC: Double?, windSpeedKmh: Double?, windDirectionDeg: Double?, pressureHPa: Double?, ageMinutes: Double) {
+        self.temperatureC = temperatureC
+        self.windSpeedKmh = windSpeedKmh
+        self.windDirectionDeg = windDirectionDeg
+        self.pressureHPa = pressureHPa
+        self.ageMinutes = ageMinutes
+    }
+
     private static func parseISO(_ iso: String) -> Date? {
         if let d = isoFull.date(from: iso) { return d }
         return isoNoSeconds.date(from: iso)
@@ -575,6 +586,90 @@ enum WeatherFusion {
             longRange: 0.30 + 0.35 * base     // 24 h+ — low, agreement-sensitive
         )
     }
+
+    // MARK: - Skill receipts (Phase A observability — no effect on fuse/weights)
+
+    /// Lead-hour marks sampled from each model's hourly series (beyond the
+    /// immediate "current" snapshot), one per `SkillLeadBucket`, so
+    /// `SkillTracker`'s 200-slot ring buffer fills slowly instead of one
+    /// receipt per hourly point per fetch.
+    private static let receiptLeadHours: [Double] = [3, 12, 48]
+
+    /// Converts this fetch's per-model predictions into `ForecastReceipt`s for
+    /// `SkillTracker`. This is a pure read of `keyed` — it is never consulted
+    /// by `fuse(_:groundTruth:devicePressureHPa:)` above, so depositing its
+    /// output cannot change the blended forecast in any way.
+    ///
+    /// Only the "current" receipt carries a pressure value: the Open-Meteo-
+    /// compatible `Hourly` series has no pressure column, so future-hour
+    /// receipts score temperature/wind only.
+    static func receipts(from keyed: [WeatherModel: ForecastResponse], issuedAt: Date = Date()) -> [ForecastReceipt] {
+        var out: [ForecastReceipt] = []
+        for (model, response) in keyed {
+            let current = response.current
+            out.append(ForecastReceipt(
+                model: model.apiValue,
+                issuedAt: issuedAt,
+                validAt: issuedAt,
+                temperatureC: current.temperature2m,
+                windSpeedKmh: current.windSpeed10m,
+                pressureHPa: current.pressureMsl ?? current.surfacePressure
+            ))
+
+            guard let hourly = response.hourly else { continue }
+            let temps = hourly.temperature2m ?? []
+            let winds = hourly.windSpeed10m ?? []
+            for lead in receiptLeadHours {
+                let target = issuedAt.addingTimeInterval(lead * 3600)
+                guard let idx = nearestIndex(to: target, in: hourly.time),
+                      let validAt = parseReceiptISO(hourly.time[idx])
+                else { continue }
+                out.append(ForecastReceipt(
+                    model: model.apiValue,
+                    issuedAt: issuedAt,
+                    validAt: validAt,
+                    temperatureC: idx < temps.count ? temps[idx] : nil,
+                    windSpeedKmh: idx < winds.count ? winds[idx] : nil,
+                    pressureHPa: nil
+                ))
+            }
+        }
+        return out
+    }
+
+    private static func nearestIndex(to target: Date, in times: [String]) -> Int? {
+        var bestIndex: Int?
+        var bestDelta = Double.greatestFiniteMagnitude
+        for (i, t) in times.enumerated() {
+            guard let date = parseReceiptISO(t) else { continue }
+            let delta = abs(date.timeIntervalSince(target))
+            if delta < bestDelta {
+                bestDelta = delta
+                bestIndex = i
+            }
+        }
+        return bestIndex
+    }
+
+    private static func parseReceiptISO(_ iso: String) -> Date? {
+        // Same two shapes `WeatherMapping` handles: Open-Meteo's
+        // "yyyy-MM-dd'T'HH:mm" and full ISO-8601 with an explicit timezone.
+        if let d = receiptISOFormatter.date(from: iso) { return d }
+        return receiptISO8601Formatter.date(from: iso)
+    }
+
+    private nonisolated(unsafe) static let receiptISO8601Formatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    private static let receiptISOFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        return f
+    }()
 
     /// Total fallback so `fuse` stays non-optional even on impossible empty input.
     private static var emptyResponse: ForecastResponse {
