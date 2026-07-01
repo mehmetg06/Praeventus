@@ -5,7 +5,7 @@ import SwiftUI
 /// sunrise/sunset labels. Reused (with `timeZone` swapped per call) instead of
 /// allocating a fresh `DateFormatter` on every body re-evaluation — DateFormatter
 /// construction is comparatively expensive and these labels redraw often.
-private nonisolated(unsafe) let hourMinuteFormatter: DateFormatter = {
+private let hourMinuteFormatter: DateFormatter = {
     let f = DateFormatter()
     f.dateFormat = "HH:mm"
     return f
