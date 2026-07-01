@@ -83,7 +83,7 @@ struct MetarSnapshot: Equatable {
             windSpeedKt: raw.wspd.map { Int($0) },
             windGustKt: raw.wgst.map { Int($0) },
             windDirection: raw.wdir.map { Int($0) },
-            altimeterInHg: raw.altim,
+            altimeterInHg: raw.altim.map { $0 / 33.8639 },
             visibilityMiles: raw.visib,
             presentWeather: raw.wxString,
             ceilingFt: ceiling,
