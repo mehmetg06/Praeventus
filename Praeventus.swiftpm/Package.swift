@@ -44,6 +44,7 @@ let sources = [
     "WeatherCondition+Palette.swift",
     "WeatherMapView.swift",
     "AviationMetarCard.swift",
+    "WeatherAlertsView.swift",
     "SandboxEnvironment.swift",
     "PraeventusRootView.swift",
     "AtmosphereBackgroundView.swift",
