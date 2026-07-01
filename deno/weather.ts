@@ -58,6 +58,23 @@ interface ForecastModel {
   daily: Json;
 }
 
+// A model is only useful if it carries a real temperature signal. Upstream
+// providers occasionally return a timeseries with null `air_temperature` /
+// `temperature` (missing station data, partial coverage). Blending such a model
+// silently renders as 0° everywhere with a misleading "100% agreement", so we
+// backfill the current slot from the nearest finite hourly reading and drop the
+// model outright when no hourly temperature is finite.
+function ensureCurrentTemperature(model: ForecastModel | null): ForecastModel | null {
+  if (!model || !model.current) return null;
+  const cur = model.current;
+  if (!Number.isFinite(cur.temperature_2m)) {
+    const fallback = (model.hourly?.temperature_2m ?? []).find((t: Json) => Number.isFinite(t));
+    if (fallback == null) return null;
+    cur.temperature_2m = fallback;
+  }
+  return model;
+}
+
 function timezoneForCoord(lat: number, lon: number): string | null {
   try {
     return tzlookup(lat, lon);
@@ -323,19 +340,19 @@ async function fetchMETNorway(lat: number, lon: number): Promise<ForecastModel |
   const daily = buildDaily(dailyMap, true, lat, lon);
 
   if (!current) return null;
-  return {
+  return ensureCurrentTemperature({
     latitude: lat,
     longitude: lon,
     timezone: timezoneForCoord(lat, lon),
     current,
     hourly,
     daily,
-  };
+  });
 }
 
 // --- Bright Sky (ICON) ------------------------------------------------------
 
-async function fetchBrightSky(lat: number, lon: number): Promise<ForecastModel> {
+async function fetchBrightSky(lat: number, lon: number): Promise<ForecastModel | null> {
   const today = new Date();
   const start = today.toISOString().split("T")[0];
   const endDay = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -448,14 +465,14 @@ async function fetchBrightSky(lat: number, lon: number): Promise<ForecastModel> 
   }
 
   const daily = buildDaily(dailyMap, false, lat, lon);
-  return {
+  return ensureCurrentTemperature({
     latitude: lat,
     longitude: lon,
     timezone: timezoneForCoord(lat, lon),
     current,
     hourly,
     daily,
-  };
+  });
 }
 
 // Shared daily-aggregate builder. `withUV` controls whether UV maxima come from
