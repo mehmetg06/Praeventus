@@ -30,6 +30,10 @@ export const TTL = {
   nowcast: 5 * 60 * 1000,
   narrative: 30 * 60 * 1000,
   search: 30 * 24 * 60 * 60 * 1000, // 30 days (OSM policy)
+  // Alerts are a single global cache entry (not per-coordinate), so a long TTL
+  // keeps every client sharing one upstream fetch instead of re-polling NWS /
+  // MeteoAlarm / GDACS on every request.
+  alerts: 30 * 60 * 1000, // 30 min
 } as const;
 
 // Soft freshness window (ms): younger than this -> "fresh"; between soft and
@@ -37,6 +41,7 @@ export const TTL = {
 const SOFT = {
   forecast: 8 * 60 * 1000,
   nowcast: 3 * 60 * 1000,
+  alerts: 15 * 60 * 1000,
 } as const;
 
 /** Snap a coordinate to the cache grid: 41.0082 -> 41.0 (GRID = 0.1). */
@@ -176,6 +181,8 @@ const RATE_LIMITS: Record<string, { windowSec: number; maxRequests: number }> = 
   "/tile/nexrad": { windowSec: 60, maxRequests: 120 },
   "/tile/satellite": { windowSec: 60, maxRequests: 120 },
   "/tile/dwd": { windowSec: 60, maxRequests: 120 },
+  // Backed by a single global cache entry, so a low budget is plenty.
+  "/alerts": { windowSec: 60, maxRequests: 10 },
 };
 
 interface RateLimitEntry {

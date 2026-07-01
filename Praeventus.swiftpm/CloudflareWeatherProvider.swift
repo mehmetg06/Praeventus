@@ -137,6 +137,17 @@ struct CloudflareWeatherProvider {
         return result.narrative
     }
 
+    // MARK: - Alerts
+
+    /// Fetches the combined NWS + MeteoAlarm + GDACS coordinate-bearing alert
+    /// feed from the Worker's `/alerts` endpoint. This payload is a single
+    /// global cache entry on the backend (not keyed by coordinate), so every
+    /// client shares one cached fetch regardless of how many devices call it.
+    func alerts() async throws -> [WeatherAlert] {
+        let url = try buildURL(path: "/alerts", queryItems: [])
+        return try await get(url, as: WeatherAlertsResponse.self).alerts
+    }
+
     // MARK: - Search
 
     /// Forwards a geocoding query to the Worker's `/search` endpoint.
@@ -220,6 +231,29 @@ struct ForecastBundle {
 
 private struct NarrativeResponse: Decodable {
     let narrative: String
+}
+
+/// A single coordinate-bearing official alert normalized by the backend from
+/// NWS, MeteoAlarm or GDACS. `area` doubles as the display name for the
+/// location a tap should load (backend's normalized schema has no separate
+/// "city" field — `area` already carries the region/city description).
+struct WeatherAlert: Decodable, Identifiable, Equatable {
+    let id: String
+    let title: String
+    /// "extreme" | "severe" | "moderate" | "minor" | "unknown"
+    let severity: String
+    let area: String
+    let country: String?
+    let latitude: Double
+    let longitude: Double
+    /// "NWS" | "MeteoAlarm" | "GDACS"
+    let source: String
+    let onset: String?
+    let expires: String?
+}
+
+private struct WeatherAlertsResponse: Decodable {
+    let alerts: [WeatherAlert]
 }
 
 private struct WorkerEnvelope: Decodable {

@@ -52,6 +52,9 @@ enum WeatherSettings {
     /// code path without touching any other call site.
     static let mapTabEnabled = false
 
+    /// Compile-time switch for the official alerts tab (NWS + MeteoAlarm + GDACS).
+    static let alertsTabEnabled = true
+
     /// Compiled-in base URL of the Deno Deploy backend. All forecast, search,
     /// narrative and nowcast requests are routed here; no direct upstream API
     /// calls are made from the device.
