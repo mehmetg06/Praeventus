@@ -11,6 +11,11 @@ struct PraeventusRootView: View {
     @StateObject private var store = WeatherStore()
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: RootTab = .atmosphere
+    /// One instance shared between every `HomeView`'s scroll view and the
+    /// background — see `ScrollOffsetTracker`'s doc comment for why `@State`
+    /// (referential stability across body re-evaluations) rather than
+    /// `@StateObject`/`@ObservedObject` (it's deliberately not observed).
+    @State private var scrollTracker = ScrollOffsetTracker()
 
     var body: some View {
         // Computed once per body evaluation and shared across every tab's
@@ -24,7 +29,7 @@ struct PraeventusRootView: View {
             Group {
                 switch selectedTab {
                 case .atmosphere:
-                    HomeView(store: store)
+                    HomeView(store: store, scrollTracker: scrollTracker)
                         .background { sharedAtmosphereBackground }
                 case .map:
                     if WeatherSettings.mapTabEnabled {
@@ -33,7 +38,7 @@ struct PraeventusRootView: View {
                                 .background { sharedAtmosphereBackground }
                         }
                     } else {
-                        HomeView(store: store)
+                        HomeView(store: store, scrollTracker: scrollTracker)
                             .background { sharedAtmosphereBackground }
                     }
                 case .alerts:
@@ -41,7 +46,7 @@ struct PraeventusRootView: View {
                         WeatherAlertsView(store: store, selectedTab: $selectedTab)
                             .background { sharedAtmosphereBackground }
                     } else {
-                        HomeView(store: store)
+                        HomeView(store: store, scrollTracker: scrollTracker)
                             .background { sharedAtmosphereBackground }
                     }
                 case .lab:
@@ -88,7 +93,8 @@ struct PraeventusRootView: View {
             atmosphere: store.atmosphere,
             sunAltitude: astro.sunAltitude,
             isBeforeSolarNoon: store.currentDate < solarNoon,
-            windSpeed: store.weather.windSpeed
+            windSpeed: store.weather.windSpeed,
+            scrollTracker: scrollTracker
         )
         .ignoresSafeArea()
     }
@@ -152,27 +158,8 @@ private struct FloatingDock: View {
         }
         .padding(.horizontal, 10)
         .background {
-            ZStack {
-                Capsule()
-                    .fill(.ultraThinMaterial)
-                Capsule()
-                    .fill(.white.opacity(0.05))
-                // Specular highlight — top-edge light catch
-                Capsule()
-                    .strokeBorder(
-                        LinearGradient(
-                            stops: [
-                                .init(color: .white.opacity(0.55), location: 0),
-                                .init(color: .white.opacity(0.12), location: 0.28),
-                                .init(color: .clear, location: 0.55)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 0.5
-                    )
-            }
-            .shadow(color: .black.opacity(0.50), radius: 22, x: 0, y: 10)
+            // Heavier shadow than a regular card so the dock reads as floating.
+            ThinGlassCapsule(shadowOpacity: 0.50, shadowRadius: 22, shadowY: 10)
         }
         .padding(.horizontal, 30)
     }

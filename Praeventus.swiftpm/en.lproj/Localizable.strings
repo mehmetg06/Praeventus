@@ -55,7 +55,6 @@
 "health.uv.subtitle" = "Skin type %lld · SPF %lld";
 "health.uv.title" = "Time to sunburn";
 "home.activities.heading" = "TODAY'S ACTIVITIES";
-"home.atmosphere.heading" = "ATMOSPHERE";
 "home.cloudCover" = "Cloud Cover";
 "home.daily.heading" = "7-DAY FORECAST";
 "home.empty.cta" = "Choose a location";
@@ -67,6 +66,7 @@
 "home.stale" = "Cached data";
 "home.stormRisk" = "Storm Risk";
 "home.today" = "Today";
+"home.visibilityCondition" = "Visibility Cond.";
 "home.empty.subtitle" = "Search for any city in the world, or use your approximate location. Nothing about you is shared.";
 "home.empty.title" = "No location yet";
 "home.error.title" = "Could not load weather";
@@ -77,8 +77,6 @@
 "home.hourly.heading" = "LIVE OUTLOOK";
 "home.loading" = "Loading the latest forecast…";
 "home.now" = "Now";
-"home.precipSummary.label" = "Precipitation chance";
-"home.precipSummary.metarPrefix" = "METAR station";
 "home.rainShort" = "Rain";
 "home.story.heading" = "ATMOSPHERE STORY";
 "home.minutecast.heading" = "MINUTE-BY-MINUTE FORECAST";
