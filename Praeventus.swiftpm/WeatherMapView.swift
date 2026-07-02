@@ -289,7 +289,13 @@ final class WorkerTileOverlay: MKTileOverlay, @unchecked Sendable {
 
     override func url(forTilePath path: MKTileOverlayPath) -> URL {
         let str = "\(workerBase)\(layer.tilePathSuffix)?z=\(path.z)&x=\(path.x)&y=\(path.y)"
-        return URL(string: str) ?? URL(string: workerBase)!
+        if let url = URL(string: str) { return url }
+        // MKTileOverlay requires a non-optional URL back, and `workerBase` is
+        // a fixed, developer-configured backend base URL (never derived from
+        // tile coordinates), so this is effectively unreachable — but avoid a
+        // force-unwrap in favor of `URL(fileURLWithPath:)`, which cannot fail.
+        // A file URL fetch simply 404s instead of crashing the app.
+        return URL(fileURLWithPath: "/")
     }
 }
 #endif

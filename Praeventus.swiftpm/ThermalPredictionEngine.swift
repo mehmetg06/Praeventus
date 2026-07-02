@@ -191,8 +191,15 @@ final class ThermalPredictionEngine {
         skinType: FitzpatrickSkinType,
         spfValue: Int = 1
     ) -> Int {
-        // No meaningful UV (night / heavy overcast): no burn pressure.
-        guard uvIndex > 0 else { return Int(skinType.baseSafeMinutesAtUV3 * 60) }
+        // No meaningful UV (night / heavy overcast): no burn pressure at all,
+        // so there is no meaningful "minutes to burn" — `.max` signals
+        // "unbounded" rather than a fabricated finite number. (Previously this
+        // multiplied the *minutes* baseline by 60 with no unit justification,
+        // e.g. 1200 "minutes" (20 hours) for Fitzpatrick type 3 — harmless
+        // today only because every caller gates display behind
+        // `HealthInsights.hasBurnRisk` (`uvIndex > 0`), but a latent trap for
+        // any future caller that doesn't.)
+        guard uvIndex > 0 else { return .max }
 
         let spf = max(1, spfValue)
         let safeMinutes = skinType.baseSafeMinutesAtUV3 * (3.0 / uvIndex) * Double(spf)

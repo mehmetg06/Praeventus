@@ -145,7 +145,12 @@ final class SearchViewModel: ObservableObject {
         }
     }
 
-    /// Uses Apple's on-device geocoder (no network) to turn a coordinate into a place name.
+    /// Uses `CLGeocoder`'s server-side reverse-geocoding service to turn a
+    /// coordinate into a place name. This does leave the device — unlike the
+    /// rest of the app's network calls, it isn't routed through the backend
+    /// proxy — but the coordinate has already been coarsened to ~1 km by
+    /// `LocationProvider.coarsen()` before it ever reaches here, so no
+    /// full-precision location is exposed.
     private func reverseGeocode(_ coordinate: CLLocationCoordinate2D) async -> (name: String, country: String) {
         let fallback = String(localized: "location.current", defaultValue: "My Location")
         let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
