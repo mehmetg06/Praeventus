@@ -13,11 +13,13 @@ struct ThinGlassShape: View {
     var body: some View {
         glassFill
             .overlay {
+                // Specular highlight — top-edge light catch (VisionOS / Liquid Glass style)
                 shape.strokeBorder(
                     LinearGradient(
                         stops: [
-                            .init(color: .white.opacity(0.4), location: 0.0),
-                            .init(color: .clear, location: 0.25)
+                            .init(color: .white.opacity(0.55), location: 0.0),
+                            .init(color: .white.opacity(0.10), location: 0.18),
+                            .init(color: .clear, location: 0.45)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -26,7 +28,7 @@ struct ThinGlassShape: View {
                 )
             }
             // Performance mode drops the costly blur-backed material + shadow.
-            .shadow(color: .black.opacity(performanceMode ? 0 : 0.15), radius: performanceMode ? 0 : 15, y: performanceMode ? 0 : 8)
+            .shadow(color: .black.opacity(performanceMode ? 0 : 0.40), radius: performanceMode ? 0 : 10, x: 0, y: performanceMode ? 0 : 8)
     }
 
     @ViewBuilder

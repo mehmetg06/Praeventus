@@ -1,8 +1,5 @@
 #if canImport(SwiftUI)
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 /// Identifies each tab so `WeatherAlertsView` can switch the selection back to
 /// Atmosphere/Home after loading a tapped alert's location.
@@ -15,16 +12,6 @@ struct PraeventusRootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: RootTab = .atmosphere
 
-    init() {
-        #if canImport(UIKit)
-        // Make the tab bar itself transparent so the shared atmosphere shows through.
-        let appearance = UITabBarAppearance()
-        appearance.configureWithTransparentBackground()
-        UITabBar.appearance().standardAppearance = appearance
-        UITabBar.appearance().scrollEdgeAppearance = appearance
-        #endif
-    }
-
     var body: some View {
         // Computed once per body evaluation and shared across every tab's
         // `.background` — this used to be a computed property re-evaluated at
@@ -32,49 +19,46 @@ struct PraeventusRootView: View {
         // (`store.astronomicalAnalysis`) that many times for the same instant.
         let sharedAtmosphereBackground = atmosphereBackground
 
-        TabView(selection: $selectedTab) {
-            HomeView(store: store)
-                .background { sharedAtmosphereBackground }
-                .tabItem {
-                    Label("tab.atmosphere", systemImage: "cloud.sun")
-                }
-                .tag(RootTab.atmosphere)
-
-            if WeatherSettings.mapTabEnabled {
-                NavigationStack {
-                    WeatherMapView(store: store)
+        ZStack(alignment: .bottom) {
+            // ── Tab content ──────────────────────────────────────────
+            Group {
+                switch selectedTab {
+                case .atmosphere:
+                    HomeView(store: store)
+                        .background { sharedAtmosphereBackground }
+                case .map:
+                    if WeatherSettings.mapTabEnabled {
+                        NavigationStack {
+                            WeatherMapView(store: store)
+                                .background { sharedAtmosphereBackground }
+                        }
+                    } else {
+                        HomeView(store: store)
+                            .background { sharedAtmosphereBackground }
+                    }
+                case .alerts:
+                    if WeatherSettings.alertsTabEnabled {
+                        WeatherAlertsView(store: store, selectedTab: $selectedTab)
+                            .background { sharedAtmosphereBackground }
+                    } else {
+                        HomeView(store: store)
+                            .background { sharedAtmosphereBackground }
+                    }
+                case .lab:
+                    WeatherLabView(store: store)
+                        .background { sharedAtmosphereBackground }
+                case .settings:
+                    SettingsView()
                         .background { sharedAtmosphereBackground }
                 }
-                .tabItem {
-                    Label("tab.map", systemImage: "map.fill")
-                }
-                .tag(RootTab.map)
             }
+            .ignoresSafeArea()
 
-            if WeatherSettings.alertsTabEnabled {
-                WeatherAlertsView(store: store, selectedTab: $selectedTab)
-                    .background { sharedAtmosphereBackground }
-                    .tabItem {
-                        Label("tab.alerts", systemImage: "exclamationmark.triangle")
-                    }
-                    .tag(RootTab.alerts)
-            }
-
-            WeatherLabView(store: store)
-                .background { sharedAtmosphereBackground }
-                .tabItem {
-                    Label("tab.lab", systemImage: "flask")
-                }
-                .tag(RootTab.lab)
-
-            SettingsView()
-                .background { sharedAtmosphereBackground }
-                .tabItem {
-                    Label("tab.settings", systemImage: "gearshape")
-                }
-                .tag(RootTab.settings)
+            // ── Floating Dock ─────────────────────────────────────────
+            FloatingDock(selectedTab: $selectedTab)
+                .padding(.bottom, 28)
         }
-        .toolbarBackground(.hidden, for: .tabBar)
+        .ignoresSafeArea()
         .preferredColorScheme(.dark)
         // Push the sandbox overrides into the whole tree so the shared
         // atmosphere, glass and particle layers react in real time.
@@ -95,9 +79,7 @@ struct PraeventusRootView: View {
         }
     }
 
-    // Rendered inside each tab's UIHostingController so the atmosphere shows
-    // through the SwiftUI content tree, bypassing UITabBarController's opaque
-    // UIKit backing that would cover a shared ZStack background layer.
+    // Atmosphere background — shared so the Meeus solar-position math runs once per render.
     private var atmosphereBackground: some View {
         let astro = store.astronomicalAnalysis(at: store.currentDate)
         let solarNoon = astro.sunriseSunset.sunrise
@@ -109,6 +91,90 @@ struct PraeventusRootView: View {
             windSpeed: store.weather.windSpeed
         )
         .ignoresSafeArea()
+    }
+}
+
+// MARK: - Floating Dock
+
+/// Pill-shaped floating navigation dock that replaces the system TabBar.
+/// Hovers above the content on a blur-backed capsule with a specular highlight ring.
+private struct FloatingDock: View {
+    @Binding var selectedTab: RootTab
+
+    private struct DockItem {
+        let tab: RootTab
+        let icon: String
+        let label: LocalizedStringKey
+    }
+
+    private var items: [DockItem] {
+        var result: [DockItem] = [
+            .init(tab: .atmosphere, icon: "cloud.sun.fill", label: "tab.atmosphere")
+        ]
+        if WeatherSettings.alertsTabEnabled {
+            result.append(.init(tab: .alerts, icon: "exclamationmark.triangle.fill", label: "tab.alerts"))
+        }
+        if WeatherSettings.mapTabEnabled {
+            result.append(.init(tab: .map, icon: "map.fill", label: "tab.map"))
+        }
+        result.append(.init(tab: .lab, icon: "flask.fill", label: "tab.lab"))
+        result.append(.init(tab: .settings, icon: "gearshape.fill", label: "tab.settings"))
+        return result
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(items, id: \.tab) { item in
+                Button {
+                    withAnimation(.spring(response: 0.30, dampingFraction: 0.72)) {
+                        selectedTab = item.tab
+                    }
+                } label: {
+                    VStack(spacing: 5) {
+                        Image(systemName: item.icon)
+                            .font(.system(size: 21, weight: selectedTab == item.tab ? .semibold : .regular))
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(selectedTab == item.tab ? .white : .white.opacity(0.42))
+                            .scaleEffect(selectedTab == item.tab ? 1.12 : 1.0)
+                            .animation(.spring(response: 0.25, dampingFraction: 0.65), value: selectedTab)
+
+                        // Active indicator dot
+                        Circle()
+                            .fill(.white.opacity(selectedTab == item.tab ? 0.80 : 0))
+                            .frame(width: 4, height: 4)
+                            .animation(.easeInOut(duration: 0.20), value: selectedTab)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 10)
+        .background {
+            ZStack {
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                Capsule()
+                    .fill(.white.opacity(0.05))
+                // Specular highlight — top-edge light catch
+                Capsule()
+                    .strokeBorder(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .white.opacity(0.55), location: 0),
+                                .init(color: .white.opacity(0.12), location: 0.28),
+                                .init(color: .clear, location: 0.55)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.5
+                    )
+            }
+            .shadow(color: .black.opacity(0.50), radius: 22, x: 0, y: 10)
+        }
+        .padding(.horizontal, 30)
     }
 }
 #endif
