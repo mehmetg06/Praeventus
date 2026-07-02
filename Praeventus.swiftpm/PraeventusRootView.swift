@@ -16,43 +16,37 @@ struct PraeventusRootView: View {
     @StateObject private var scrollTracker = ScrollOffsetTracker()
 
     var body: some View {
-        // Computed once per body evaluation and shared across every tab's
-        // `.background` — this used to be a computed property re-evaluated at
-        // each of up to 5 call sites, redoing the Meeus solar-position math
-        // (`store.astronomicalAnalysis`) that many times for the same instant.
-        let sharedAtmosphereBackground = atmosphereBackground
-
         ZStack(alignment: .bottom) {
             // ── Tab content ──────────────────────────────────────────
             Group {
                 switch selectedTab {
                 case .atmosphere:
                     HomeView(store: store, scrollTracker: scrollTracker)
-                        .background { sharedAtmosphereBackground }
+                        .background { atmosphereBackground }
                 case .map:
                     if WeatherSettings.mapTabEnabled {
                         NavigationStack {
                             WeatherMapView(store: store)
-                                .background { sharedAtmosphereBackground }
+                                .background { atmosphereBackground }
                         }
                     } else {
                         HomeView(store: store, scrollTracker: scrollTracker)
-                            .background { sharedAtmosphereBackground }
+                            .background { atmosphereBackground }
                     }
                 case .alerts:
                     if WeatherSettings.alertsTabEnabled {
                         WeatherAlertsView(store: store, selectedTab: $selectedTab)
-                            .background { sharedAtmosphereBackground }
+                            .background { atmosphereBackground }
                     } else {
                         HomeView(store: store, scrollTracker: scrollTracker)
-                            .background { sharedAtmosphereBackground }
+                            .background { atmosphereBackground }
                     }
                 case .lab:
                     WeatherLabView(store: store)
-                        .background { sharedAtmosphereBackground }
+                        .background { atmosphereBackground }
                 case .settings:
                     SettingsView()
-                        .background { sharedAtmosphereBackground }
+                        .background { atmosphereBackground }
                 }
             }
             .ignoresSafeArea()
