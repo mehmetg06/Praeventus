@@ -369,24 +369,59 @@ final class WeatherStore: ObservableObject {
         )
     }
 
+    /// Cache key for `astronomicalAnalysis(at:)` — a single SwiftUI body
+    /// evaluation typically calls this 2-5 times (root tab background, header
+    /// subtitle, astronomical card) with the *same* `date` (callers pass
+    /// `store.currentDate`, the shared once-a-minute clock, not a fresh
+    /// `Date()` each time), so memoizing on exact-equality of the inputs turns
+    /// those repeats into a cache hit instead of redoing the Meeus solar
+    /// position math every time.
+    private struct AstronomicalCacheKey: Equatable {
+        let date: Date
+        let latitude: Double
+        let longitude: Double
+        let utcOffsetSeconds: Int?
+        let moonPhaseOverride: MoonPhase?
+    }
+    private var lastAstronomicalKey: AstronomicalCacheKey?
+    private var lastAstronomicalResult: AstronomicalAnalysis?
+
     /// Astronomical analysis for the current location, with the moon phase
     /// replaced when the sandbox is overriding it.
     func astronomicalAnalysis(at date: Date) -> AstronomicalAnalysis {
+        let key = AstronomicalCacheKey(
+            date: date,
+            latitude: location?.latitude ?? 0,
+            longitude: location?.longitude ?? 0,
+            utcOffsetSeconds: utcOffsetSeconds,
+            moonPhaseOverride: moonPhaseOverride
+        )
+        if key == lastAstronomicalKey, let cached = lastAstronomicalResult {
+            return cached
+        }
+
         let base = AstronomicalEngine.analyze(
             at: date,
             latitude: location?.latitude ?? 0,
             longitude: location?.longitude ?? 0,
             utcOffsetSeconds: utcOffsetSeconds
         )
-        guard let phase = moonPhaseOverride else { return base }
-        return AstronomicalAnalysis(
-            moonPhase: phase,
-            moonBrightness: phase.cyclePosition,
-            daylightHours: base.daylightHours,
-            sunAltitude: base.sunAltitude,
-            sunriseSunset: base.sunriseSunset,
-            locationTimezone: base.locationTimezone
-        )
+        let result: AstronomicalAnalysis
+        if let phase = moonPhaseOverride {
+            result = AstronomicalAnalysis(
+                moonPhase: phase,
+                moonBrightness: phase.cyclePosition,
+                daylightHours: base.daylightHours,
+                sunAltitude: base.sunAltitude,
+                sunriseSunset: base.sunriseSunset,
+                locationTimezone: base.locationTimezone
+            )
+        } else {
+            result = base
+        }
+        lastAstronomicalKey = key
+        lastAstronomicalResult = result
+        return result
     }
 
     // MARK: - Lab (manual simulation, unchanged behaviour)
