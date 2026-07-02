@@ -33,9 +33,8 @@ struct HomeView: View {
     /// expands it into the full `CitySearchBar` in place.
     @State private var isSearchExpanded = false
     /// Shared with `AtmosphereBackgroundView` (one level up in `PraeventusRootView`)
-    /// so background layers can parallax at a different rate than the scroll —
-    /// see `ScrollOffsetTracker`'s doc comment for why this isn't `@Published`.
-    var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
+    /// so background layers can parallax at a different rate than the scroll.
+    @ObservedObject var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
     /// Local mirror of the same offset, clamped, driving the hero's own
     /// scroll-away scale/fade — this part stays entirely inside `HomeView`.
     @State private var heroScrollOffset: CGFloat = 0

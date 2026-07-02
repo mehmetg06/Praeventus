@@ -68,7 +68,7 @@ struct RainSceneLayer: View {
     let glassIntensity: Double     // 0...1, lens-droplet density/brightness
     /// See `ScrollOffsetTracker` — rain is the nearest weather layer, so it
     /// parallaxes the most.
-    var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
+    @ObservedObject var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
 
     @Environment(\.sandboxAnimationSpeed) private var animSpeed
 
@@ -226,7 +226,7 @@ struct LightningStormLayer: View {
     @State private var strikeSeed: Int = 1
     /// See `ScrollOffsetTracker` — the cloud base the bolt hangs from
     /// parallaxes with the rest of the mid-distance storm scene.
-    var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
+    @ObservedObject var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
 
     var body: some View {
         // Ambient charged-cloud glow now lives solely in AtmosphereBackgroundView's
@@ -363,7 +363,7 @@ struct LightningStormLayer: View {
 struct RealisticSnowLayer: View {
     let windSpeed: Double
     /// See `ScrollOffsetTracker` — the near flake band parallaxes the most.
-    var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
+    @ObservedObject var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
     @State private var glow = false
 
     @Environment(\.sandboxAnimationSpeed) private var animSpeed
@@ -447,7 +447,7 @@ struct VolumetricCloudLayer: View {
     var scattered: Bool = false
     /// See `ScrollOffsetTracker` — clouds parallax slower than `airMassLayer`
     /// since they read as sitting further back.
-    var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
+    @ObservedObject var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
 
     @Environment(\.sandboxAnimationSpeed) private var animSpeed
     @Environment(\.performanceMode) private var performanceMode
@@ -558,7 +558,7 @@ struct DriftingFogLayer: View {
     let windSpeed: Double
     /// See `ScrollOffsetTracker` — fog banks sit close to the viewer, so they
     /// parallax noticeably as the content scrolls past them.
-    var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
+    @ObservedObject var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
 
     @Environment(\.sandboxAnimationSpeed) private var animSpeed
     @Environment(\.performanceMode) private var performanceMode

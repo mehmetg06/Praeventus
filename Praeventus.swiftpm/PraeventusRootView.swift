@@ -12,10 +12,8 @@ struct PraeventusRootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: RootTab = .atmosphere
     /// One instance shared between every `HomeView`'s scroll view and the
-    /// background — see `ScrollOffsetTracker`'s doc comment for why `@State`
-    /// (referential stability across body re-evaluations) rather than
-    /// `@StateObject`/`@ObservedObject` (it's deliberately not observed).
-    @State private var scrollTracker = ScrollOffsetTracker()
+    /// background, managed as a StateObject.
+    @StateObject private var scrollTracker = ScrollOffsetTracker()
 
     var body: some View {
         // Computed once per body evaluation and shared across every tab's

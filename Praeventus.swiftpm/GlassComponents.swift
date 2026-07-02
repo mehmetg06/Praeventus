@@ -3,13 +3,12 @@ import SwiftUI
 
 /// Non-observable scroll-offset holder shared between `HomeView`'s `ScrollView`
 /// and `AtmosphereBackgroundView` (instantiated one level up in the view tree,
-/// in `PraeventusRootView`). Deliberately **not** an `ObservableObject` —
-/// mutating `value` must not trigger SwiftUI re-rendering; the already-running
-/// `TimelineView` Canvas clocks in the background read it directly on their
-/// own schedule instead, so scroll parallax never costs an extra render pass.
+/// in `PraeventusRootView`). Conforms to `ObservableObject` so mutating
+/// `value` triggers immediate redrawing of observed background layers at 60/120fps,
+/// while keeping low-rate updates when idle.
 @MainActor
-final class ScrollOffsetTracker {
-    var value: CGFloat = 0
+final class ScrollOffsetTracker: ObservableObject {
+    @Published var value: CGFloat = 0
 }
 
 /// Reports the home scroll content's offset (via a zero-height `GeometryReader`)

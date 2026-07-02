@@ -13,8 +13,8 @@ struct AtmosphereBackgroundView: View {
     let windSpeed: Double
     /// Shared with `HomeView`'s `ScrollView` (one level down in the view tree,
     /// via `PraeventusRootView`). Read directly inside the Canvas-driven mood
-    /// layers' own `TimelineView` clocks — see `ScrollOffsetTracker`.
-    var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
+    /// layers' own `TimelineView` clocks.
+    @ObservedObject var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
 
     private var mood: BackgroundMood { atmosphere.backgroundMood }
     private var timeOfDay: TimeOfDay { TimeOfDay(sunAltitude: sunAltitude, isRising: isBeforeSolarNoon) }
