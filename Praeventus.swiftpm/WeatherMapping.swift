@@ -254,7 +254,14 @@ enum WeatherMapping {
         // 2. MET Norway: "2026-06-30T12:00:00Z"
         //    BrightSky:  "2026-06-30T14:00:00+02:00"
         if let d = iso8601Formatter.date(from: iso) { return d }
-        // 3. Daily date-only: "yyyy-MM-dd"
+        // 3. Backend astro.ts sunrise/sunset: JS `Date.toISOString()` always
+        //    emits milliseconds ("2026-06-30T05:12:34.000Z"), which
+        //    `iso8601Formatter` above (.withInternetDateTime only) cannot
+        //    parse — ISO8601DateFormatter's format options are an exact
+        //    match, not a flexible parse. Without this, daily.sunrise/sunset
+        //    silently decoded to nil on every forecast.
+        if let d = iso8601FractionalFormatter.date(from: iso) { return d }
+        // 4. Daily date-only: "yyyy-MM-dd"
         return dayFormatter.date(from: iso)
     }
 
@@ -265,7 +272,14 @@ enum WeatherMapping {
         index < array.count ? (array[index] ?? fallback) : fallback
     }
 
-    private static let isoFormatter: DateFormatter = {
+    // `nonisolated(unsafe)`: these four formatters are only ever read from
+    // inside `date(fromISO:)`/`hour(fromISO:)`, which `WeatherStore` calls via
+    // its `nonisolated mapForecast` — a single in-flight forecast load at a
+    // time (`WeatherStore.isLoadInFlight` serializes it), so there's no
+    // concurrent mutation despite `DateFormatter`/`ISO8601DateFormatter` not
+    // being `Sendable`. Marked consistently across all four so the isolation
+    // story is explicit rather than accidental on just one of them.
+    private nonisolated(unsafe) static let isoFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd'T'HH:mm"
@@ -280,7 +294,15 @@ enum WeatherMapping {
         return f
     }()
 
-    private static let dayFormatter: DateFormatter = {
+    // Handles the backend's astro.ts sunrise/sunset strings, which always
+    // carry milliseconds via JS `toISOString()` ("...T05:12:34.000Z").
+    private nonisolated(unsafe) static let iso8601FractionalFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    private nonisolated(unsafe) static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
