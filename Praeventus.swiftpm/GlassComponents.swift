@@ -16,7 +16,7 @@ final class ScrollOffsetTracker {
 /// up to `HomeView`'s `.onPreferenceChange`, using the classic iOS-17-compatible
 /// pattern (the newer `onScrollGeometryChange` API requires iOS 18+).
 struct ScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }
