@@ -609,7 +609,10 @@ async function buildForecast(latR: number, lonR: number): Promise<Json> {
   const metar = mr.metar;
   const icaoId = mr.icao;
 
-  for (const key of Object.keys(models)) models[key] = overlayMETAR(models[key], metar);
+  // CRITICAL: Stop overlaying METAR on individual models. The client-side
+  // WeatherFusion already anchors the blend to METAR; overlaying here
+  // "pre-corrects" the models, causing SkillTracker to see a false 0.00 error.
+  // for (const key of Object.keys(models)) models[key] = overlayMETAR(models[key], metar);
 
   const skyCoverLayers = (metar?.skyCondition || metar?.sky_condition || metar?.clouds || [])
     .map((layer: Json) => ({
