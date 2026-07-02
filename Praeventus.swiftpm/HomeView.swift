@@ -81,39 +81,23 @@ struct HomeView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            // Main content
-            VStack(spacing: 0) {
-                // Show when the barometer is co-located (GPS) OR when the lab has
-                // injected a synthetic alert for visual testing (isSimulating).
-                if (store.isGPSLocation || store.isSimulating), let alert = store.stormAlert {
-                    StormWarningBanner(alert: alert)
-                        .padding(.horizontal, 22)
-                        .padding(.top, 56)
-                        .padding(.bottom, 4)
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .top).combined(with: .opacity),
-                            removal:   .move(edge: .top).combined(with: .opacity)
-                        ))
-                }
-                contentArea
-            }
+        VStack(spacing: 0) {
+            // Always-visible search + "use my location" bar (non-scrolling).
+            topSearchBar
 
-            // Top-right search button (floating, non-scrolling)
-            HStack {
-                Spacer()
-                Button(action: { searchFocused = true }) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 17, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.90))
-                        .frame(width: 40, height: 40)
-                        .background(.ultraThinMaterial, in: Circle())
-                        .overlay(Circle().strokeBorder(.white.opacity(0.25), lineWidth: 0.5))
-                        .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
-                }
+            // Show when the barometer is co-located (GPS) OR when the lab has
+            // injected a synthetic alert for visual testing (isSimulating).
+            if (store.isGPSLocation || store.isSimulating), let alert = store.stormAlert {
+                StormWarningBanner(alert: alert)
+                    .padding(.horizontal, 22)
+                    .padding(.top, 4)
+                    .padding(.bottom, 4)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal:   .move(edge: .top).combined(with: .opacity)
+                    ))
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 52)
+            contentArea
         }
         .animation(.spring(response: 0.48, dampingFraction: 0.74), value: store.stormAlert != nil)
         .onChange(of: searchVM.query) { _, newValue in
@@ -153,9 +137,9 @@ struct HomeView: View {
         cachedActivities = ActivityAnalysisEngine.recommendedActivities(from: suitabilities)
     }
 
-    // MARK: - Inline search bar (shown in scroll content when focused)
+    // MARK: - Top search bar (always visible, non-scrolling)
 
-    private var inlineSearchBar: some View {
+    private var topSearchBar: some View {
         VStack(alignment: .leading, spacing: 8) {
             CitySearchBar(
                 text: $searchVM.query,
@@ -173,6 +157,9 @@ struct HomeView: View {
                     .transition(.opacity)
             }
         }
+        .padding(.horizontal, 22)
+        .padding(.top, 52) // clears the status bar since the root view ignores safe areas
+        .padding(.bottom, 10)
         .animation(.easeInOut(duration: 0.20), value: searchVM.searchError != nil)
     }
 
@@ -196,12 +183,6 @@ struct HomeView: View {
     private var scrollContent: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
-                // Show search bar at the top of the scroll content when focused
-                if searchFocused || !searchVM.query.isEmpty {
-                    inlineSearchBar
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-
                 switch store.phase {
                 case .idle:
                     idlePrompt
@@ -214,7 +195,7 @@ struct HomeView: View {
                 }
             }
             .padding(.horizontal, 22)
-            .padding(.top, 100) // Space for the floating search button
+            .padding(.top, 16)
             .padding(.bottom, 120) // Space for the floating dock
         }
         .scrollContentBackground(.hidden)
@@ -238,7 +219,7 @@ struct HomeView: View {
             onSelect: { result in Task { await selectSuggestion(result) } }
         )
         .padding(.horizontal, 22)
-        .padding(.top, 148) // Below the scroll area's top padding + inline search bar
+        .padding(.top, 4) // Directly below the always-visible top search bar
         .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
