@@ -194,7 +194,10 @@ final class WeatherStore: ObservableObject {
         }
 
         // Paint cached data instantly (offline-friendly) before the network call.
-        if let cached = ForecastCache.load(latitude: place.latitude, longitude: place.longitude) {
+        // `nonisolated` load keeps the disk read + JSON decode off the main thread
+        // (ForecastResponse is a large parallel-array payload; decoding it inline
+        // on WeatherStore's @MainActor was a stutter source on every cold load).
+        if let cached = await loadCache(latitude: place.latitude, longitude: place.longitude) {
             await applyForecast(cached.response, city: cached.city, country: cached.country)
             fusionConfidence = cached.confidence
             isStale = !ForecastCache.isFresh(cached)
@@ -218,7 +221,8 @@ final class WeatherStore: ObservableObject {
             utcOffsetSeconds = offsetSeconds
             isStale = false
             phase = .loaded
-            ForecastCache.save(
+            // Same rationale as the load above: encode + disk write off the main thread.
+            await saveCache(
                 CachedForecast(
                     response: response, confidence: confidence,
                     city: place.name, country: place.country, timestamp: Date()
@@ -292,6 +296,18 @@ final class WeatherStore: ObservableObject {
     /// daily parallel arrays) runs off the main actor instead of blocking it.
     private nonisolated func mapForecast(_ response: ForecastResponse, city: String, country: String) async -> MappedForecast {
         WeatherMapping.map(response, city: city, country: country)
+    }
+
+    /// `nonisolated` so `ForecastCache`'s synchronous disk read + JSON decode of
+    /// the (potentially large, multi-day) `ForecastResponse` payload run off the
+    /// main actor instead of blocking it on every cold load.
+    private nonisolated func loadCache(latitude: Double, longitude: Double) async -> CachedForecast? {
+        ForecastCache.load(latitude: latitude, longitude: longitude)
+    }
+
+    /// `nonisolated` so the JSON encode + atomic disk write run off the main actor.
+    private nonisolated func saveCache(_ entry: CachedForecast, latitude: Double, longitude: Double) async {
+        ForecastCache.save(entry, latitude: latitude, longitude: longitude)
     }
 
     /// Loads forecast for a searched / saved remote city.
