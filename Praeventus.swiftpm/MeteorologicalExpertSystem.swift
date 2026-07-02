@@ -26,15 +26,19 @@ import Foundation
 // MARK: - Classified atmospheric states (associated values carry the magnitude)
 
 /// Where the apparent temperature sits, after humidity and wind corrections.
+// Boundary convention (matches `regime(thermalIndex:dewPoint:)`'s Swift
+// `..<` ranges exactly): each band owns its lower bound and excludes its
+// upper bound, so a value sitting exactly on a boundary (e.g. apparent ==
+// -10.0, or == 32.0) belongs to the *warmer* of the two adjacent bands.
 enum ThermalRegime: Equatable {
-    case extremeCold    // apparent <= -10 °C: frostbite territory
-    case frost          // -10 < apparent <= 0 °C: freezing / "ayaz"
-    case cold           // 0 < apparent <= 8 °C
-    case cool           // 8 < apparent <= 16 °C
-    case mild           // 16 < apparent <= 24 °C
-    case warm           // 24 < apparent <= 32 °C
-    case hot            // 32 < apparent < 41 °C, dry-ish air
-    case oppressive     // 32 °C+ apparent with a high dew point (muggy)
+    case extremeCold    // apparent < -10 °C: frostbite territory
+    case frost          // -10 <= apparent < 0 °C: freezing / "ayaz"
+    case cold           // 0 <= apparent < 8 °C
+    case cool           // 8 <= apparent < 16 °C
+    case mild           // 16 <= apparent < 24 °C
+    case warm           // 24 <= apparent < 32 °C
+    case hot            // 32 <= apparent < 41 °C, dry-ish air
+    case oppressive     // 32 <= apparent < 41 °C with a high dew point (muggy)
     case extremeHeat    // apparent >= 41 °C: heat-stroke pressure
 }
 

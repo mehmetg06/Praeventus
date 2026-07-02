@@ -50,6 +50,12 @@ struct WeatherAlertsView: View {
             ProgressView()
                 .tint(.white)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let loadError, alerts.isEmpty {
+            // Distinct from `emptyState`: a fetch failure must never look like
+            // "confirmed, no active alerts" on a disaster-alert screen — a
+            // reassuring shield icon on a silent network error would let the
+            // user believe their area is clear when it just failed to load.
+            errorState(loadError)
         } else if alerts.isEmpty {
             emptyState
         } else {
@@ -81,10 +87,31 @@ struct WeatherAlertsView: View {
             Image(systemName: "checkmark.shield")
                 .font(.system(size: 40, weight: .light))
                 .foregroundStyle(.white.opacity(0.6))
-            Text(loadError ?? String(localized: "alerts.empty", defaultValue: "No active alerts"))
+            Text(String(localized: "alerts.empty", defaultValue: "No active alerts"))
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(32)
+    }
+
+    private func errorState(_ message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 40, weight: .light))
+                .foregroundStyle(.orange.opacity(0.85))
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.7))
+                .multilineTextAlignment(.center)
+            Button(action: { Task { await loadAlerts() } }) {
+                Label("common.retry", systemImage: "arrow.clockwise")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.vertical, 10).padding(.horizontal, 16)
+                    .background(ThinGlassShape(cornerRadius: 16))
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(32)

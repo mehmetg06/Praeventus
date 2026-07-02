@@ -50,38 +50,6 @@ struct WeatherData: Equatable {
         let totalMinutes = ((Int((hour * 60).rounded()) % 1440) + 1440) % 1440
         return String(format: "%02d:%02d", totalMinutes / 60, totalMinutes % 60)
     }
-
-    var statusText: String {
-        switch condition {
-        case .clear: return String(localized: "status.clear", defaultValue: "Atmosphere Bright")
-        case .partlyCloudy: return String(localized: "status.partlyCloudy", defaultValue: "Atmosphere Stable")
-        case .cloudy: return String(localized: "status.cloudy", defaultValue: "Cloud Cover Increasing")
-        case .rain: return String(localized: "status.rain", defaultValue: "Precipitation Active")
-        case .storm: return String(localized: "status.storm", defaultValue: "Convective Risk")
-        case .fog: return String(localized: "status.fog", defaultValue: "Visibility Dropping")
-        case .snow: return String(localized: "status.snow", defaultValue: "Cold Core")
-        }
-    }
-
-    var story: String {
-        let timePrefix = timeOfDay.storyPrefix
-        switch condition {
-        case .clear:
-            return timePrefix + " " + String(localized: "story.clear", defaultValue: "Pressure is balanced. Humidity is low to moderate. The sky may stay clear and calm in the coming hours.")
-        case .partlyCloudy:
-            return timePrefix + " " + String(localized: "story.partlyCloudy", defaultValue: "The atmosphere is generally stable. Local clouds may form, but no strong precipitation signal stands out.")
-        case .cloudy:
-            return timePrefix + " " + String(localized: "story.cloudy", defaultValue: "Humidity and cloud cover are rising. If pressure does not drop sharply, precipitation risk may stay limited.")
-        case .rain:
-            return timePrefix + " " + String(localized: "story.rain", defaultValue: "Humidity is high and the precipitation signal is clear. Intermittent rain can be expected in the short term.")
-        case .storm:
-            return timePrefix + " " + String(localized: "story.storm", defaultValue: "Falling pressure, high humidity and wind together are destabilizing the atmosphere. Watch for sudden showers and storms.")
-        case .fog:
-            return timePrefix + " " + String(localized: "story.fog", defaultValue: "Surface humidity is high. With weak wind, visibility may drop and a fog layer can form.")
-        case .snow:
-            return timePrefix + " " + String(localized: "story.snow", defaultValue: "The cold air profile is strengthening. With enough moisture, snow or sleet may occur.")
-        }
-    }
 }
 
 enum TimeOfDay: String, Equatable {

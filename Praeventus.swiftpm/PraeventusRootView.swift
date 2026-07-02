@@ -26,9 +26,15 @@ struct PraeventusRootView: View {
     }
 
     var body: some View {
+        // Computed once per body evaluation and shared across every tab's
+        // `.background` — this used to be a computed property re-evaluated at
+        // each of up to 5 call sites, redoing the Meeus solar-position math
+        // (`store.astronomicalAnalysis`) that many times for the same instant.
+        let sharedAtmosphereBackground = atmosphereBackground
+
         TabView(selection: $selectedTab) {
             HomeView(store: store)
-                .background { atmosphereBackground }
+                .background { sharedAtmosphereBackground }
                 .tabItem {
                     Label("tab.atmosphere", systemImage: "cloud.sun")
                 }
@@ -37,7 +43,7 @@ struct PraeventusRootView: View {
             if WeatherSettings.mapTabEnabled {
                 NavigationStack {
                     WeatherMapView(store: store)
-                        .background { atmosphereBackground }
+                        .background { sharedAtmosphereBackground }
                 }
                 .tabItem {
                     Label("tab.map", systemImage: "map.fill")
@@ -47,7 +53,7 @@ struct PraeventusRootView: View {
 
             if WeatherSettings.alertsTabEnabled {
                 WeatherAlertsView(store: store, selectedTab: $selectedTab)
-                    .background { atmosphereBackground }
+                    .background { sharedAtmosphereBackground }
                     .tabItem {
                         Label("tab.alerts", systemImage: "exclamationmark.triangle")
                     }
@@ -55,14 +61,14 @@ struct PraeventusRootView: View {
             }
 
             WeatherLabView(store: store)
-                .background { atmosphereBackground }
+                .background { sharedAtmosphereBackground }
                 .tabItem {
                     Label("tab.lab", systemImage: "flask")
                 }
                 .tag(RootTab.lab)
 
             SettingsView()
-                .background { atmosphereBackground }
+                .background { sharedAtmosphereBackground }
                 .tabItem {
                     Label("tab.settings", systemImage: "gearshape")
                 }
