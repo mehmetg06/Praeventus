@@ -11,6 +11,10 @@ struct AtmosphereBackgroundView: View {
     /// transitional twilight band (-12°…6°).
     let isBeforeSolarNoon: Bool
     let windSpeed: Double
+    /// Shared with `HomeView`'s `ScrollView` (one level down in the view tree,
+    /// via `PraeventusRootView`). Read directly inside the Canvas-driven mood
+    /// layers' own `TimelineView` clocks — see `ScrollOffsetTracker`.
+    var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
 
     private var mood: BackgroundMood { atmosphere.backgroundMood }
     private var timeOfDay: TimeOfDay { TimeOfDay(sunAltitude: sunAltitude, isRising: isBeforeSolarNoon) }
@@ -313,54 +317,21 @@ struct AtmosphereBackgroundView: View {
 
     // MARK: - Sun Disk Layer
 
+    /// Sky-wash tint only. The sun disc/corona itself is owned entirely by
+    /// `SunHaloOpticsLayer` (bloom + sharp core + rings, drawn at the same
+    /// anchor point below) — this used to duplicate its own Corona+Core here,
+    /// stacking two independent sun renders on the identical position for no
+    /// visual gain and extra render cost.
     private var sunDiskLayer: some View {
-        GeometryReader { geometry in
-            let sunX = geometry.size.width * 0.84
-            let sunY = geometry.size.height * 0.16
-
-            ZStack {
-                // Layer 1: Sky Wash — full-screen radial glow anchored at sun position.
-                // endRadius 900 guarantees the edge is never visible on any device.
-                RadialGradient(
-                    colors: [
-                        Color(red: 1.0, green: 0.85, blue: 0.4).opacity(0.15),
-                        .clear
-                    ],
-                    center: UnitPoint(x: 0.84, y: 0.16),
-                    startRadius: 0,
-                    endRadius: 900
-                )
-
-                // Layer 2: Corona — gradient stops replace blur for smooth falloff.
-                // Only this layer's opacity animates; no scaleEffect, no blendMode.
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            stops: [
-                                .init(color: .white.opacity(0.6), location: 0.0),
-                                .init(color: Color(red: 1.0, green: 0.7, blue: 0.2).opacity(0.3), location: 0.55),
-                                .init(color: .clear, location: 1.0)
-                            ],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: 125
-                        )
-                    )
-                    .frame(width: 250, height: 250)
-                    .opacity(breathe ? 1.0 : 0.7)
-                    .animation(
-                        .easeInOut(duration: 8 / animSpeed).repeatForever(autoreverses: true),
-                        value: breathe
-                    )
-                    .position(x: sunX, y: sunY)
-
-                // Layer 3: Core — sharp, pure white disc.
-                Circle()
-                    .fill(.white.opacity(0.95))
-                    .frame(width: 44, height: 44)
-                    .position(x: sunX, y: sunY)
-            }
-        }
+        RadialGradient(
+            colors: [
+                Color(red: 1.0, green: 0.85, blue: 0.4).opacity(0.15),
+                .clear
+            ],
+            center: UnitPoint(x: 0.84, y: 0.16),
+            startRadius: 0,
+            endRadius: 900
+        )
         .ignoresSafeArea()
     }
 
@@ -372,14 +343,19 @@ struct AtmosphereBackgroundView: View {
                 let time = timeline.date.timeIntervalSinceReferenceDate * animSpeed
                 let bands = max(2, min(6, Int(2 + atmosphere.cloudCover * 5)))
                 let speed = 1.2 + windSpeed * 0.022
+                // Scroll parallax: bands drift a fraction of the scroll offset so the
+                // background reads as sitting behind the foreground cards rather than
+                // glued to them. Reads `scrollTracker.value` directly inside this
+                // already-running Canvas clock — no new SwiftUI observation/re-render.
+                let parallaxY = scrollTracker.value * 0.18
 
                 for index in 0..<bands {
                     let width = size.width * (0.82 + CGFloat(index) * 0.14)
                     let height = size.height * (0.14 + CGFloat(index % 3) * 0.032)
                     let x = (CGFloat(time * (speed + Double(index) * 0.20)) + CGFloat(index * 211))
                         .truncatingRemainder(dividingBy: size.width + width) - width
-                    let y = size.height * (0.10 + CGFloat(index) * 0.13)
-                    let opacity = hotSunny ? 0.016 : 0.016 + atmosphere.cloudCover * 0.055
+                    let y = size.height * (0.10 + CGFloat(index) * 0.13) + parallaxY
+                    let opacity = hotSunny ? 0.028 : 0.028 + atmosphere.cloudCover * 0.09
                     let cx = x + width / 2
                     let cy = y + height / 2
                     context.fill(
@@ -393,7 +369,7 @@ struct AtmosphereBackgroundView: View {
                     )
 
                     if !hotSunny && atmosphere.cloudCover > 0.3 {
-                        let shadowOpacity = 0.022 + atmosphere.cloudCover * 0.022
+                        let shadowOpacity = 0.030 + atmosphere.cloudCover * 0.030
                         let shadowRect = CGRect(x: x + width * 0.08, y: y + height * 0.70,
                                                width: width * 0.84, height: height * 0.50)
                         context.fill(
@@ -410,7 +386,7 @@ struct AtmosphereBackgroundView: View {
 
                 if hotSunny {
                     for index in 0..<3 {
-                        let y = size.height * (0.60 + CGFloat(index) * 0.10)
+                        let y = size.height * (0.60 + CGFloat(index) * 0.10) + parallaxY
                         let rect = CGRect(x: -size.width * 0.12, y: y, width: size.width * 1.24, height: 78)
                         let bandOpacity = 0.028 - Double(index) * 0.005
                         context.fill(
@@ -445,18 +421,18 @@ struct AtmosphereBackgroundView: View {
                 HotSunnyLayer(drift: drift, windIntensity: windIntensity)
             } else {
                 VolumetricCloudLayer(cloudCover: max(0.32, atmosphere.cloudCover),
-                                     windSpeed: windSpeed, timeOfDay: timeOfDay, scattered: true)
+                                     windSpeed: windSpeed, timeOfDay: timeOfDay, scattered: true,
+                                     scrollTracker: scrollTracker)
             }
         case .cloudy:
             VolumetricCloudLayer(cloudCover: max(0.6, atmosphere.cloudCover),
-                                 windSpeed: windSpeed, timeOfDay: timeOfDay)
+                                 windSpeed: windSpeed, timeOfDay: timeOfDay,
+                                 scrollTracker: scrollTracker)
         case .wet:
-            VolumetricRainLayer(windSpeed: windSpeed, rainSignal: atmosphere.rainSignal)
-            RaindropGlassLayer(intensity: rainGlassIntensity, windSpeed: windSpeed)
+            RainSceneLayer(windSpeed: windSpeed, rainSignal: atmosphere.rainSignal, glassIntensity: rainGlassIntensity)
         case .storm:
             LightningStormLayer()
-            VolumetricRainLayer(windSpeed: max(windSpeed, 35), rainSignal: .high)
-            RaindropGlassLayer(intensity: 0.88, windSpeed: max(windSpeed, 35))
+            RainSceneLayer(windSpeed: max(windSpeed, 35), rainSignal: .high, glassIntensity: 0.88)
         case .fog:
             DriftingFogLayer(windSpeed: windSpeed)
         case .snow:

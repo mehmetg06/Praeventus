@@ -29,6 +29,16 @@ struct HomeView: View {
     @ObservedObject var store: WeatherStore
     @StateObject private var searchVM = SearchViewModel()
     @FocusState private var searchFocused: Bool
+    /// Header starts icon-only (ferah/spacious); tapping the search icon
+    /// expands it into the full `CitySearchBar` in place.
+    @State private var isSearchExpanded = false
+    /// Shared with `AtmosphereBackgroundView` (one level up in `PraeventusRootView`)
+    /// so background layers can parallax at a different rate than the scroll —
+    /// see `ScrollOffsetTracker`'s doc comment for why this isn't `@Published`.
+    var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
+    /// Local mirror of the same offset, clamped, driving the hero's own
+    /// scroll-away scale/fade — this part stays entirely inside `HomeView`.
+    @State private var heroScrollOffset: CGFloat = 0
 
     private var weather: WeatherData { store.weather }
     private var atmosphere: AtmosphericState { store.atmosphere }
@@ -82,8 +92,8 @@ struct HomeView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Always-visible search + "use my location" bar (non-scrolling).
-            topSearchBar
+            // Ferah header: icon-only by default (location + search), non-scrolling.
+            minimalHeaderBar
 
             // Show when the barometer is co-located (GPS) OR when the lab has
             // injected a synthetic alert for visual testing (isSimulating).
@@ -137,17 +147,55 @@ struct HomeView: View {
         cachedActivities = ActivityAnalysisEngine.recommendedActivities(from: suitabilities)
     }
 
-    // MARK: - Top search bar (always visible, non-scrolling)
+    // MARK: - Minimal header (icon-only, non-scrolling)
 
-    private var topSearchBar: some View {
+    /// Ferah/spacious header: a location icon and a search icon, no
+    /// always-visible search bar taking up vertical space. Tapping the search
+    /// icon expands it into the same `CitySearchBar` used before, in place.
+    private var minimalHeaderBar: some View {
         VStack(alignment: .leading, spacing: 8) {
-            CitySearchBar(
-                text: $searchVM.query,
-                isFocused: $searchFocused,
-                isSearching: searchVM.isSearching,
-                isLocating: searchVM.isLocating,
-                onLocationTap: { Task { await handleLocationTap() } }
-            )
+            HStack(spacing: 10) {
+                if isSearchExpanded {
+                    CitySearchBar(
+                        text: $searchVM.query,
+                        isFocused: $searchFocused,
+                        isSearching: searchVM.isSearching,
+                        isLocating: searchVM.isLocating,
+                        onLocationTap: { Task { await handleLocationTap() } }
+                    )
+                    // Focus is requested here, once the TextField actually exists in
+                    // the hierarchy — NOT in the button's action alongside
+                    // `isSearchExpanded = true`. A prior attempt at this exact
+                    // hide-behind-a-button pattern (see git history: "Restore
+                    // always-visible search/location bar on Home") set `@FocusState`
+                    // true in the same update that inserted the TextField, and SwiftUI
+                    // silently dropped the focus request because the field didn't
+                    // exist yet at that point in the transaction.
+                    .onAppear { searchFocused = true }
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+
+                    Button(action: collapseSearch) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.75))
+                            .frame(width: 44, height: 44)
+                            .background(ThinGlassShape(cornerRadius: 20))
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    headerIconButton(systemImage: "location.fill", isBusy: searchVM.isLocating) {
+                        Task { await handleLocationTap() }
+                    }
+                    Spacer(minLength: 0)
+                    headerIconButton(systemImage: "magnifyingglass", isBusy: false) {
+                        // Focus is requested by the CitySearchBar's own `.onAppear`
+                        // once it's actually mounted — see the comment there.
+                        withAnimation(.easeInOut(duration: 0.22)) {
+                            isSearchExpanded = true
+                        }
+                    }
+                }
+            }
             // Location / search errors shown inline when the dropdown is hidden
             if let error = searchVM.searchError, !searchVM.isShowingSuggestions {
                 Text(error)
@@ -161,6 +209,34 @@ struct HomeView: View {
         .padding(.top, 52) // clears the status bar since the root view ignores safe areas
         .padding(.bottom, 10)
         .animation(.easeInOut(duration: 0.20), value: searchVM.searchError != nil)
+    }
+
+    /// Circular glass icon button used by the icon-only header state.
+    private func headerIconButton(systemImage: String, isBusy: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Group {
+                if isBusy {
+                    ProgressView().tint(.cyan.opacity(0.90)).scaleEffect(0.82)
+                } else {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.85))
+                }
+            }
+            .frame(width: 44, height: 44)
+            .background(ThinGlassShape(cornerRadius: 20))
+        }
+        .buttonStyle(.plain)
+        .disabled(isBusy)
+        .animation(.easeInOut(duration: 0.18), value: isBusy)
+    }
+
+    private func collapseSearch() {
+        withAnimation(.easeInOut(duration: 0.20)) {
+            isSearchExpanded = false
+        }
+        searchFocused = false
+        searchVM.dismissSuggestions()
     }
 
     // MARK: - Content area with suggestions overlay
@@ -182,7 +258,20 @@ struct HomeView: View {
 
     private var scrollContent: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 18) {
+            // Spacing is 0 here — each phase/section now owns its own spacing so the
+            // hero+story group can read as one spacious, card-less unit with a clear
+            // break before the denser data section, instead of a uniform gap everywhere.
+            VStack(alignment: .leading, spacing: 0) {
+                // Zero-height offset probe (classic GeometryReader + PreferenceKey
+                // pattern — iOS 17 compatible; `onScrollGeometryChange` needs iOS 18).
+                GeometryReader { geo in
+                    Color.clear.preference(
+                        key: ScrollOffsetPreferenceKey.self,
+                        value: geo.frame(in: .named("homeScroll")).minY
+                    )
+                }
+                .frame(height: 0)
+
                 switch store.phase {
                 case .idle:
                     idlePrompt
@@ -198,9 +287,16 @@ struct HomeView: View {
             .padding(.top, 16)
             .padding(.bottom, 120) // Space for the floating dock
         }
+        .coordinateSpace(name: "homeScroll")
         .scrollContentBackground(.hidden)
         .refreshable {
             await handlePullToRefresh()
+        }
+        .onPreferenceChange(ScrollOffsetPreferenceKey.self) { newValue in
+            // Clamp: raw minY grows unbounded negative on a long/fast fling.
+            let clamped = max(-400, min(0, newValue))
+            scrollTracker.value = clamped
+            heroScrollOffset = clamped
         }
     }
 
@@ -351,37 +447,57 @@ struct HomeView: View {
 
     @ViewBuilder
     private var loadedContent: some View {
-        cityTemperatureHero
-        storyCardless
-        if isFetchingNarrative {
-            fetchingNarrativeCard
-        } else if let displayableNarrative {
-            narrativeCard(displayableNarrative)
+        // Ferah hero group: city/temperature + the Atmosfer Hikâyesi story, both
+        // card-less, read as one breathing unit. The generous bottom padding after
+        // it is the deliberate "spacious top, dense below" break.
+        heroGroup
+            .padding(.bottom, 36)
+
+        // Denser data section — tighter inter-card spacing to contrast with the
+        // hero group above.
+        VStack(alignment: .leading, spacing: 14) {
+            if isFetchingNarrative {
+                fetchingNarrativeCard
+            } else if let displayableNarrative {
+                narrativeCard(displayableNarrative)
+            }
+            if !minutecastPoints.isEmpty {
+                MinutecastGraphCard(minutePoints: minutecastPoints, paletteTint: paletteTint)
+            }
+            if let metar = store.metarSnapshot {
+                AviationMetarCard(metar: metar)
+            }
+            // Featured, full-width auto-advancing metric stays prominent above the
+            // dense grid — keeps the "yaşayan" carousel character while every other
+            // scalar metric is always visible below instead of hidden until its turn.
+            rotatingMetricCard
+            metricsMosaicGrid
+            atmosphericSignalsStrip
+            HealthInsightsCard(insights: store.healthInsights)
+            if !cachedActivities.isEmpty {
+                activitySuitabilityCard(cachedActivities)
+            }
+            astronomicalCard
+            hourlyPreview
+            if !store.weeklyHighlights.isEmpty {
+                weeklyHighlightsCard
+            }
+            if !store.daily.isEmpty {
+                dailyForecastCard
+            }
+            #if canImport(Charts)
+            WeatherChartsView(hourly: store.hourly, daily: store.daily, tint: paletteTint)
+            #endif
         }
-        precipitationSummaryRow
-        if !minutecastPoints.isEmpty {
-            MinutecastGraphCard(minutePoints: minutecastPoints, paletteTint: paletteTint)
+    }
+
+    /// City name + temperature + condition + the cardless Atmosfer Hikâyesi,
+    /// grouped as one spacious, card-less unit (see `loadedContent`).
+    private var heroGroup: some View {
+        VStack(alignment: .center, spacing: 8) {
+            cityTemperatureHero
+            storyCardless
         }
-        if let metar = store.metarSnapshot {
-            AviationMetarCard(metar: metar)
-        }
-        atmosphericSignalsCard
-        HealthInsightsCard(insights: store.healthInsights)
-        rotatingMetricCard
-        if !cachedActivities.isEmpty {
-            activitySuitabilityCard(cachedActivities)
-        }
-        astronomicalCard
-        hourlyPreview
-        if !store.weeklyHighlights.isEmpty {
-            weeklyHighlightsCard
-        }
-        if !store.daily.isEmpty {
-            dailyForecastCard
-        }
-        #if canImport(Charts)
-        WeatherChartsView(hourly: store.hourly, daily: store.daily, tint: paletteTint)
-        #endif
     }
 
     private var fetchingNarrativeCard: some View {
@@ -404,32 +520,6 @@ struct HomeView: View {
             .padding(22)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(ThinGlassShape(cornerRadius: 28))
-    }
-
-    /// Always-visible structural readout, independent of the AI narrative —
-    /// stays on screen even when the narrative fetch fails or falls back.
-    private var precipitationSummaryRow: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "umbrella.fill")
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.5))
-            Text(precipitationSummaryText)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.white.opacity(0.62))
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 4)
-    }
-
-    private var precipitationSummaryText: String {
-        let percent = Int(weather.rainProbability.rounded())
-        let label = String(localized: "home.precipSummary.label", defaultValue: "Precipitation chance")
-        var text = "\(label): %\(percent)"
-        if let station = store.metarSnapshot?.station {
-            let metarLabel = String(localized: "home.precipSummary.metarPrefix", defaultValue: "METAR station")
-            text += " · \(metarLabel): \(station)"
-        }
-        return text
     }
 
     private func refreshMinutecast() {
@@ -697,6 +787,21 @@ struct HomeView: View {
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.top, 8)
         .padding(.bottom, 4)
+        .scaleEffect(heroScale, anchor: .top)
+        .opacity(heroOpacity)
+    }
+
+    /// Apple-Weather-style scroll-away effect: the hero shrinks and fades as the
+    /// user scrolls past it. Driven by `heroScrollOffset`, entirely local to
+    /// `HomeView` — no cross-view observation needed for this part.
+    private var heroScale: CGFloat {
+        let t = min(1, max(0, -heroScrollOffset / 160))
+        return 1 - t * 0.12
+    }
+
+    private var heroOpacity: Double {
+        let t = min(1, max(0, -heroScrollOffset / 140))
+        return 1 - t * 0.55
     }
 
     /// "ICON reading looks off — down-weighted" style label for a flagged
@@ -903,82 +1008,61 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Atmospheric Signals Card
+    // MARK: - Dense metric mosaic (Anti-Minimalist data grid)
 
-    private var atmosphericSignalsCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 9) {
-                Image(systemName: "waveform")
-                    .font(.system(size: 13, weight: .semibold))
-                Text(String(localized: "home.atmosphere.heading", defaultValue: "ATMOSPHERE"))
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .tracking(1.4)
-                Spacer()
-            }
-            .foregroundStyle(.white.opacity(0.56))
-
-            HStack(spacing: 8) {
-                atmosphereChip(
-                    icon: "bolt.fill",
-                    label: String(localized: "home.stormRisk", defaultValue: "Storm Risk"),
-                    value: atmosphere.stormRisk.displayName,
-                    color: riskLevelColor(atmosphere.stormRisk)
-                )
-                atmosphereChip(
-                    icon: "cloud.rain.fill",
-                    label: String(localized: "home.rainSignal", defaultValue: "Rain Signal"),
-                    value: atmosphere.rainSignal.displayName,
-                    color: riskLevelColor(atmosphere.rainSignal)
-                )
-                atmosphereChip(
-                    icon: "eye.fill",
-                    label: String(localized: "metric.visibility", defaultValue: "Visibility"),
-                    value: atmosphere.visibility.displayName,
-                    color: visibilityLevelColor(atmosphere.visibility)
-                )
-            }
-
-            VStack(spacing: 10) {
-                atmosphereProgressRow(
-                    label: String(localized: "home.instability", defaultValue: "Instability"),
-                    value: atmosphere.instability,
-                    accent: instabilityAccentColor(atmosphere.instability)
-                )
-                atmosphereProgressRow(
-                    label: String(localized: "home.cloudCover", defaultValue: "Cloud Cover"),
-                    value: atmosphere.cloudCover,
-                    accent: .white.opacity(0.75)
-                )
+    /// Every scalar metric — storm risk/rain signal/visibility condition (formerly
+    /// three bespoke chips inside the atmospheric signals card) plus all 9
+    /// `rotatingMetrics` (formerly only shown one at a time in the carousel) — as
+    /// an always-visible `GlassMetric` grid. Reuses the existing `GlassMetric`
+    /// component rather than inventing a new tile type. `.adaptive` columns so
+    /// this reflows sensibly across iPad split-view widths.
+    private var metricsMosaicGrid: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 14)], spacing: 14) {
+            GlassMetric(
+                symbol: "bolt.fill",
+                title: String(localized: "home.stormRisk", defaultValue: "Storm Risk"),
+                value: atmosphere.stormRisk.displayName,
+                unit: "",
+                accent: riskLevelColor(atmosphere.stormRisk)
+            )
+            GlassMetric(
+                symbol: "cloud.rain.fill",
+                title: String(localized: "home.rainSignal", defaultValue: "Rain Signal"),
+                value: atmosphere.rainSignal.displayName,
+                unit: "",
+                accent: riskLevelColor(atmosphere.rainSignal)
+            )
+            GlassMetric(
+                symbol: "eye.fill",
+                title: String(localized: "home.visibilityCondition", defaultValue: "Visibility Cond."),
+                value: atmosphere.visibility.displayName,
+                unit: "",
+                accent: visibilityLevelColor(atmosphere.visibility)
+            )
+            ForEach(Array(rotatingMetrics.enumerated()), id: \.offset) { _, metric in
+                GlassMetric(symbol: metric.icon, title: metric.title, value: metric.value, unit: "", accent: metric.accent)
             }
         }
-        .padding(20)
-        .background(ThinGlassShape(cornerRadius: 28))
     }
 
-    private func atmosphereChip(icon: String, label: String, value: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(color)
-                Text(label)
-                    .font(.system(size: 9, weight: .semibold, design: .rounded))
-                    .tracking(0.6)
-                    .foregroundStyle(.white.opacity(0.50))
-            }
-            Text(value)
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundStyle(color)
+    /// Instability + cloud cover — inherently continuous/linear readouts that
+    /// don't map onto `GlassMetric`'s scalar-value layout, so they stay a small
+    /// full-width strip rather than being forced into grid tiles.
+    private var atmosphericSignalsStrip: some View {
+        VStack(spacing: 10) {
+            atmosphereProgressRow(
+                label: String(localized: "home.instability", defaultValue: "Instability"),
+                value: atmosphere.instability,
+                accent: instabilityAccentColor(atmosphere.instability)
+            )
+            atmosphereProgressRow(
+                label: String(localized: "home.cloudCover", defaultValue: "Cloud Cover"),
+                value: atmosphere.cloudCover,
+                accent: .white.opacity(0.75)
+            )
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
-        .background(color.opacity(0.10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(color.opacity(0.25), lineWidth: 0.5)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(16)
+        .background(ThinGlassShape(cornerRadius: 20))
     }
 
     private func atmosphereProgressRow(label: String, value: Double, accent: Color) -> some View {
@@ -1354,6 +1438,9 @@ struct HomeView: View {
         searchVM.dismissSuggestions()
         searchFocused = false
         searchVM.clearSearch()
+        withAnimation(.easeInOut(duration: 0.20)) {
+            isSearchExpanded = false
+        }
         await store.load(
             latitude: result.latitude,
             longitude: result.longitude,
@@ -1367,6 +1454,9 @@ struct HomeView: View {
         guard store.canStartManualRefresh() else { return }
         searchFocused = false
         searchVM.dismissSuggestions()
+        withAnimation(.easeInOut(duration: 0.20)) {
+            isSearchExpanded = false
+        }
         guard let loc = await searchVM.requestCurrentLocation() else { return }
         // Use loadCurrentLocation so WeatherStore knows the barometer and the
         // forecast are physically co-located — enabling the storm warning banner.
@@ -1394,6 +1484,9 @@ struct HomeView: View {
     private func dismissSearch() {
         searchFocused = false
         searchVM.dismissSuggestions()
+        withAnimation(.easeInOut(duration: 0.20)) {
+            isSearchExpanded = false
+        }
     }
 }
 
