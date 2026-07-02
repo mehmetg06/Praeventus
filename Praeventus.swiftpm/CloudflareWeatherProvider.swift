@@ -3,6 +3,9 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking // Linux: URLSession async lives here
 #endif
+#if canImport(os)
+import os
+#endif
 
 /// Networking layer that fetches pre-blended forecast data from the backend
 /// (Deno Deploy) in one round-trip instead of querying each NWP model source
@@ -15,6 +18,10 @@ import FoundationNetworking // Linux: URLSession async lives here
 struct CloudflareWeatherProvider {
 
     let baseURL: String
+
+    #if canImport(os)
+    private static let logger = Logger(subsystem: "com.mehmetg06.praeventus", category: "CloudflareWeatherProvider")
+    #endif
 
     private static let sharedDecoder: JSONDecoder = {
         let d = JSONDecoder()
@@ -77,7 +84,19 @@ struct CloudflareWeatherProvider {
             URLQueryItem(name: "lat", value: trimmed(latitude)),
             URLQueryItem(name: "lon", value: trimmed(longitude))
         ]) else { return nil }
-        return try? await get(url, as: NowcastResponse.self)
+        do {
+            return try await get(url, as: NowcastResponse.self)
+        } catch {
+            // Best-effort by design (see doc comment above) — failures must
+            // never block or fail the main forecast load. But unlike every
+            // other provider method, this discarded the error with no trace
+            // at all; a backend field rename or endpoint regression would be
+            // invisible in production. Log only, still return nil.
+            #if canImport(os)
+            Self.logger.error("nowcast fetch failed: \(String(describing: error))")
+            #endif
+            return nil
+        }
     }
 
     // MARK: - Narrative

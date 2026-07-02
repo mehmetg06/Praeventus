@@ -73,7 +73,7 @@ enum AstronomicalEngine {
         let phase = moonPhase(at: date)
         let brightness = moonBrightness(at: date)
         let altitude = sunAltitude(at: date, latitude: latitude, longitude: longitude)
-        let timing = sunTiming(at: date, latitude: latitude, longitude: longitude)
+        let timing = sunTiming(at: date, latitude: latitude, longitude: longitude, utcOffsetSeconds: utcOffsetSeconds)
         let daylight = timing.duration / 3600
         let tzOffset = utcOffsetSeconds ?? Int(round(longitude / 15.0)) * 3600
         let locationTimezone = TimeZone(secondsFromGMT: tzOffset) ?? .current
@@ -155,15 +155,24 @@ enum AstronomicalEngine {
         return max(-90, min(90, altitude.toDegrees()))
     }
 
-    static func sunTiming(at date: Date, latitude: Double, longitude: Double) -> SunTiming {
-        let sunrise = calculateSunriseTime(date: date, latitude: latitude, longitude: longitude, isRise: true)
-        let sunset = calculateSunriseTime(date: date, latitude: latitude, longitude: longitude, isRise: false)
+    /// - Parameter utcOffsetSeconds: The location's real, DST-aware UTC offset,
+    ///   when available (see `analyze(at:latitude:longitude:utcOffsetSeconds:)`).
+    ///   Used to pick the correct local calendar day for the sunrise/sunset
+    ///   formula; without it, a longitude/15° approximation is used instead,
+    ///   which can pick the wrong calendar day near local midnight for any
+    ///   location whose real civil offset diverges from that approximation
+    ///   (e.g. all of Turkey, UTC+3 year-round vs. an approximated UTC+2).
+    static func sunTiming(at date: Date, latitude: Double, longitude: Double, utcOffsetSeconds: Int? = nil) -> SunTiming {
+        let sunrise = calculateSunriseTime(date: date, latitude: latitude, longitude: longitude, isRise: true, utcOffsetSeconds: utcOffsetSeconds)
+        let sunset = calculateSunriseTime(date: date, latitude: latitude, longitude: longitude, isRise: false, utcOffsetSeconds: utcOffsetSeconds)
         return SunTiming(sunrise: sunrise, sunset: sunset)
     }
 
-    private static func calculateSunriseTime(date: Date, latitude: Double, longitude: Double, isRise: Bool) -> Date {
+    private static func calculateSunriseTime(date: Date, latitude: Double, longitude: Double, isRise: Bool, utcOffsetSeconds: Int? = nil) -> Date {
         // Extract the local calendar date at the target location (not device timezone).
-        let tzOffset = Int(round(longitude / 15.0)) * 3600
+        // Prefer the real DST-aware offset when supplied; the longitude/15°
+        // approximation ignores DST and political timezone boundaries.
+        let tzOffset = utcOffsetSeconds ?? Int(round(longitude / 15.0)) * 3600
         let locationTZ = TimeZone(secondsFromGMT: tzOffset) ?? .current
         var locationCalendar = Calendar(identifier: .gregorian)
         locationCalendar.timeZone = locationTZ
@@ -172,6 +181,16 @@ enum AstronomicalEngine {
         guard let year = components.year, let month = components.month, let day = components.day else {
             return date
         }
+
+        var midnightComponents = DateComponents()
+        midnightComponents.year = year
+        midnightComponents.month = month
+        midnightComponents.day = day
+        midnightComponents.hour = 0
+        midnightComponents.minute = 0
+        midnightComponents.second = 0
+        midnightComponents.timeZone = TimeZone(identifier: "UTC")
+        let midnightUTC = Calendar(identifier: .gregorian).date(from: midnightComponents) ?? date
 
         let zenith = 90.833
         let N_int = dayOfYear(year: year, month: month, day: day)
@@ -202,9 +221,19 @@ enum AstronomicalEngine {
         let cosH = (cos(zenith.toRadians()) - sinDec * sin(latitude.toRadians())) / (cosDec * cos(latitude.toRadians()))
 
         if cosH > 1 {
-            return Date.distantFuture
+            // Polar night: the sun never rises. Both endpoints collapse to the
+            // same instant so `duration` (sunset - sunrise) is correctly 0,
+            // and callers formatting this Date see a sane local midnight
+            // instead of the Date.distantFuture sentinel previously returned
+            // here (which rendered as a nonsensical far-future date/time).
+            return midnightUTC
         } else if cosH < -1 {
-            return Date.distantPast
+            // Polar day: the sun never sets. Treat the whole UTC calendar day
+            // as daylight (sunrise = day start, sunset = day start + 24h) so
+            // `duration` correctly comes out to ~24h instead of collapsing to
+            // 0 (both endpoints previously returned the same Date.distantPast
+            // sentinel regardless of `isRise`).
+            return isRise ? midnightUTC : midnightUTC.addingTimeInterval(86400)
         }
 
         var H = isRise ? 360 - acos(cosH).toDegrees() : acos(cosH).toDegrees()
@@ -214,20 +243,8 @@ enum AstronomicalEngine {
         var UT = fmod(T - lngHour, 24)
         if UT < 0 { UT += 24 }
 
-        // Build the result as the correct UTC Date: midnight UTC of the local date,
-        // shifted by utcDayOffset days, then UT hours added.
-        var midnightComponents = DateComponents()
-        midnightComponents.year = year
-        midnightComponents.month = month
-        midnightComponents.day = day
-        midnightComponents.hour = 0
-        midnightComponents.minute = 0
-        midnightComponents.second = 0
-        midnightComponents.timeZone = TimeZone(identifier: "UTC")
-
-        guard let midnightUTC = Calendar(identifier: .gregorian).date(from: midnightComponents) else {
-            return date
-        }
+        // Result is the correct UTC Date: midnight UTC of the local date
+        // (computed above), shifted by utcDayOffset days, then UT hours added.
         let utcSeconds = Double(utcDayOffset) * 86400.0 + UT * 3600.0
         return midnightUTC.addingTimeInterval(utcSeconds)
     }

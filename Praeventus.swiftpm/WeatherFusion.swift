@@ -310,7 +310,12 @@ enum WeatherFusion {
             surfacePressure: anchoredDouble(currents.map(\.surfacePressure), anchor: gt?.pressureHPa),
             pressureMsl: anchoredDouble(currents.map(\.pressureMsl), anchor: gt?.pressureHPa),
             windSpeed10m: anchoredDouble(currents.map(\.windSpeed10m), anchor: gt?.windSpeedKmh),
-            windDirection10m: fusedDirection(currents.map(\.windDirection10m)),
+            windDirection10m: fusedDirection(
+                currents.map(\.windDirection10m),
+                modelWeights: modelWeights,
+                anchor: gt?.windDirectionDeg,
+                anchorWeight: anchorWeight
+            ),
             windGusts10m: fusedDouble(currents.map(\.windGusts10m), modelWeights: modelWeights),
             precipitationProbability: fusedDouble(currents.map(\.precipitationProbability), modelWeights: modelWeights),
             weatherCode: fusedCode(currents.map(\.weatherCode)),
@@ -344,7 +349,9 @@ enum WeatherFusion {
             weatherCode: times.map { t in fusedCode(gather(t, hourlies, indexMaps) { $0.weatherCode }) },
             uvIndex: doubleCol(\.uvIndex),
             windSpeed10m: doubleCol(\.windSpeed10m),
-            windDirection10m: times.map { t in fusedDirection(gather(t, hourlies, indexMaps) { $0.windDirection10m }) },
+            windDirection10m: times.map { t in
+                fusedDirection(gather(t, hourlies, indexMaps) { $0.windDirection10m }, modelWeights: modelWeights)
+            },
             windGusts10m: doubleCol(\.windGusts10m),
             relativeHumidity2m: doubleCol(\.relativeHumidity2m),
             dewPoint2m: doubleCol(\.dewPoint2m),
@@ -375,7 +382,9 @@ enum WeatherFusion {
             apparentTemperatureMin: doubleCol(\.apparentTemperatureMin),
             uvIndexMax: doubleCol(\.uvIndexMax),
             windSpeed10mMax: doubleCol(\.windSpeed10mMax),
-            windDirection10mDominant: times.map { t in fusedDirection(gather(t, dailies, indexMaps) { $0.windDirection10mDominant }) },
+            windDirection10mDominant: times.map { t in
+                fusedDirection(gather(t, dailies, indexMaps) { $0.windDirection10mDominant }, modelWeights: modelWeights)
+            },
             windGusts10mMax: doubleCol(\.windGusts10mMax),
             precipitationSum: doubleCol(\.precipitationSum),
             weatherCode: times.map { t in fusedCode(gather(t, dailies, indexMaps) { $0.weatherCode }) },
@@ -437,13 +446,38 @@ enum WeatherFusion {
     }
 
     /// Vector (circular) mean of compass bearings — correct across the 0°/360° seam.
-    private static func fusedDirection(_ values: [Double?]) -> Double? {
-        let present = values.compactMap { $0 }
-        guard !present.isEmpty else { return nil }
-        let radians = present.map { $0 * .pi / 180 }
-        let s = radians.reduce(0) { $0 + sin($1) }
-        let c = radians.reduce(0) { $0 + cos($1) }
-        if s == 0, c == 0 { return present[0] }
+    /// `modelWeights`/`anchor`/`anchorWeight` mirror `fusedDouble`/`anchoredDouble`'s
+    /// contract so wind direction gets the same deviation-weighting and METAR
+    /// ground-truth anchoring every other fused quantity in `fuseCurrent` does —
+    /// previously this always took a plain, equally-weighted mean of the raw
+    /// per-model bearings, so a model already down-weighted elsewhere for a
+    /// pressure/temperature anomaly still fully influenced the fused wind
+    /// direction, and a fresh, high-confidence METAR bearing was discarded.
+    private static func fusedDirection(
+        _ values: [Double?],
+        modelWeights: [Double]? = nil,
+        anchor: Double? = nil,
+        anchorWeight: Double = 0
+    ) -> Double? {
+        var s = 0.0
+        var c = 0.0
+        var present: [Double] = []
+        for (i, v) in values.enumerated() {
+            guard let v else { continue }
+            present.append(v)
+            let weight = modelWeights.flatMap { i < $0.count ? $0[i] : nil } ?? 1.0
+            guard weight > 0 else { continue }
+            let radians = v * .pi / 180
+            s += sin(radians) * weight
+            c += cos(radians) * weight
+        }
+        if let anchor, anchorWeight > 0 {
+            let radians = anchor * .pi / 180
+            s += sin(radians) * anchorWeight
+            c += cos(radians) * anchorWeight
+        }
+        guard !present.isEmpty || anchorWeight > 0 else { return nil }
+        if s == 0, c == 0 { return present.first ?? anchor }
         var degrees = atan2(s, c) * 180 / .pi
         if degrees < 0 { degrees += 360 }
         return degrees.truncatingRemainder(dividingBy: 360)

@@ -37,33 +37,36 @@ private struct SunCameraBloom: View {
     let sunPoint: CGPoint
     let pulse: Bool
 
+    @Environment(\.performanceMode) private var performanceMode
+    private func perfBlur(_ radius: CGFloat) -> CGFloat { performanceMode ? 0 : radius }
+
     var body: some View {
         ZStack {
             // Fixed sizes — only opacity animates to avoid SwiftUI layout recalculation every frame.
             Circle()
                 .fill(Color.white.opacity(pulse ? 0.14 : 0.08))
                 .frame(width: 168, height: 168)
-                .blur(radius: 20)
+                .blur(radius: perfBlur(20))
 
             Circle()
                 .fill(Color.white.opacity(0.90))
                 .frame(width: 82, height: 82)
-                .blur(radius: 0.35)
+                .blur(radius: perfBlur(0.35))
 
             Circle()
                 .stroke(Color.white.opacity(pulse ? 0.22 : 0.14), lineWidth: 1.1)
                 .frame(width: 170, height: 170)
-                .blur(radius: 2.4)
+                .blur(radius: perfBlur(2.4))
 
             Circle()
                 .stroke(Color(red: 1.0, green: 0.86, blue: 0.52).opacity(pulse ? 0.16 : 0.09), lineWidth: 1.0)
                 .frame(width: 290, height: 290)
-                .blur(radius: 7)
+                .blur(radius: perfBlur(7))
 
             Circle()
                 .stroke(Color.white.opacity(pulse ? 0.08 : 0.04), lineWidth: 0.8)
                 .frame(width: 465, height: 465)
-                .blur(radius: 18)
+                .blur(radius: perfBlur(18))
         }
         .position(x: sunPoint.x, y: sunPoint.y)
     }
@@ -74,6 +77,7 @@ private struct RadialSunStarburst: View {
     let rotate: Bool
     let pulse: Bool
 
+    @Environment(\.performanceMode) private var performanceMode
     private var rotation: Double { rotate ? 360 : 0 }
 
     var body: some View {
@@ -82,7 +86,7 @@ private struct RadialSunStarburst: View {
             raysSet(rotationOffset: 15, long: false)
             raysSet(rotationOffset: 30, long: false)
         }
-        .blur(radius: 2.5)
+        .blur(radius: performanceMode ? 0 : 2.5)
         .rotationEffect(.degrees(rotation))
         .position(x: sunPoint.x, y: sunPoint.y)
     }
@@ -132,18 +136,21 @@ private struct OrbitalLensHalo: View {
     let rotate: Bool
     let pulse: Bool
 
+    @Environment(\.performanceMode) private var performanceMode
+    private func perfBlur(_ radius: CGFloat) -> CGFloat { performanceMode ? 0 : radius }
+
     var body: some View {
         ZStack {
             // Fixed sizes — only opacity/stroke-opacity animates; no layout recalculation per frame.
             Circle()
                 .stroke(Color.white.opacity(pulse ? 0.14 : 0.08), lineWidth: 0.9)
                 .frame(width: 365, height: 365)
-                .blur(radius: 9)
+                .blur(radius: perfBlur(9))
 
             Circle()
                 .stroke(Color.white.opacity(pulse ? 0.09 : 0.045), lineWidth: 0.8)
                 .frame(width: 530, height: 530)
-                .blur(radius: 19)
+                .blur(radius: perfBlur(19))
 
             Capsule(style: .continuous)
                 .fill(
@@ -154,7 +161,7 @@ private struct OrbitalLensHalo: View {
                     )
                 )
                 .frame(width: 670, height: 40)
-                .blur(radius: 7)
+                .blur(radius: perfBlur(7))
                 .rotationEffect(.degrees(rotate ? 360 : 0))
         }
         .position(x: sunPoint.x, y: sunPoint.y)

@@ -123,6 +123,20 @@ final class WeatherStore: ObservableObject {
     /// True while `load(_:)` is running. `load(_:)` had no reentrancy guard before —
     /// two concurrent calls could race on the `@Published` properties it publishes to.
     private var isLoadInFlight = false
+    /// A location picked while a `load(_:)` was already in flight. Previously
+    /// that second selection was silently dropped (the reentrancy guard just
+    /// returned) even though callers like `LocationSearchView` dismissed their
+    /// picker as if it had succeeded. Now the most recent pending selection is
+    /// replayed once the in-flight load finishes.
+    private var pendingPlace: SavedLocation?
+    /// Bumped at the start of every operation that owns published weather
+    /// state (`load(_:)`, and the Lab's `update`/`applyPreset`/`applyBiome`/
+    /// `forceHealthState`). `load(_:)`'s async network/cache work captures its
+    /// generation and only publishes if it's still current — otherwise a
+    /// network response that resolves after the user has since switched to
+    /// (or between) Lab simulations would silently overwrite the simulated
+    /// data the user is actively looking at.
+    private var stateGeneration = 0
 
     /// Seed snapshot used purely so the UI/background have something to render
     /// before the first load. Not a real location — `phase` stays `.idle`.
@@ -172,9 +186,23 @@ final class WeatherStore: ObservableObject {
     }
 
     func load(_ place: SavedLocation) async {
-        guard !isLoadInFlight else { return }
+        if isLoadInFlight {
+            // Don't drop this selection on the floor — replay it once the
+            // in-flight load finishes so the *last* location the user picked
+            // is the one that actually ends up on screen.
+            pendingPlace = place
+            return
+        }
         isLoadInFlight = true
-        defer { isLoadInFlight = false }
+        stateGeneration += 1
+        let myGeneration = stateGeneration
+        defer {
+            isLoadInFlight = false
+            if let next = pendingPlace {
+                pendingPlace = nil
+                Task { await load(next) }
+            }
+        }
 
         isSimulating = false
         forcedHealthInsights = nil
@@ -198,11 +226,18 @@ final class WeatherStore: ObservableObject {
         // (ForecastResponse is a large parallel-array payload; decoding it inline
         // on WeatherStore's @MainActor was a stutter source on every cold load).
         if let cached = await loadCache(latitude: place.latitude, longitude: place.longitude) {
-            await applyForecast(cached.response, city: cached.city, country: cached.country)
-            fusionConfidence = cached.confidence
-            isStale = !ForecastCache.isFresh(cached)
-            phase = .loaded
-        } else {
+            // Only publish if nothing else (a newer load, a Lab simulation)
+            // has claimed the store's state while this awaited. Without this
+            // check, starting a Lab simulation while a slow network load was
+            // still in flight let the load's eventual completion silently
+            // overwrite the simulated data the user was actively looking at.
+            if myGeneration == stateGeneration {
+                await applyForecast(cached.response, city: cached.city, country: cached.country)
+                fusionConfidence = cached.confidence
+                isStale = !ForecastCache.isFresh(cached)
+                phase = .loaded
+            }
+        } else if myGeneration == stateGeneration {
             phase = .loading
         }
 
@@ -215,12 +250,16 @@ final class WeatherStore: ObservableObject {
 
         do {
             let (response, confidence, metar, offsetSeconds) = try await fetchForecast(place)
-            await applyForecast(response, city: place.name, country: place.country)
-            fusionConfidence = confidence
-            metarSnapshot = metar
-            utcOffsetSeconds = offsetSeconds
-            isStale = false
-            phase = .loaded
+            if myGeneration == stateGeneration {
+                await applyForecast(response, city: place.name, country: place.country)
+                fusionConfidence = confidence
+                metarSnapshot = metar
+                utcOffsetSeconds = offsetSeconds
+                isStale = false
+                phase = .loaded
+            }
+            // Cache the fetched response regardless of generation — it's still
+            // valid data for `place` and worth having on disk for next time.
             // Same rationale as the load above: encode + disk write off the main thread.
             await saveCache(
                 CachedForecast(
@@ -230,19 +269,24 @@ final class WeatherStore: ObservableObject {
                 latitude: place.latitude, longitude: place.longitude
             )
         } catch {
-            // Keep cached data on-screen if we have it; only fail when there's nothing.
-            if case .loaded = phase {
-                isStale = true
-            } else {
-                phase = .failed(Self.message(for: error))
+            if myGeneration == stateGeneration {
+                // Keep cached data on-screen if we have it; only fail when there's nothing.
+                if case .loaded = phase {
+                    isStale = true
+                } else {
+                    phase = .failed(Self.message(for: error))
+                }
             }
         }
 
-        nowcast = await nowcastFetch
-        // Short-term radar beats the models in the first hour or two; pin the
-        // near-term confidence band high when the location has radar coverage.
-        if nowcast?.radarCoverage == true {
-            fusionConfidence = fusionConfidence?.withNowcastShortRangeBoost()
+        let fetchedNowcast = await nowcastFetch
+        if myGeneration == stateGeneration {
+            nowcast = fetchedNowcast
+            // Short-term radar beats the models in the first hour or two; pin the
+            // near-term confidence band high when the location has radar coverage.
+            if nowcast?.radarCoverage == true {
+                fusionConfidence = fusionConfidence?.withNowcastShortRangeBoost()
+            }
         }
     }
 
@@ -435,6 +479,9 @@ final class WeatherStore: ObservableObject {
         windSpeed: Double? = nil,
         rainProbability: Double? = nil
     ) {
+        // Invalidate any in-flight load() so its eventual network response
+        // doesn't silently overwrite this simulation once it resolves.
+        stateGeneration += 1
         isSimulating = true
         forcedHealthInsights = nil
         phase = .loaded
@@ -467,6 +514,8 @@ final class WeatherStore: ObservableObject {
         rain: Double,
         hour: Double
     ) {
+        // See update()'s comment: invalidates any in-flight load().
+        stateGeneration += 1
         isSimulating = true
         forcedHealthInsights = nil
         phase = .loaded
@@ -514,6 +563,8 @@ final class WeatherStore: ObservableObject {
         rainProbability: Double,
         hour: Double
     ) {
+        // See update()'s comment: invalidates any in-flight load().
+        stateGeneration += 1
         isSimulating = true
         forcedHealthInsights = nil
         phase = .loaded
@@ -545,6 +596,8 @@ final class WeatherStore: ObservableObject {
 
     /// Pins the health card to a hand-built medical state for UI testing.
     func forceHealthState(_ insights: HealthInsights) {
+        // See update()'s comment: invalidates any in-flight load().
+        stateGeneration += 1
         isSimulating = true
         phase = .loaded
         forcedHealthInsights = insights
