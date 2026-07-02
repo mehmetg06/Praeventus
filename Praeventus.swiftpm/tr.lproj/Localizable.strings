@@ -81,6 +81,11 @@
 "home.precipSummary.metarPrefix" = "METAR istasyonu";
 "home.rainShort" = "Yağmur";
 "home.story.heading" = "ATMOSFER HİKÂYESİ";
+"home.minutecast.heading" = "DAKİKALIK TAHMİN";
+"home.minutecast.label" = "60 dk";
+"minutecast.now" = "Şimdi";
+"minutecast.60m" = "+60m";
+"minutecast.temp.label" = "Sıcaklık Eğrisi";
 "home.tagline" = "Gizlilik öncelikli hava durumu, her yerde";
 "humidity.balanced" = "dengeli";
 "humidity.dry" = "kuru";

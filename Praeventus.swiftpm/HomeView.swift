@@ -1,5 +1,8 @@
 #if canImport(SwiftUI)
 import SwiftUI
+#if canImport(os)
+import os
+#endif
 
 /// Shared HH:mm formatter for the header clock and the Astronomik card's
 /// sunrise/sunset labels. Reused (with `timeZone` swapped per call) instead of
@@ -8,6 +11,17 @@ import SwiftUI
 private let hourMinuteFormatter: DateFormatter = {
     let f = DateFormatter()
     f.dateFormat = "HH:mm"
+    return f
+}()
+
+/// Shared "EEE" (day-of-week abbreviation) formatter for the 7-day forecast
+/// strip and This Week's Highlights card — same rationale as `hourMinuteFormatter`
+/// above: these were previously rebuilt on every access (dayAbbreviation was
+/// called once per day per body re-evaluation, weeklyHighlightsCard rebuilt its
+/// own copy on every access too).
+private let dayAbbreviationFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "EEE"
     return f
 }()
 
@@ -25,6 +39,31 @@ struct HomeView: View {
     @State private var isFetchingNarrative = false
     @State private var minutecastPoints: [MinutePoint] = []
     @State private var minutecastTask: Task<Void, Never>?
+
+    #if canImport(os)
+    private static let logger = Logger(subsystem: "com.mehmetg06.praeventus", category: "HomeView")
+    #endif
+
+    /// The AI-fetched narrative, or `nil` if empty or rejected by the sanity
+    /// filter (prompt/markdown leakage, runaway length). `storyCard`'s
+    /// deterministic on-device text always stays on screen either way, but a
+    /// rejection was previously silent — no card, no log, no way to tell the
+    /// AI narrative fetch actually returned something malformed rather than
+    /// nothing at all. Centralized here (was duplicated inline in
+    /// `loadedContent`'s condition) so the log fires exactly once per fetch.
+    private var displayableNarrative: String? {
+        guard !weatherNarrative.isEmpty else { return nil }
+        let looksMalformed = weatherNarrative.contains("**")
+            || weatherNarrative.contains("Analyze")
+            || weatherNarrative.count >= 600
+        if looksMalformed {
+            #if canImport(os)
+            Self.logger.warning("Rejected malformed AI narrative (\(weatherNarrative.count) chars): falling back to on-device story")
+            #endif
+            return nil
+        }
+        return weatherNarrative
+    }
 
     private var severity: WeatherSeverity {
         StorySentiment.severity(
@@ -202,11 +241,15 @@ struct HomeView: View {
             return String(localized: "home.tagline", defaultValue: "Privacy-first weather, anywhere")
         }
         let country = weather.country.isEmpty ? "" : "\(weather.country) · "
-        let analysis = store.astronomicalAnalysis(at: Date())
+        // `store.currentDate` (not a fresh `Date()`): matches every other
+        // astronomicalAnalysis(at:) caller so they share one cached result
+        // per render instead of each triggering its own Meeus recomputation.
+        let now = store.currentDate
+        let analysis = store.astronomicalAnalysis(at: now)
         hourMinuteFormatter.timeZone = analysis.locationTimezone
-        let timeLabel = hourMinuteFormatter.string(from: Date())
+        let timeLabel = hourMinuteFormatter.string(from: now)
         let solarNoon = analysis.sunriseSunset.sunrise.addingTimeInterval(analysis.sunriseSunset.duration / 2)
-        let timeOfDay = TimeOfDay(sunAltitude: analysis.sunAltitude, isRising: Date() < solarNoon)
+        let timeOfDay = TimeOfDay(sunAltitude: analysis.sunAltitude, isRising: now < solarNoon)
         return "\(country)\(timeLabel) · \(timeOfDay.displayName)"
     }
 
@@ -294,11 +337,8 @@ struct HomeView: View {
         storyCard
         if isFetchingNarrative {
             fetchingNarrativeCard
-        } else if !weatherNarrative.isEmpty
-            && !weatherNarrative.contains("**")
-            && !weatherNarrative.contains("Analyze")
-            && weatherNarrative.count < 600 {
-            narrativeCard
+        } else if let displayableNarrative {
+            narrativeCard(displayableNarrative)
         }
         precipitationSummaryRow
         if !minutecastPoints.isEmpty {
@@ -339,8 +379,8 @@ struct HomeView: View {
         .background(ThinGlassShape(cornerRadius: 28))
     }
 
-    private var narrativeCard: some View {
-        Text(weatherNarrative)
+    private func narrativeCard(_ text: String) -> some View {
+        Text(text)
             .font(.system(size: 16, weight: .regular, design: .rounded))
             .foregroundStyle(.white.opacity(0.85))
             .fixedSize(horizontal: false, vertical: true)
@@ -477,7 +517,8 @@ struct HomeView: View {
     }()
 
     private var astronomicalCard: some View {
-        AstronomicalCard(analysis: store.astronomicalAnalysis(at: Date()))
+        // `store.currentDate`, not `Date()` — see headerSubtitle's comment above.
+        AstronomicalCard(analysis: store.astronomicalAnalysis(at: store.currentDate))
     }
 
     private func activitySuitabilityCard(_ activities: [ActivitySuitability]) -> some View {
@@ -1015,19 +1056,14 @@ struct HomeView: View {
     }
 
     private func dayAbbreviation(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "EEE"
-        return f.string(from: date).uppercased()
+        dayAbbreviationFormatter.timeZone = .current
+        return dayAbbreviationFormatter.string(from: date).uppercased()
     }
 
     private var weeklyHighlightsCard: some View {
         let tz = store.utcOffsetSeconds.flatMap { TimeZone(secondsFromGMT: $0) } ?? .current
-        let dayFormatter = DateFormatter()
-        dayFormatter.dateFormat = "EEE"
-        dayFormatter.timeZone = tz
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "HH:mm"
-        timeFormatter.timeZone = tz
+        dayAbbreviationFormatter.timeZone = tz
+        hourMinuteFormatter.timeZone = tz
 
         return VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 9) {
@@ -1052,7 +1088,7 @@ struct HomeView: View {
                                     : Color(red: 1.0, green: 0.55, blue: 0.25))
                                 .frame(width: 26)
 
-                            Text(highlightText(highlight, day: dayFormatter, time: timeFormatter))
+                            Text(highlightText(highlight, day: dayAbbreviationFormatter, time: hourMinuteFormatter))
                                 .font(.system(size: 14, weight: .regular, design: .rounded))
                                 .foregroundStyle(.white.opacity(0.85))
                                 .fixedSize(horizontal: false, vertical: true)
@@ -1638,11 +1674,11 @@ private struct MinutecastGraphCard: View {
                 Image(systemName: "chart.line.uptrend.xyaxis")
                     .font(.system(size: 13, weight: .semibold))
                 Text(String(localized: "home.minutecast.heading",
-                            defaultValue: "DAKİKALIK TAHMİN"))
+                            defaultValue: "MINUTE-BY-MINUTE FORECAST"))
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .tracking(1.4)
                 Spacer()
-                Text(String(localized: "home.minutecast.label", defaultValue: "60 dk"))
+                Text(String(localized: "home.minutecast.label", defaultValue: "60 min"))
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(.white.opacity(0.42))
             }
@@ -1656,21 +1692,21 @@ private struct MinutecastGraphCard: View {
             .frame(height: 90)
 
             HStack(spacing: 0) {
-                ForEach(
-                    [String(localized: "minutecast.now", defaultValue: "Şimdi"),
-                     "+15m", "+30m", "+45m",
-                     String(localized: "minutecast.60m", defaultValue: "+60m")],
-                    id: \.self
-                ) { label in
-                    Text(label)
+                // Alignment keyed by position, not by comparing translated text
+                // against a hardcoded Turkish string — that comparison silently
+                // broke (fell through to `.center`) for any other locale.
+                let timeMarks: [(label: String, alignment: Alignment)] = [
+                    (String(localized: "minutecast.now", defaultValue: "Now"), .leading),
+                    ("+15m", .center),
+                    ("+30m", .center),
+                    ("+45m", .center),
+                    (String(localized: "minutecast.60m", defaultValue: "+60m"), .trailing)
+                ]
+                ForEach(Array(timeMarks.enumerated()), id: \.offset) { _, mark in
+                    Text(mark.label)
                         .font(.system(size: 9, design: .rounded).monospacedDigit())
                         .foregroundStyle(.white.opacity(0.42))
-                        .frame(maxWidth: .infinity,
-                               alignment: label.hasSuffix("Şimdi") || label == "Şimdi"
-                                   ? .leading
-                                   : label.hasSuffix("60m") || label == "+60m"
-                                       ? .trailing
-                                       : .center)
+                        .frame(maxWidth: .infinity, alignment: mark.alignment)
                 }
             }
 
@@ -1692,7 +1728,7 @@ private struct MinutecastGraphCard: View {
                         .foregroundStyle(isRising ? .orange.opacity(0.85) : isFalling ? .cyan.opacity(0.85) : .white.opacity(0.45))
                     Spacer()
                     Text(String(localized: "minutecast.temp.label",
-                                defaultValue: "Sıcaklık Eğrisi"))
+                                defaultValue: "Temperature Curve"))
                         .font(.system(size: 9, design: .rounded))
                         .foregroundStyle(.white.opacity(0.34))
                 }

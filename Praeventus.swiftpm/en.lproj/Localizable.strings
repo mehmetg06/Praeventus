@@ -81,6 +81,11 @@
 "home.precipSummary.metarPrefix" = "METAR station";
 "home.rainShort" = "Rain";
 "home.story.heading" = "ATMOSPHERE STORY";
+"home.minutecast.heading" = "MINUTE-BY-MINUTE FORECAST";
+"home.minutecast.label" = "60 min";
+"minutecast.now" = "Now";
+"minutecast.60m" = "+60m";
+"minutecast.temp.label" = "Temperature Curve";
 "home.tagline" = "Privacy-first weather, anywhere";
 "humidity.balanced" = "balanced";
 "humidity.dry" = "dry";

@@ -42,10 +42,12 @@ struct SearchSuggestionsView: View {
                     Text(result.name)
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white)
+                        .lineLimit(1)
                     if !result.subtitle.isEmpty {
                         Text(result.subtitle)
                             .font(.system(size: 12, weight: .regular, design: .rounded))
                             .foregroundStyle(.white.opacity(0.54))
+                            .lineLimit(1)
                     }
                 }
                 Spacer(minLength: 12)
