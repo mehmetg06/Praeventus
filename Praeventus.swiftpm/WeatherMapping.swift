@@ -275,10 +275,10 @@ enum WeatherMapping {
     // These four formatters are only ever read from inside
     // `date(fromISO:)`/`hour(fromISO:)`, which `WeatherStore` calls via its
     // `nonisolated mapForecast` — a single in-flight forecast load at a time
-    // (`WeatherStore.isLoadInFlight` serializes it). `DateFormatter` and
-    // `ISO8601DateFormatter` are `Sendable`, so no isolation annotation is
-    // needed to share them as `static let`.
-    private static let isoFormatter: DateFormatter = {
+    // (`WeatherStore.isLoadInFlight` serializes it). Neither `DateFormatter`
+    // nor `ISO8601DateFormatter` is `Sendable`, so `nonisolated(unsafe)`
+    // documents that this invariant — not the compiler — guarantees safety.
+    private nonisolated(unsafe) static let isoFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd'T'HH:mm"
@@ -287,7 +287,7 @@ enum WeatherMapping {
 
     // Handles full ISO 8601 with explicit timezone: "2026-06-30T12:00:00Z"
     // and "2026-06-30T14:00:00+02:00" (MET Norway / BrightSky formats).
-    private static let iso8601Formatter: ISO8601DateFormatter = {
+    private nonisolated(unsafe) static let iso8601Formatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
         return f
@@ -295,13 +295,13 @@ enum WeatherMapping {
 
     // Handles the backend's astro.ts sunrise/sunset strings, which always
     // carry milliseconds via JS `toISOString()` ("...T05:12:34.000Z").
-    private static let iso8601FractionalFormatter: ISO8601DateFormatter = {
+    private nonisolated(unsafe) static let iso8601FractionalFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
     }()
 
-    private static let dayFormatter: DateFormatter = {
+    private nonisolated(unsafe) static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
