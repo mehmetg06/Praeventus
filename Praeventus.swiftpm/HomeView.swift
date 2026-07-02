@@ -81,21 +81,39 @@ struct HomeView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            topBar
-            // Show when the barometer is co-located (GPS) OR when the lab has
-            // injected a synthetic alert for visual testing (isSimulating).
-            if (store.isGPSLocation || store.isSimulating), let alert = store.stormAlert {
-                StormWarningBanner(alert: alert)
-                    .padding(.horizontal, 22)
-                    .padding(.top, 4)
-                    .padding(.bottom, 4)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .top).combined(with: .opacity),
-                        removal:   .move(edge: .top).combined(with: .opacity)
-                    ))
+        ZStack(alignment: .top) {
+            // Main content
+            VStack(spacing: 0) {
+                // Show when the barometer is co-located (GPS) OR when the lab has
+                // injected a synthetic alert for visual testing (isSimulating).
+                if (store.isGPSLocation || store.isSimulating), let alert = store.stormAlert {
+                    StormWarningBanner(alert: alert)
+                        .padding(.horizontal, 22)
+                        .padding(.top, 56)
+                        .padding(.bottom, 4)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .top).combined(with: .opacity),
+                            removal:   .move(edge: .top).combined(with: .opacity)
+                        ))
+                }
+                contentArea
             }
-            contentArea
+
+            // Top-right search button (floating, non-scrolling)
+            HStack {
+                Spacer()
+                Button(action: { searchFocused = true }) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.90))
+                        .frame(width: 40, height: 40)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().strokeBorder(.white.opacity(0.25), lineWidth: 0.5))
+                        .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
+                }
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 52)
         }
         .animation(.spring(response: 0.48, dampingFraction: 0.74), value: store.stormAlert != nil)
         .onChange(of: searchVM.query) { _, newValue in
@@ -135,11 +153,10 @@ struct HomeView: View {
         cachedActivities = ActivityAnalysisEngine.recommendedActivities(from: suitabilities)
     }
 
-    // MARK: - Top bar (non-scrolling)
+    // MARK: - Inline search bar (shown in scroll content when focused)
 
-    private var topBar: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            header
+    private var inlineSearchBar: some View {
+        VStack(alignment: .leading, spacing: 8) {
             CitySearchBar(
                 text: $searchVM.query,
                 isFocused: $searchFocused,
@@ -156,9 +173,6 @@ struct HomeView: View {
                     .transition(.opacity)
             }
         }
-        .padding(.horizontal, 22)
-        .padding(.top, 28)
-        .padding(.bottom, 10)
         .animation(.easeInOut(duration: 0.20), value: searchVM.searchError != nil)
     }
 
@@ -182,6 +196,12 @@ struct HomeView: View {
     private var scrollContent: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
+                // Show search bar at the top of the scroll content when focused
+                if searchFocused || !searchVM.query.isEmpty {
+                    inlineSearchBar
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 switch store.phase {
                 case .idle:
                     idlePrompt
@@ -194,8 +214,8 @@ struct HomeView: View {
                 }
             }
             .padding(.horizontal, 22)
-            .padding(.top, 16)
-            .padding(.bottom, 40)
+            .padding(.top, 100) // Space for the floating search button
+            .padding(.bottom, 120) // Space for the floating dock
         }
         .scrollContentBackground(.hidden)
         .refreshable {
@@ -218,11 +238,11 @@ struct HomeView: View {
             onSelect: { result in Task { await selectSuggestion(result) } }
         )
         .padding(.horizontal, 22)
-        .padding(.top, 4)
+        .padding(.top, 148) // Below the scroll area's top padding + inline search bar
         .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
-    // MARK: - Header
+    // MARK: - Header (kept for idle/error states)
 
     private var header: some View {
         HStack(alignment: .center, spacing: 14) {
@@ -350,8 +370,8 @@ struct HomeView: View {
 
     @ViewBuilder
     private var loadedContent: some View {
-        temperatureHero
-        storyCard
+        cityTemperatureHero
+        storyCardless
         if isFetchingNarrative {
             fetchingNarrativeCard
         } else if let displayableNarrative {
@@ -610,22 +630,45 @@ struct HomeView: View {
         }
     }
 
-    private var temperatureHero: some View {
-        VStack(alignment: .center, spacing: 8) {
-            Text("\(Int(weather.temperature.rounded()))°")
-                .font(.system(size: 110, weight: .thin, design: .default))
+    /// New full-width centered hero: city name → subtitle → temperature → condition summary.
+    /// Replaces the old left-aligned header + separate temperatureHero layout.
+    private var cityTemperatureHero: some View {
+        VStack(alignment: .center, spacing: 4) {
+            // City name — large, bold, centered
+            Text(headerTitle)
+                .font(.system(size: 34, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
+                .lineLimit(1)
                 .minimumScaleFactor(0.70)
+                .shadow(color: .black.opacity(0.25), radius: 6, y: 2)
+
+            // Country · time · time-of-day
+            Text(headerSubtitle)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.66))
+                .lineLimit(1)
+
+            // Enormous temperature
+            Text("\(Int(weather.temperature.rounded()))°")
+                .font(.system(size: 120, weight: .thin, design: .default))
+                .minimumScaleFactor(0.65)
                 .lineLimit(1)
                 .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+                .shadow(color: .black.opacity(0.18), radius: 12, x: 0, y: 6)
+                .padding(.top, 2)
 
-            Text(atmosphere.condition.displayName)
-                .font(.title2.weight(.medium))
-                .foregroundStyle(.white.opacity(0.92))
-
-            Text(String(format: String(localized: "home.feelsLike", defaultValue: "Feels like %lld°"), Int(weather.feelsLike.rounded())))
-                .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.58))
+            // Condition · feels-like on one line
+            HStack(spacing: 6) {
+                Text(atmosphere.condition.displayName)
+                    .font(.system(size: 17, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.90))
+                Text("·")
+                    .foregroundStyle(.white.opacity(0.38))
+                Text(String(format: String(localized: "home.feelsLike", defaultValue: "Feels like %lld°"), Int(weather.feelsLike.rounded())))
+                    .font(.system(size: 15, weight: .regular, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.62))
+            }
+            .shadow(color: .black.opacity(0.20), radius: 4, y: 2)
 
             if store.isStale {
                 Label(
@@ -638,7 +681,7 @@ struct HomeView: View {
                 .padding(.horizontal, 10)
                 .background(.orange.opacity(0.14))
                 .clipShape(Capsule())
-                .padding(.top, 2)
+                .padding(.top, 4)
             }
 
             if let confidence = store.fusionConfidence, !confidence.models.isEmpty {
@@ -660,7 +703,7 @@ struct HomeView: View {
                         .font(.system(size: 10, weight: .medium, design: .rounded))
                         .foregroundStyle(.white.opacity(0.50))
                 }
-                .padding(.top, 4)
+                .padding(.top, 6)
 
                 if confidence.hasAnomaly {
                     Label(anomalyLabel(source: confidence.anomalySource), systemImage: "exclamationmark.triangle.fill")
@@ -671,7 +714,8 @@ struct HomeView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.top, 24)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
     }
 
     /// "ICON reading looks off — down-weighted" style label for a flagged
@@ -684,6 +728,7 @@ struct HomeView: View {
         return String(format: String(localized: "home.fusion.anomaly", defaultValue: "%@ reading looks off — down-weighted"), source)
     }
 
+    /// Original story card — kept for reference but replaced by `storyCardless` in `loadedContent`.
     private var storyCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 9) {
@@ -704,6 +749,40 @@ struct HomeView: View {
         }
         .padding(22)
         .background(ThinGlassShape(cornerRadius: 28))
+    }
+
+    /// Cardless version of the atmosphere story (Part I).
+    /// Floats directly over the background — no RoundedRectangle backing.
+    /// Okunabilirlik için çok geniş, aşırı şeffaf ultraThin arka plan + shadow.
+    private var storyCardless: some View {
+        VStack(alignment: .center, spacing: 10) {
+            HStack(spacing: 7) {
+                Image(systemName: severity.isNegative ? "exclamationmark.triangle.fill" : "sparkles")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(severity.isNegative ? .orange.opacity(0.90) : .white.opacity(0.50))
+                Text("home.story.heading")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .tracking(1.4)
+                    .foregroundStyle(.white.opacity(0.46))
+            }
+
+            Text(atmosphere.story)
+                .font(.system(size: 18, weight: .light))
+                .lineSpacing(5)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.white.opacity(0.90))
+                .fixedSize(horizontal: false, vertical: true)
+                .shadow(color: .black.opacity(0.45), radius: 6, x: 0, y: 2)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 14)
+        // Extremely transparent ultraThin — readable without card feel
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(.ultraThinMaterial.opacity(0.001))
+        )
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.top, 4)
     }
 
     private var storyTint: Color {
@@ -1785,8 +1864,8 @@ private struct MinutecastGraphCard: View {
         fill.closeSubpath()
         ctx.fill(fill, with: .linearGradient(
             Gradient(stops: [
-                .init(color: paletteTint.opacity(0.42), location: 0),
-                .init(color: paletteTint.opacity(0.04), location: 1)
+                .init(color: paletteTint.opacity(0.62), location: 0),
+                .init(color: paletteTint.opacity(0.08), location: 1)
             ]),
             startPoint: CGPoint(x: w / 2, y: 0),
             endPoint:   CGPoint(x: w / 2, y: h)

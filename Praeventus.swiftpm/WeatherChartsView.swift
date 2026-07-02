@@ -51,7 +51,7 @@ struct WeatherChartsView: View {
                 .interpolationMethod(.catmullRom)
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [tint.opacity(0.35), tint.opacity(0.02)],
+                        colors: [tint.opacity(0.60), tint.opacity(0.06)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -91,7 +91,7 @@ struct WeatherChartsView: View {
                     yStart: .value("min", day.min),
                     yEnd: .value("max", day.max)
                 )
-                .foregroundStyle(tint.opacity(0.22))
+                .foregroundStyle(tint.opacity(0.40))
                 .interpolationMethod(.catmullRom)
 
                 LineMark(
