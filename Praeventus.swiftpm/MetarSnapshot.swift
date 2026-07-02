@@ -83,7 +83,11 @@ struct MetarSnapshot: Equatable {
             windSpeedKt: raw.wspd.map { Int($0) },
             windGustKt: raw.wgst.map { Int($0) },
             windDirection: raw.wdir.map { Int($0) },
-            altimeterInHg: raw.altim.map { $0 / 33.8639 },
+            altimeterInHg: raw.altim.map { n in
+                // If the backend already converted to hPa (>100), convert back to inHg
+                // for the aviation display; if it's <100, it's already inHg.
+                return n < 100 ? n : n / 33.8639
+            },
             visibilityMiles: raw.visib,
             presentWeather: raw.wxString,
             ceilingFt: ceiling,

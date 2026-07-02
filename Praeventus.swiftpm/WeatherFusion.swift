@@ -121,7 +121,13 @@ struct FusionGroundTruth: Equatable {
         let windKmh = raw.wspd.map { $0 * 1.852 }
         // wdir == 0 encodes calm / variable, not a true northerly bearing.
         let windDir = raw.wdir.flatMap { $0 > 0 ? $0 : nil }
-        let pressure = raw.altim
+
+        // Aviation METAR altimeter is in inHg (~29.92). Models use hPa (~1013).
+        // Convert to hPa if the value looks like inHg (< 100), else use as-is.
+        let pressure: Double? = raw.altim.map { n in
+            if n < 100 { return (n * 33.8639 * 10).rounded() / 10 }
+            return n
+        }
 
         guard temp != nil || windKmh != nil || pressure != nil else { return nil }
 
