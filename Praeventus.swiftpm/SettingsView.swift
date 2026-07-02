@@ -187,26 +187,26 @@ struct ActivityDetailView: View {
             Section("activity.basicInfo") {
                 TextField("activity.name", text: $activity.name)
 
-                Stepper("activity.minTemp: \(String(format: "%.1f", activity.minTemperature))°C",
+                Stepper(Self.formatted("activity.minTemp.format", activity.minTemperature),
                         value: $activity.minTemperature, in: -50...50, step: 1)
 
-                Stepper("activity.maxTemp: \(String(format: "%.1f", activity.maxTemperature))°C",
+                Stepper(Self.formatted("activity.maxTemp.format", activity.maxTemperature),
                         value: $activity.maxTemperature, in: -50...50, step: 1)
             }
 
             Section("activity.windConditions") {
-                Stepper("activity.maxWind: \(String(format: "%.1f", activity.maxWindSpeed)) km/h",
+                Stepper(Self.formatted("activity.maxWind.format", activity.maxWindSpeed),
                         value: $activity.maxWindSpeed, in: 0...100, step: 1)
 
-                Stepper("activity.maxGust: \(String(format: "%.1f", activity.maxWindGust)) km/h",
+                Stepper(Self.formatted("activity.maxGust.format", activity.maxWindGust),
                         value: $activity.maxWindGust, in: 0...150, step: 1)
             }
 
             Section("activity.otherConditions") {
-                Stepper("activity.minVis: \(String(format: "%.1f", activity.minVisibility)) km",
+                Stepper(Self.formatted("activity.minVis.format", activity.minVisibility),
                         value: $activity.minVisibility, in: 0...20, step: 0.5)
 
-                Stepper("activity.maxUV: \(activity.maxUVIndex)",
+                Stepper(Self.formattedInt("activity.maxUV.format", activity.maxUVIndex),
                         value: $activity.maxUVIndex, in: 0...11, step: 1)
             }
 
@@ -219,6 +219,17 @@ struct ActivityDetailView: View {
         }
         .navigationTitle(activity.type.displayName)
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// Resolves a `%.1f`-style localized format key and substitutes the value,
+    /// so Stepper titles are actually translated instead of showing the raw
+    /// "activity.minTemp: 5.0°C" interpolated key to the user.
+    private static func formatted(_ key: String, _ value: Double) -> String {
+        String(format: String(localized: String.LocalizationValue(key)), value)
+    }
+
+    private static func formattedInt(_ key: String, _ value: Int) -> String {
+        String(format: String(localized: String.LocalizationValue(key)), value)
     }
 }
 #endif
