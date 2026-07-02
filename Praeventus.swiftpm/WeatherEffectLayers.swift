@@ -66,6 +66,9 @@ struct RainSceneLayer: View {
     let windSpeed: Double
     let rainSignal: AtmosphericRisk
     let glassIntensity: Double     // 0...1, lens-droplet density/brightness
+    /// See `ScrollOffsetTracker` — rain is the nearest weather layer, so it
+    /// parallaxes the most.
+    var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
 
     @Environment(\.sandboxAnimationSpeed) private var animSpeed
 
@@ -81,6 +84,7 @@ struct RainSceneLayer: View {
         TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { timeline in
             Canvas { context, size in
                 let time = timeline.date.timeIntervalSinceReferenceDate * animSpeed
+                context.translateBy(x: 0, y: scrollTracker.value * 0.22)
                 drawFallingRain(context, size: size, time: time)
                 drawGlassBeads(context, size: size, time: time)
             }
@@ -220,6 +224,9 @@ struct RainSceneLayer: View {
 struct LightningStormLayer: View {
     @State private var strikeTime: Double = -100
     @State private var strikeSeed: Int = 1
+    /// See `ScrollOffsetTracker` — the cloud base the bolt hangs from
+    /// parallaxes with the rest of the mid-distance storm scene.
+    var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
 
     var body: some View {
         // Ambient charged-cloud glow now lives solely in AtmosphereBackgroundView's
@@ -240,14 +247,24 @@ struct LightningStormLayer: View {
             let flash = flashEnvelope(dt)
 
             Canvas { context, size in
-                // Whole-sky flash illuminating the clouds.
+                // Whole-sky flash illuminating the clouds — kept screen-fixed
+                // (not translated) so it always fully covers the viewport.
                 if flash > 0.001 {
                     context.fill(Path(CGRect(origin: .zero, size: size)),
                                  with: .color(.white.opacity(flash * 0.16)))
+                }
+
+                // Bolt + origin bloom parallax with the mid-distance storm scene —
+                // isolated to a translated copy of the context so the full-sky
+                // flash fill above stays untouched.
+                var boltContext = context
+                boltContext.translateBy(x: 0, y: scrollTracker.value * 0.16)
+
+                if flash > 0.001 {
                     // Bright bloom where the bolt originates.
                     let originX = CGFloat(wHash(strikeSeed * 1000 + 1)) * size.width
                     let bloom = CGRect(x: originX - 220, y: -180, width: 440, height: 440)
-                    context.fill(Path(ellipseIn: bloom),
+                    boltContext.fill(Path(ellipseIn: bloom),
                                  with: .radialGradient(
                                     Gradient(colors: [Color(red: 0.8, green: 0.85, blue: 1.0).opacity(flash * 0.5), .clear]),
                                     center: CGPoint(x: originX, y: 40), startRadius: 0, endRadius: 240))
@@ -259,15 +276,15 @@ struct LightningStormLayer: View {
                     let boltAlpha = max(0.0, 1.0 - dt / 0.42) * (0.55 + flash)
 
                     // Outer glow — thick low-opacity stroke behind bolt path, same visual as blur without GPU filter.
-                    context.stroke(bolt,
+                    boltContext.stroke(bolt,
                                    with: .color(Color(red: 0.66, green: 0.78, blue: 1.0).opacity(min(1, boltAlpha) * 0.18)),
                                    style: StrokeStyle(lineWidth: 20, lineCap: .round, lineJoin: .round))
                     // Mid halo.
-                    context.stroke(bolt,
+                    boltContext.stroke(bolt,
                                    with: .color(.white.opacity(min(1, boltAlpha) * 0.35)),
                                    style: StrokeStyle(lineWidth: 8, lineCap: .round, lineJoin: .round))
                     // Hot core.
-                    context.stroke(bolt,
+                    boltContext.stroke(bolt,
                                    with: .color(.white.opacity(min(1, boltAlpha))),
                                    style: StrokeStyle(lineWidth: 1.4, lineCap: .round, lineJoin: .round))
                 }
@@ -345,6 +362,8 @@ struct LightningStormLayer: View {
 /// with the wind, over a luminous accumulation glow.
 struct RealisticSnowLayer: View {
     let windSpeed: Double
+    /// See `ScrollOffsetTracker` — the near flake band parallaxes the most.
+    var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
     @State private var glow = false
 
     @Environment(\.sandboxAnimationSpeed) private var animSpeed
@@ -360,6 +379,7 @@ struct RealisticSnowLayer: View {
 
             TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { timeline in
                 Canvas { context, size in
+                    context.translateBy(x: 0, y: scrollTracker.value * 0.18)
                     let time = timeline.date.timeIntervalSinceReferenceDate * animSpeed
                     let wind = windSpeed * 0.05
 
@@ -462,7 +482,7 @@ struct VolumetricCloudLayer: View {
                 if !scattered {
                     let deck = CGRect(x: -size.width * 0.05, y: size.height * 0.74,
                                       width: size.width * 1.10, height: size.height * 0.34)
-                    context.fill(Path(deck), with: .color(.white.opacity(cloudCover * 0.05)))
+                    context.fill(Path(deck), with: .color(.white.opacity(cloudCover * 0.09)))
                 }
             }
         }
@@ -474,7 +494,10 @@ struct VolumetricCloudLayer: View {
         let baseW = 150.0 * scale
         let puffCount = 7
         let crown = cloudTint(for: tod)
-        let topAlpha = 0.08 + cover * 0.18
+        // Raised from (0.08 + cover*0.18): at typical cover the puffs were
+        // reading as a nearly invisible tint over the sky gradient instead
+        // of a legible cloud shape.
+        let topAlpha = 0.16 + cover * 0.30
         // Horizontal light bias standing in for sun azimuth (altitude alone doesn't
         // give a direction): low sun at dawn/sunset lights clouds from one side,
         // near-overhead day light is closer to top-down. Ties puff highlight and
@@ -486,10 +509,10 @@ struct VolumetricCloudLayer: View {
         let shadowRect = CGRect(x: center.x - CGFloat(baseW) * 0.95 + light * CGFloat(baseW) * 0.35,
                                 y: center.y + CGFloat(baseW) * 0.06,
                                 width: CGFloat(baseW) * 1.9, height: CGFloat(baseW) * 0.62)
-        context.fill(Path(ellipseIn: shadowRect), with: .color(.black.opacity(cover * 0.05 + 0.02)))
+        context.fill(Path(ellipseIn: shadowRect), with: .color(.black.opacity(cover * 0.10 + 0.04)))
 
         // Overlapping puffs, tallest in the middle to read as a cumulus crown.
-        let puffGradient = Gradient(colors: [crown.opacity(topAlpha), crown.opacity(topAlpha * 0.55), crown.opacity(0)])
+        let puffGradient = Gradient(colors: [crown.opacity(topAlpha), crown.opacity(topAlpha * 0.62), crown.opacity(0)])
         for p in 0..<puffCount {
             let f = Double(p) / Double(puffCount - 1)          // 0...1 left -> right
             let lift = sin(f * .pi)                            // peak in the middle
@@ -533,6 +556,9 @@ struct VolumetricCloudLayer: View {
 /// with a near-opaque base — the world dissolving into haze.
 struct DriftingFogLayer: View {
     let windSpeed: Double
+    /// See `ScrollOffsetTracker` — fog banks sit close to the viewer, so they
+    /// parallax noticeably as the content scrolls past them.
+    var scrollTracker: ScrollOffsetTracker = ScrollOffsetTracker()
 
     @Environment(\.sandboxAnimationSpeed) private var animSpeed
     @Environment(\.performanceMode) private var performanceMode
@@ -540,6 +566,7 @@ struct DriftingFogLayer: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1.0 / 12.0)) { timeline in
             Canvas { context, size in
+                context.translateBy(x: 0, y: scrollTracker.value * 0.20)
                 let t = timeline.date.timeIntervalSinceReferenceDate * animSpeed
 
                 for layer in 0..<11 {

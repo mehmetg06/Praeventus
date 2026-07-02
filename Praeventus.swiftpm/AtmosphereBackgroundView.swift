@@ -415,7 +415,16 @@ struct AtmosphereBackgroundView: View {
     private var moodLayer: some View {
         switch mood {
         case .clear:
-            if hotSunny { HotSunnyLayer(drift: drift, windIntensity: windIntensity) }
+            if hotSunny {
+                HotSunnyLayer(drift: drift, windIntensity: windIntensity)
+            } else {
+                // Dawn/sunset/night "clear" used to render nothing but the flat
+                // gradient — real clear skies still carry thin, sparse high
+                // cirrus. A very low cover keeps it a texture, not a cloud deck.
+                VolumetricCloudLayer(cloudCover: 0.14,
+                                     windSpeed: windSpeed, timeOfDay: timeOfDay, scattered: true,
+                                     scrollTracker: scrollTracker)
+            }
         case .partlyCloudy:
             if hotSunny {
                 HotSunnyLayer(drift: drift, windIntensity: windIntensity)
@@ -429,14 +438,16 @@ struct AtmosphereBackgroundView: View {
                                  windSpeed: windSpeed, timeOfDay: timeOfDay,
                                  scrollTracker: scrollTracker)
         case .wet:
-            RainSceneLayer(windSpeed: windSpeed, rainSignal: atmosphere.rainSignal, glassIntensity: rainGlassIntensity)
+            RainSceneLayer(windSpeed: windSpeed, rainSignal: atmosphere.rainSignal, glassIntensity: rainGlassIntensity,
+                           scrollTracker: scrollTracker)
         case .storm:
-            LightningStormLayer()
-            RainSceneLayer(windSpeed: max(windSpeed, 35), rainSignal: .high, glassIntensity: 0.88)
+            LightningStormLayer(scrollTracker: scrollTracker)
+            RainSceneLayer(windSpeed: max(windSpeed, 35), rainSignal: .high, glassIntensity: 0.88,
+                           scrollTracker: scrollTracker)
         case .fog:
-            DriftingFogLayer(windSpeed: windSpeed)
+            DriftingFogLayer(windSpeed: windSpeed, scrollTracker: scrollTracker)
         case .snow:
-            RealisticSnowLayer(windSpeed: windSpeed)
+            RealisticSnowLayer(windSpeed: windSpeed, scrollTracker: scrollTracker)
         }
     }
 
