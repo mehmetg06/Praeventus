@@ -695,7 +695,46 @@ export async function handleNarrative(url: URL): Promise<Response> {
   const uv = parseFloat(url.searchParams.get("uv") || "0");
   const tempBucket = Math.round(temp / 5) * 5;
   const uvBucket = Math.round(uv / 2) * 2;
-  const key: Deno.KvKey = ["narrative", lang, code, tempBucket, uvBucket];
+
+  // The confidence signals (agreement/anomaly/metar age) change the AI's tone
+  // (see confidenceLineTR/EN in util.ts) but were previously left out of the
+  // cache key entirely — a low-confidence, hedged narrative generated for one
+  // request could get served verbatim to a completely different, high-confidence
+  // request for the same temp/uv/weather-code bucket for the rest of the 30 min
+  // TTL. Bucket them the same way util.ts does so requests that would produce
+  // the same confidence sentence still share a cache entry.
+  const agreementRaw = url.searchParams.get("agreement");
+  const agreement = agreementRaw !== null ? parseInt(agreementRaw, 10) : null;
+  const agreementBucket = agreement === null || isNaN(agreement)
+    ? "na"
+    : agreement >= 80
+    ? "hi"
+    : agreement >= 50
+    ? "mid"
+    : "lo";
+  const anomalyDetected = url.searchParams.get("anomaly_detected") === "1";
+  const anomalyBucket = anomalyDetected ? (url.searchParams.get("anomaly_source") || "unknown") : "none";
+  const metarAgeRaw = url.searchParams.get("metar_age_minutes");
+  const metarAge = metarAgeRaw !== null ? parseInt(metarAgeRaw, 10) : null;
+  const metarAgeBucket = metarAge === null || isNaN(metarAge)
+    ? "na"
+    : metarAge <= 15
+    ? "fresh"
+    : metarAge <= 45
+    ? "recent"
+    : "stale";
+
+  const key: Deno.KvKey = [
+    "narrative",
+    "v2",
+    lang,
+    code,
+    tempBucket,
+    uvBucket,
+    agreementBucket,
+    metarAgeBucket,
+    anomalyBucket,
+  ];
 
   const cached = await cacheGet<{ narrative: string; lang: string }>(key);
   if (cached) return jsonResponse({ ...cached, cached: true });

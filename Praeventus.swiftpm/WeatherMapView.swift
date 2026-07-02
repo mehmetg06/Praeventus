@@ -57,6 +57,11 @@ struct WeatherMapView: View {
     @State private var enabledLayers: Set<MapOverlayLayer> = [.nexrad]
     @State private var overlayAlpha: Double = 1.0
     @State private var lastRefresh: Date = Date()
+    /// Bumped every 5 minutes by `refreshLoop()`. Forces `RadarMapContainer`
+    /// to rebuild its tile overlays (see `Coordinator.apply`) so the "Live"
+    /// label is actually backed by a re-fetched tile, not just a cosmetic
+    /// opacity fade — see that function's doc comment for why this exists.
+    @State private var refreshToken: Int = 0
 
     private var workerURL: String { WeatherSettings.backendBaseURL }
 
@@ -84,7 +89,8 @@ struct WeatherMapView: View {
             overlayAlpha: overlayAlpha,
             centreCoordinate: store.location.map {
                 CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
-            }
+            },
+            refreshToken: refreshToken
         )
         #else
         ZStack {
@@ -161,6 +167,13 @@ struct WeatherMapView: View {
 
     // MARK: - Auto-refresh (5-minute KV TTL cycle)
 
+    /// Runs every 5 minutes to match the backend's tile TTL (`deno/cache.ts`).
+    /// Previously this only faded `overlayAlpha` and bumped `lastRefresh` (the
+    /// "Live"/"Xm ago" label) — it never asked MapKit to re-fetch a tile, so
+    /// the same radar/satellite imagery from the initial load stayed on
+    /// screen indefinitely while the UI's green dot and label implied it was
+    /// current. Bumping `refreshToken` now forces `Coordinator.apply` to
+    /// rebuild every active overlay with a fresh cache-busting query param.
     private func refreshLoop() async {
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(300))
@@ -169,6 +182,7 @@ struct WeatherMapView: View {
             try? await Task.sleep(for: .seconds(0.7))
             guard !Task.isCancelled else { return }
             lastRefresh = Date()
+            refreshToken += 1
             withAnimation(.easeIn(duration: 0.5)) { overlayAlpha = 1.0 }
         }
     }
@@ -184,6 +198,7 @@ struct RadarMapContainer: UIViewRepresentable {
     let enabledLayers: Set<MapOverlayLayer>
     let overlayAlpha: Double
     let centreCoordinate: CLLocationCoordinate2D?
+    let refreshToken: Int
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -211,7 +226,8 @@ struct RadarMapContainer: UIViewRepresentable {
             mapView: uiView,
             workerURL: workerURL,
             enabledLayers: enabledLayers,
-            alpha: overlayAlpha
+            alpha: overlayAlpha,
+            refreshToken: refreshToken
         )
     }
 
@@ -221,18 +237,28 @@ struct RadarMapContainer: UIViewRepresentable {
     final class Coordinator: NSObject {
         private var activeLayers: Set<MapOverlayLayer> = []
         private var overlayByLayer: [MapOverlayLayer: WorkerTileOverlay] = [:]
+        private var lastRefreshToken: Int?
         var currentAlpha: Double = 1.0
 
         func apply(
             mapView: MKMapView,
             workerURL: String,
             enabledLayers: Set<MapOverlayLayer>,
-            alpha: Double
+            alpha: Double,
+            refreshToken: Int
         ) {
             currentAlpha = alpha
 
-            let toAdd    = enabledLayers.subtracting(activeLayers)
-            let toRemove = activeLayers.subtracting(enabledLayers)
+            // On a refresh tick (token changed), rebuild every active overlay
+            // — not just the layer-set difference — so MapKit actually issues
+            // a new tile request instead of reusing the overlay instance (and
+            // its cached imagery) from the last add. `WorkerTileOverlay` bakes
+            // `refreshToken` into the tile URL as a cache-buster.
+            let didRefresh = lastRefreshToken != refreshToken
+            lastRefreshToken = refreshToken
+
+            let toAdd    = didRefresh ? enabledLayers : enabledLayers.subtracting(activeLayers)
+            let toRemove = didRefresh ? activeLayers  : activeLayers.subtracting(enabledLayers)
 
             for layer in toRemove {
                 if let ov = overlayByLayer.removeValue(forKey: layer) {
@@ -241,7 +267,7 @@ struct RadarMapContainer: UIViewRepresentable {
             }
 
             for layer in toAdd {
-                let ov = WorkerTileOverlay(workerURL: workerURL, layer: layer)
+                let ov = WorkerTileOverlay(workerURL: workerURL, layer: layer, cacheBucket: refreshToken)
                 ov.canReplaceMapContent = false
                 mapView.addOverlay(ov, level: .aboveRoads)
                 overlayByLayer[layer] = ov
@@ -279,16 +305,21 @@ extension RadarMapContainer.Coordinator: MKMapViewDelegate {
 final class WorkerTileOverlay: MKTileOverlay, @unchecked Sendable {
     let layer: MapOverlayLayer
     private let workerBase: String
+    /// Cache-busting token (the map view's 5-minute `refreshToken`), so a new
+    /// overlay generation actually re-requests tile imagery from the backend
+    /// instead of reusing whatever MapKit/URLSession cached under the same URL.
+    private let cacheBucket: Int
 
-    init(workerURL: String, layer: MapOverlayLayer) {
-        self.layer      = layer
-        self.workerBase = workerURL
+    init(workerURL: String, layer: MapOverlayLayer, cacheBucket: Int) {
+        self.layer       = layer
+        self.workerBase  = workerURL
+        self.cacheBucket = cacheBucket
         super.init(urlTemplate: nil)
         canReplaceMapContent = false
     }
 
     override func url(forTilePath path: MKTileOverlayPath) -> URL {
-        let str = "\(workerBase)\(layer.tilePathSuffix)?z=\(path.z)&x=\(path.x)&y=\(path.y)"
+        let str = "\(workerBase)\(layer.tilePathSuffix)?z=\(path.z)&x=\(path.x)&y=\(path.y)&t=\(cacheBucket)"
         if let url = URL(string: str) { return url }
         // MKTileOverlay requires a non-optional URL back, and `workerBase` is
         // a fixed, developer-configured backend base URL (never derived from

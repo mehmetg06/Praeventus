@@ -39,6 +39,13 @@ struct HomeView: View {
     @State private var isFetchingNarrative = false
     @State private var minutecastPoints: [MinutePoint] = []
     @State private var minutecastTask: Task<Void, Never>?
+    /// Cached result of `recommendedActivities`. `evaluateAllActivities` hits
+    /// UserDefaults + JSONDecoder + per-activity localized-string lookups —
+    /// too expensive to recompute on every `body` re-evaluation. Without this
+    /// cache it silently re-ran every 6s via `MetricProgressBar`'s auto-advance
+    /// `currentMetricIndex` state change alone, a recurring main-thread stutter
+    /// source unrelated to any actual forecast/activity change.
+    @State private var cachedActivities: [ActivitySuitability] = []
 
     #if canImport(os)
     private static let logger = Logger(subsystem: "com.mehmetg06.praeventus", category: "HomeView")
@@ -108,6 +115,7 @@ struct HomeView: View {
         .onChange(of: store.forecastID) { _, _ in
             refreshMinutecast()
             startNarrativeFetch()
+            refreshActivities()
         }
         .onAppear {
             // Catch re-appears (tab switch back) when data is ready but narrative is absent.
@@ -115,7 +123,16 @@ struct HomeView: View {
                 startNarrativeFetch()
             }
             refreshMinutecast()
+            refreshActivities()
         }
+    }
+
+    /// Recomputes and caches the recommended-activities list. Called only when
+    /// `weather` actually changes (`forecastID`) or on first appear — see
+    /// `cachedActivities`'s declaration for why this must not run from `body`.
+    private func refreshActivities() {
+        let suitabilities = ActivityAnalysisEngine.evaluateAllActivities(given: weather)
+        cachedActivities = ActivityAnalysisEngine.recommendedActivities(from: suitabilities)
     }
 
     // MARK: - Top bar (non-scrolling)
@@ -350,9 +367,8 @@ struct HomeView: View {
         atmosphericSignalsCard
         HealthInsightsCard(insights: store.healthInsights)
         rotatingMetricCard
-        let activities = recommendedActivities
-        if !activities.isEmpty {
-            activitySuitabilityCard(activities)
+        if !cachedActivities.isEmpty {
+            activitySuitabilityCard(cachedActivities)
         }
         astronomicalCard
         hourlyPreview
@@ -584,11 +600,6 @@ struct HomeView: View {
         .background(ThinGlassShape(cornerRadius: 28))
     }
 
-    private var recommendedActivities: [ActivitySuitability] {
-        let suitabilities = ActivityAnalysisEngine.evaluateAllActivities(given: weather)
-        return ActivityAnalysisEngine.recommendedActivities(from: suitabilities)
-    }
-
     private func suitabilityColor(_ level: SuitabilityLevel) -> Color {
         switch level {
         case .excellent: return .green
@@ -709,63 +720,63 @@ struct HomeView: View {
                 icon: "humidity",
                 title: String(localized: "metric.humidity", defaultValue: "Nem"),
                 value: "\(Int(weather.humidity.rounded()))%",
-                description: "Havadaki su buharı oranı. %60 üzeri bunaltıcı hissettirebilir.",
+                description: String(localized: "metric.humidity.description", defaultValue: "Havadaki su buharı oranı. %60 üzeri bunaltıcı hissettirebilir."),
                 accent: .blue
             ),
             MetricItem(
                 icon: "gauge.with.dots.needle.bottom.50percent",
                 title: String(localized: "metric.pressure", defaultValue: "Basınç"),
                 value: "\(Int(weather.pressure.rounded())) hPa",
-                description: "Atmosferin uyguladığı kuvvet. Düşük basınç yağış, yüksek basınç açık hava getirir.",
+                description: String(localized: "metric.pressure.description", defaultValue: "Atmosferin uyguladığı kuvvet. Düşük basınç yağış, yüksek basınç açık hava getirir."),
                 accent: .cyan
             ),
             MetricItem(
                 icon: "wind",
                 title: String(localized: "metric.wind", defaultValue: "Rüzgar"),
                 value: "\(Int(weather.windSpeed.rounded())) km/h",
-                description: "Rüzgar hızlandıkça hissedilen sıcaklık düşer.",
+                description: String(localized: "metric.wind.description", defaultValue: "Rüzgar hızlandıkça hissedilen sıcaklık düşer."),
                 accent: .mint
             ),
             MetricItem(
                 icon: "sun.max",
                 title: String(localized: "metric.uvIndex", defaultValue: "UV İndeksi"),
                 value: "\(weather.uvIndex) · \(uvIndexLabel)",
-                description: "Ultraviyole radyasyon seviyesi. Yüksek UV'de cilt koruması şarttır.",
+                description: String(localized: "metric.uvIndex.description", defaultValue: "Ultraviyole radyasyon seviyesi. Yüksek UV'de cilt koruması şarttır."),
                 accent: uvIndexAccent
             ),
             MetricItem(
                 icon: "thermometer.medium",
                 title: String(localized: "metric.dewPoint", defaultValue: "Çiy Noktası"),
                 value: "\(Int(weather.dewPoint.rounded()))°C",
-                description: "Havanın doygunluğa ulaştığı sıcaklık. Yüksekse yapışkan hava hissedilir.",
+                description: String(localized: "metric.dewPoint.description", defaultValue: "Havanın doygunluğa ulaştığı sıcaklık. Yüksekse yapışkan hava hissedilir."),
                 accent: .teal
             ),
             MetricItem(
                 icon: "wind.circle",
                 title: String(localized: "metric.windGust", defaultValue: "Ani Rüzgar"),
                 value: "\(Int(weather.windGustSpeed.rounded())) km/h",
-                description: "Anlık maksimum rüzgar hızı. Yüksek değerler dışarıda dikkat gerektirir.",
+                description: String(localized: "metric.windGust.description", defaultValue: "Anlık maksimum rüzgar hızı. Yüksek değerler dışarıda dikkat gerektirir."),
                 accent: .orange
             ),
             MetricItem(
                 icon: "safari",
                 title: String(localized: "metric.windDir", defaultValue: "Yön"),
                 value: windDirectionLabel(weather.windDirection),
-                description: "Rüzgarın estiği yön. Bulut hareketini ve hava koşullarını etkiler.",
+                description: String(localized: "metric.windDir.description", defaultValue: "Rüzgarın estiği yön. Bulut hareketini ve hava koşullarını etkiler."),
                 accent: .indigo
             ),
             MetricItem(
                 icon: "eye",
                 title: String(localized: "metric.visibility", defaultValue: "Görüş"),
                 value: "\(visibilityKmDisplay) km",
-                description: "Gözle görülebilen maksimum mesafe. Sis ve yağış görüş mesafesini kısaltır.",
+                description: String(localized: "metric.visibility.description", defaultValue: "Gözle görülebilen maksimum mesafe. Sis ve yağış görüş mesafesini kısaltır."),
                 accent: .purple
             ),
             MetricItem(
                 icon: "umbrella.fill",
                 title: String(localized: "metric.rainProb", defaultValue: "Yağış"),
                 value: "%\(Int(weather.rainProbability.rounded()))",
-                description: "Bir saat içinde yağış düşme ihtimali. %70 üzeri yağmur kıyafeti önerilir.",
+                description: String(localized: "metric.rainProb.description", defaultValue: "Bir saat içinde yağış düşme ihtimali. %70 üzeri yağmur kıyafeti önerilir."),
                 accent: Color(red: 0.2, green: 0.4, blue: 1.0)
             )
         ]
